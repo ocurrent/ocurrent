@@ -1,0 +1,4 @@
+(executable
+  (name test)
+  (libraries fmt bos)
+  (preprocess future_syntax))
