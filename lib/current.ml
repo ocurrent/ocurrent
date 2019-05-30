@@ -88,3 +88,7 @@ let run x =
   Dyn.run x.fn
 
 let analyse x = x.md
+
+type 'a output = 'a Dyn.or_error
+
+let pp_output = Dyn.pp

@@ -1,5 +1,11 @@
-open OCurrent.Syntax    (* let*, let+, etc *)
-open Primitives         (* fetch, build, test, etc *)
+open Current.Syntax    (* let*, let+, etc *)
+
+module StringMap = Map.Make(String)
+
+let fetch = Current_git.fetch
+let build = Current_docker.build
+let test = Current_docker.run ~cmd:["make"; "test"]
+let push = Current_docker.push
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
    a PR on GitHub, this returns success if the tests pass on it. *)
@@ -12,17 +18,21 @@ let v1 commit =
 let v2 commit =
   let src = fetch commit in
   let bin = build src in
-  bin |> OCurrent.gate ~on:(test ~src bin) |> deploy
+  bin |> Current.gate ~on:(test bin) |> push ~tag:"foo/bar"
 
 (* Build Linux, Mac and Windows binaries. If *all* tests pass (for
    all platforms) then deploy all binaries. *)
 let v3 commit =
   let platforms = ["lin"; "mac"; "win"] in
   let src = fetch commit in
-  let binaries = List.map (fun p -> build ~on:p src) platforms in
-  let tests = OCurrent.all @@ List.map (test ~src) binaries in
-  let gated_deploy x = x |> OCurrent.gate ~on:tests |> deploy in
-  OCurrent.all @@ List.map gated_deploy binaries
+  let binaries = List.map (fun p -> p, build ~on:p src) platforms in
+  let test (_p, x) = test x in
+  let tests = Current.all @@ List.map test binaries in
+  let gated_deploy (p, x) =
+    let tag = Fmt.strf "foo/%s" p in
+    x |> Current.gate ~on:tests |> push ~tag
+  in
+  Current.all @@ List.map gated_deploy binaries
 
 (* Monadic bind is also available if you need to take a decision based
    on the actual source code before deciding on the rest of the pipeline.
@@ -33,8 +43,8 @@ let v4 commit =
   let src = fetch commit in
   "custom-build" |>
   let** src = src in
-  if (src :> string) = "src-123" then build (OCurrent.return src) |> test
-  else OCurrent.fail "Wrong hash!"
+  if Fpath.to_string src = "src-123" then build (Current.return src) |> test
+  else Current.fail "Wrong hash!"
 
 (* The opam-repo-ci pipeline. Build the package and test it.
    If the tests pass then query for the rev-deps and build and
@@ -44,10 +54,10 @@ let v4 commit =
 let v5 commit =
   let src = fetch commit in
   let bin = build src in
-  let ok = test ~src bin in
-  revdeps src
-  |> OCurrent.gate ~on:ok
-  |> OCurrent.list_iter (fun s -> s |> fetch |> build |> test)
+  let ok = test bin in
+  Current_opam.revdeps src
+  |> Current.gate ~on:ok
+  |> Current.list_iter (fun s -> s |> fetch |> build |> test)
 
 (* Test driver *)
 
@@ -61,7 +71,7 @@ let ( / ) = Fpath.( / )
 
 let write_dot_to_channel ch x =
   let f = Format.formatter_of_out_channel ch in
-  OCurrent.pp_dot f x;
+  Current.pp_dot f x;
   Format.pp_print_flush f ();
   Ok ()
 
@@ -77,16 +87,18 @@ let write_dot ~name s =
   | Ok () -> ()
   | Error (`Msg x) -> failwith x
 
+let test_commit = Current.return @@ Current_git.commit_of_string "123"
+
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
 let test ~name v =
-  let s = v OCurrent.pending in   (* The initial static analysis *)
-  Fmt.pr "Run: %a@." OCurrent.pp s;
+  let s = v Current.pending in   (* The initial static analysis *)
+  Fmt.pr "Run: %a@." Current.pp s;
   write_dot ~name:(name ^ "-before") s;
-  let x = v (OCurrent.return test_commit) in  (* After supplying the input *)
+  let x = v test_commit in  (* After supplying the input *)
   write_dot ~name:(name ^ "-after") x;
-  Fmt.pr "--> %a@." (Dyn.pp (Fmt.unit "()")) (OCurrent.run x)
+  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) (Current.run x)
 
 let () =
   test ~name:"v1" v1;

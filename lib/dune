@@ -1,0 +1,4 @@
+(library
+  (name current)
+  (libraries fmt bos)
+  (preprocess future_syntax))

@@ -1,0 +1,4 @@
+(library
+  (name current_opam)
+  (libraries current current_git)
+  (preprocess future_syntax))

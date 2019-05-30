@@ -1,0 +1,4 @@
+(library
+  (name current_git)
+  (libraries current)
+  (preprocess future_syntax))

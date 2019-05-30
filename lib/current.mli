@@ -32,7 +32,11 @@ val gate : on:unit t -> 'a t -> 'a t
 val pp : 'a t Fmt.t
 val pp_dot : 'a t Fmt.t
 
-val run : 'a t -> 'a Dyn.or_error
+type 'a output = ('a, [`Pending | `Msg of string]) result
+
+val pp_output : 'a Fmt.t -> 'a output Fmt.t
+
+val run : 'a t -> 'a output
 val analyse : 'a t -> Static.t
 
 module Syntax : sig
