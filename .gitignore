@@ -1,4 +1,4 @@
 .merlin
 _build
-*.dot
-*.svg
+results
+/*.install

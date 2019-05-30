@@ -1,0 +1,7 @@
+language: c
+script: docker build .
+sudo: required
+services:
+  - docker
+env:
+  - OPAMERRLOGLEN=0
