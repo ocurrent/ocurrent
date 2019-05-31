@@ -1,29 +1,29 @@
 type 'a or_error = ('a, [`Pending | `Msg of string]) result
 
-type 'a t = unit -> 'a or_error
+type 'a t = 'a or_error
 
-let return x () = Ok x
-let fail msg () = Error (`Msg msg)
+let return x = Ok x
+let fail msg = Error (`Msg msg)
 
-let bind x f () =
-  match x () with
+let bind x f =
+  match x with
   | Error _ as e -> e
-  | Ok y -> f y ()
+  | Ok y -> f y
 
-let map f x () =
-  match x () with
+let map f x =
+  match x with
   | Error _ as e -> e
   | Ok y -> Ok (f y)
 
-let pair a b () =
-  match a (), b () with
+let pair a b =
+  match a, b with
   | (Error _ as e), _ -> e
   | _, (Error _ as e) -> e
   | Ok x, Ok y -> Ok (x, y)
 
-let pending () = Error `Pending
+let pending = Error `Pending
 
-let run x = x ()
+let run x = x
 
 let pp ok f = function
   | Ok x -> ok f x
