@@ -94,7 +94,7 @@ let test_commit = Current.return @@ Current_git.commit_of_string "123"
    supplied to it. *)
 let test ~name v =
   let s = v Current.pending in   (* The initial static analysis *)
-  Fmt.pr "Run: %a@." Current.pp s;
+  Fmt.pr "@.Run: %a@." Current.pp s;
   write_dot ~name:(name ^ "-before") s;
   let x = v test_commit in  (* After supplying the input *)
   write_dot ~name:(name ^ "-after") x;
