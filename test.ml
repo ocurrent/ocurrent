@@ -8,7 +8,7 @@ let test = Current_docker.run ~cmd:["make"; "test"]
 let push = Current_docker.push
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
-   a PR on GitHub, this returns success if the tests pass on it. *)
+   a PR on GitHub), this returns success if the tests pass on it. *)
 let v1 commit =
   commit |> fetch |> build |> test
 
