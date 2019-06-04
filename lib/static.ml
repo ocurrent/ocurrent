@@ -3,7 +3,7 @@ module IntMap = Map.Make(struct type t = int let compare = compare end)
 
 type t = {
   i : int;
-  context : t option;
+  bind : t option;
   ty : metadata_ty;
 }
 and metadata_ty =
@@ -21,20 +21,18 @@ let next =
     n := r + 1;
     r
 
-let context = ref None
-
-let make ty =
+let make ~bind ty =
   let i = next () in
-  { i; ty; context = !context }
+  { i; ty; bind }
 
-let return () =
-  make Constant
+let return ~bind () =
+  make ~bind Constant
 
-let fail () =
-  make Constant
+let fail ~bind () =
+  make ~bind Constant
 
-let pending () =
-  make Constant
+let pending ~bind () =
+  make ~bind Constant
 
 let ( =? ) a b =
   match a, b with
@@ -43,45 +41,34 @@ let ( =? ) a b =
   | _ -> false
 
 let simplify x =
-  match x.ty, x.context with
+  match x.ty, x.bind with
   | Constant, Some c -> c
   | _ -> x
 
-let pair a b =
+let pair ~bind a b =
   let a = simplify a in
   let b = simplify b in
   let single_context =
-    a.context =? b.context && b.context =? !context
+    a.bind =? b.bind && b.bind =? bind
   in
   match single_context, a.ty, b.ty with
   | true, Constant, _ -> b
   | true, _, Constant -> a
-  | _ -> make @@ Pair (a, b)
+  | _ -> make ~bind @@ Pair (a, b)
 
-let bind ~name x =
+let bind ~bind:parent ~name x =
   let x = simplify x in
-  make @@ match x.ty with
+  make ~bind:parent @@ match x.ty with
   | Constant -> Prim name
   | _ -> Bind (x, name)
 
-let list_map ~f items =
-  make (List_map { items; fn = f })
+let list_map ~bind ~f items =
+  make ~bind (List_map { items; fn = f })
 
-let gate ~on:ctrl value =
+let gate ~bind ~on:ctrl value =
   let ctrl = simplify ctrl in
   let value = simplify value in
-  make (Gate_on { ctrl; value })
-
-let with_context md f x =
-  let md = { i = next (); ty = md.ty; context = None } in
-  context := Some md;
-  try
-    let r = f x in
-    context := md.context;
-    r
-  with ex ->
-    context := md.context;
-    raise ex
+  make ~bind (Gate_on { ctrl; value })
 
 let pp f x =
   let seen = ref IntSet.empty in
@@ -92,7 +79,7 @@ let pp f x =
       seen := IntSet.add md.i !seen;
       match md.ty with
       | Constant ->
-        begin match md.context with
+        begin match md.bind with
           | Some ctx -> aux f ctx
           | None -> Fmt.string f "(const)"
         end
@@ -114,7 +101,7 @@ let pp_dot f x =
     | Some x -> x
     | None ->
       let ctx =
-        match md.context with
+        match md.bind with
         | None -> []
         | Some c -> aux c
       in
