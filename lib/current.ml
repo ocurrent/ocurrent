@@ -12,17 +12,31 @@ type 'a t = context -> 'a node
 let make md fn =
   { md; fn }
 
+let bind_context = ref None
+
+let with_bind_context bc f x =
+  assert (!bind_context = None);
+  bind_context := Some bc;
+  let r = f x in
+  bind_context := None;
+  r
+
 let cache f =
   let last = ref None in
+  let bc = !bind_context in
   fun ctx ->
     match !last with
     | Some (prev_ctx, cached) when prev_ctx == ctx -> cached
     | _ ->
-      let r = f ctx in
+      let r =
+        match bc with
+        | None -> f ctx
+        | Some bc -> Static.with_context bc f ctx
+      in
       last := Some (ctx, r);
       r
 
-let pending =
+let pending () =
   cache @@ fun _ctx ->
   make (Static.pending ()) Dyn.pending
 
@@ -41,7 +55,9 @@ let bind ?(name="?") (f:'a -> 'b t) (x:'a t) =
   match Dyn.run x.fn with
   | Error (`Msg e) -> make md (Dyn.fail e)
   | Error (`Pending) -> make md Dyn.pending
-  | Ok y -> Static.with_context md (f y) ctx
+  | Ok y ->
+    let f2 = with_bind_context md f y in
+    f2 ctx
 
 let map f x =
   cache @@ fun ctx ->
@@ -87,7 +103,7 @@ let list_map f xs =
   match Dyn.run xs.fn with
   | Error _ ->
     (* Not ready; use static version of map. *)
-    let f = f pending ctx in
+    let f = f (pending ()) ctx in
     let md = Static.list_map ~f:f.md xs.md in
     make md Dyn.pending
   | Ok items ->

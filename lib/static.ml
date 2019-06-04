@@ -73,7 +73,7 @@ let gate ~on:ctrl value =
   make (Gate_on { ctrl; value })
 
 let with_context md f x =
-  let md = { i = next (); ty = md.ty; context = !context } in
+  let md = { i = next (); ty = md.ty; context = None } in
   context := Some md;
   try
     let r = f x in

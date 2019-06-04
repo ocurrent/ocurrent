@@ -30,6 +30,6 @@ let fetch c = "fetch" |>
   in
   match s with
   | `Cloning ->
-    Current.track (Fmt.strf "git clone %S" repo) Current.pending
+    Current.track (Fmt.strf "git clone %S" repo) (Current.pending ())
   | `Cloned path ->
     Current.return path

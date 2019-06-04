@@ -3,8 +3,8 @@
 type +'a t
 (** An ['a t] is a pipeline that produces a value of type ['a]. *)
 
-val pending : 'a t
-(** [pending] is a pipeline that never produces a result. *)
+val pending : unit -> 'a t
+(** [pending ()] is a pipeline that never produces a result. *)
 
 val return : 'a -> 'a t
 (** [return x] is a pipeline that immediately succeeds with [x]. *)
