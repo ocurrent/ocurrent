@@ -19,7 +19,7 @@ let build ?on src =
   | Some platform -> build_on platform ~src
 
 let run image ~cmd =
-  Fmt.strf "docker run %a" Fmt.(list string) cmd |>
+  Fmt.strf "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let** _ = image in
   Current.return ()
 

@@ -33,7 +33,7 @@ let return () =
 let fail () =
   make Constant
 
-let pending =
+let pending () =
   make Constant
 
 let ( =? ) a b =
@@ -91,7 +91,11 @@ let pp f x =
     else (
       seen := IntSet.add md.i !seen;
       match md.ty with
-      | Constant -> Fmt.string f "(const)"
+      | Constant ->
+        begin match md.context with
+          | Some ctx -> aux f ctx
+          | None -> Fmt.string f "(const)"
+        end
       | Prim name -> Fmt.string f name
       | Bind (x, name) -> Fmt.pf f "%a >>= %s" aux x name
       | Pair (x, y) -> Fmt.pf f "(%a, %a)" aux x aux y

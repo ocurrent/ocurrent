@@ -29,15 +29,24 @@ val all : unit t list -> unit t
 val gate : on:unit t -> 'a t -> 'a t
 (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
-val pp : 'a t Fmt.t
-val pp_dot : 'a t Fmt.t
+module Input : sig
+  type t = string
+end
+
+val track : Input.t -> 'a t -> 'a t
+(** [track i t] records that [t] depends on [i]. *)
+
+module Static : sig
+  type t
+  val pp : t Fmt.t
+  val pp_dot : t Fmt.t
+end
 
 type 'a output = ('a, [`Pending | `Msg of string]) result
 
 val pp_output : 'a Fmt.t -> 'a output Fmt.t
 
-val run : 'a t -> 'a output
-val analyse : 'a t -> Static.t
+val run : 'a t -> Static.t * 'a output * Input.t list
 
 module Syntax : sig
   val (let+) : 'a t -> ('a -> 'b) -> 'b t

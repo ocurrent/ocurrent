@@ -4,7 +4,7 @@ type t
 
 val return : unit -> t
 val fail : unit -> t
-val pending : t
+val pending : unit -> t
 val pair : t -> t -> t
 val bind : name:string -> t -> t
 val list_map : f:t -> t -> t

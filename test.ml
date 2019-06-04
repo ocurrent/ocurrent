@@ -71,7 +71,7 @@ let ( / ) = Fpath.( / )
 
 let write_dot_to_channel ch x =
   let f = Format.formatter_of_out_channel ch in
-  Current.pp_dot f x;
+  Current.Static.pp_dot f x;
   Format.pp_print_flush f ();
   Ok ()
 
@@ -87,18 +87,28 @@ let write_dot ~name s =
   | Ok () -> ()
   | Error (`Msg x) -> failwith x
 
-let test_commit = Current.return @@ Current_git.commit_of_string "123"
+let test_commit =
+  Current_git.commit ~repo:"my/project" ~hash:"123"
 
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
 let test ~name v =
-  let s = v Current.pending in   (* The initial static analysis *)
-  Fmt.pr "@.Run: %a@." Current.pp s;
+  Current_git.reset ();
+  (* Perform an initial analysis: *)
+  let input = Current.track "PR head" @@ Current.return test_commit in
+  let s, x, inputs = Current.run @@ v input in
+  Fmt.pr "@.Before: %a@." Current.Static.pp s;
+  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) x;
+  Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
   write_dot ~name:(name ^ "-before") s;
-  let x = v test_commit in  (* After supplying the input *)
-  write_dot ~name:(name ^ "-after") x;
-  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) (Current.run x)
+  Current_git.complete_clone test_commit;
+  (* After supplying the input: *)
+  let s, x, inputs = Current.run @@ v input in
+  Fmt.pr "@.After: %a@." Current.Static.pp s;
+  write_dot ~name:(name ^ "-after") s;
+  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) x;
+  Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs
 
 let () =
   test ~name:"v1" v1;
