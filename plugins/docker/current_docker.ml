@@ -20,8 +20,10 @@ let build ?on src =
 
 let run image ~cmd =
   Fmt.strf "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
-  let** _ = image in
-  Current.return ()
+  let** i = image in
+  match i with
+  | "image-bad" -> Current.fail "Tests failed"
+  | _ -> Current.return ()
 
 let push image ~tag =
   Fmt.strf "docker push %s" tag |>

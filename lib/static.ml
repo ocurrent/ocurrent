@@ -1,10 +1,17 @@
 module IntSet = Set.Make(struct type t = int let compare = compare end)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
+type state =
+  | Blocked
+  | Active
+  | Pass
+  | Fail
+
 type t = {
   i : int;
   bind : t option;
   ty : metadata_ty;
+  mutable state : state;  (* For bind, we must create the node before knowing the state *)
 }
 and metadata_ty =
   | Constant
@@ -21,18 +28,18 @@ let next =
     n := r + 1;
     r
 
-let make ~bind ty =
+let make ~bind ty state =
   let i = next () in
-  { i; ty; bind }
+  { i; ty; bind; state }
 
 let return ~bind () =
-  make ~bind Constant
+  make ~bind Constant Pass
 
 let fail ~bind () =
-  make ~bind Constant
+  make ~bind Constant Fail
 
 let pending ~bind () =
-  make ~bind Constant
+  make ~bind Constant Active
 
 let ( =? ) a b =
   match a, b with
@@ -45,6 +52,14 @@ let simplify x =
   | Constant, Some c -> c
   | _ -> x
 
+let pair_state a b =
+  match a.state, b.state with
+  | _, Fail
+  | Fail, _ -> Fail
+  | _, (Blocked | Active)
+  | (Blocked | Active), _ -> Blocked
+  | Pass, Pass -> Pass
+
 let pair ~bind a b =
   let a = simplify a in
   let b = simplify b in
@@ -54,21 +69,33 @@ let pair ~bind a b =
   match single_context, a.ty, b.ty with
   | true, Constant, _ -> b
   | true, _, Constant -> a
-  | _ -> make ~bind @@ Pair (a, b)
+  | _ ->
+    make ~bind (Pair (a, b)) (pair_state a b)
 
-let bind ~bind:parent ~name x =
+let bind ~bind:parent ~name x state =
   let x = simplify x in
-  make ~bind:parent @@ match x.ty with
-  | Constant -> Prim name
-  | _ -> Bind (x, name)
+  let ty =
+    match x.ty with
+    | Constant -> Prim name
+    | _ -> Bind (x, name)
+  in
+  let state =
+    match x.state with
+    | Blocked | Active -> Blocked
+    | Pass | Fail -> state
+  in
+  make ~bind:parent ty state
 
 let list_map ~bind ~f items =
-  make ~bind (List_map { items; fn = f })
+  make ~bind (List_map { items; fn = f }) items.state
 
 let gate ~bind ~on:ctrl value =
   let ctrl = simplify ctrl in
   let value = simplify value in
-  make ~bind (Gate_on { ctrl; value })
+  make ~bind (Gate_on { ctrl; value }) (pair_state ctrl value)
+
+let set_state t state =
+  t.state <- state
 
 let pp f x =
   let seen = ref IntSet.empty in
@@ -105,14 +132,22 @@ let pp_dot f x =
         | None -> []
         | Some c -> aux c
       in
+      let bg =
+        match md.state with
+        | Blocked -> "lightgray"
+        | Active -> "orange"
+        | Pass -> "lightgreen"
+        | Fail -> "orangered"
+      in
+      let node = Dot.node ~style:"filled" ~bg f in
       let outputs =
         match md.ty with
-        | Constant when ctx = [] -> Dot.node f md.i "(const)"; [md]
+        | Constant when ctx = [] -> node md.i "(const)"; [md]
         | Constant -> ctx
-        | Prim name -> Dot.node f md.i name; md :: ctx
+        | Prim name -> node md.i name; md :: ctx
         | Bind (x, name) ->
           let inputs = aux x in
-          Dot.node f md.i name;
+          node md.i name;
           inputs |> List.iter (fun input -> input ==> md);
           ctx |> List.iter (fun input -> input ==> md);
           [md]
@@ -121,14 +156,14 @@ let pp_dot f x =
         | Gate_on { ctrl; value } ->
           let ctrls = aux ctrl in
           let values = aux value in
-          Dot.node f md.i "" ~shape:"circle";
+          node md.i "" ~shape:"circle";
           ctrls |> List.iter (fun input -> edge input md ~style:"dashed");
           values |> List.iter (fun input -> input ==> md);
           ctx |> List.iter (fun input -> input ==> md);
           [md]
         | List_map { items; fn } ->
           let items = aux items in
-          Dot.node f md.i "map";
+          node md.i "map";
           items |> List.iter (fun input -> edge input md);
           ctx |> List.iter (fun input -> input ==> md);
           let outputs = aux fn in

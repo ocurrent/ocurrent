@@ -49,11 +49,19 @@ let bind ?(name="?") (f:'a -> 'b t) (x:'a t) =
   let x = x ctx in
   let md = Static.bind ~bind ~name x.md in
   match Dyn.run x.fn with
-  | Error (`Msg e) -> make md (Dyn.fail e)
-  | Error (`Pending) -> make md Dyn.pending
+  | Error (`Msg e) -> make (md Static.Fail) (Dyn.fail e)
+  | Error (`Pending) -> make (md Static.Active) Dyn.pending
   | Ok y ->
+    let md = md Static.Pass in
     let f2 = with_bind_context md f y in
-    f2 ctx
+    let r = f2 ctx in
+    Static.set_state md (
+      match Dyn.run r.fn with
+      | Error (`Msg _) -> Static.Fail
+      | Error (`Pending) -> Static.Active
+      | Ok _ -> Static.Pass
+    );
+    r
 
 let map f x =
   cache @@ fun ~bind:_ ctx ->

@@ -43,7 +43,7 @@ let v4 commit =
   let src = fetch commit in
   "custom-build" |>
   let** src = src in
-  if Fpath.to_string src = "src-123" then build (Current.return src) |> test
+  if Fpath.to_string src = "src-123" then build (Current.return (Fpath.v "bad")) |> test
   else Current.fail "Wrong hash!"
 
 (* The opam-repo-ci pipeline. Build the package and test it.
