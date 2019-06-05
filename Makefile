@@ -1,5 +1,7 @@
+.PHONY: test build
+
 test:
-	dune exec ./test.exe
+	dune exec ./test/test.exe
 
 build:
 	dune build @all
