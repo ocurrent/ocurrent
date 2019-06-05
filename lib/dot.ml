@@ -33,3 +33,9 @@ let edge f ?style ?color a b =
     )
   in
   Fmt.pf f "n%d -> n%d%a@," a b pp_options styles
+
+let begin_cluster f i =
+  Fmt.pf f "subgraph cluster_%d {@," i
+
+let end_cluster f =
+  Fmt.pf f "}@,"

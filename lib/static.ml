@@ -163,12 +163,13 @@ let pp_dot f x =
           [md]
         | List_map { items; fn } ->
           let items = aux items in
-          node md.i "map";
-          items |> List.iter (fun input -> edge input md);
+          Dot.begin_cluster f md.i;
+          Dot.node f ~shape:"none" md.i "map";
           ctx |> List.iter (fun input -> input ==> md);
           let outputs = aux fn in
-          outputs |> List.iter (fun outputs -> edge outputs md);  (* TODO *)
-          [md]
+          Dot.end_cluster f;
+          items |> List.iter (fun input -> edge input md);
+          outputs
       in
       seen := IntMap.add md.i outputs !seen;
       outputs
