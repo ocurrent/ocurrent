@@ -1,4 +1,7 @@
 (executable
   (name test)
-  (libraries current current_docker current_git current_opam fmt bos)
+  (libraries current fmt bos
+             current_docker_test
+             current_git_test
+             current_opam_test)
   (preprocess future_syntax))

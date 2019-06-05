@@ -1,4 +1,4 @@
 (library
-  (name current_docker)
+  (name current_docker_test)
   (libraries current fpath)
   (preprocess future_syntax))

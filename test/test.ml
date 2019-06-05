@@ -2,10 +2,14 @@ open Current.Syntax    (* let*, let+, etc *)
 
 module StringMap = Map.Make(String)
 
-let fetch = Current_git.fetch
-let build = Current_docker.build
-let test = Current_docker.run ~cmd:["make"; "test"]
-let push = Current_docker.push
+module Git = Current_git_test
+module Docker = Current_docker_test
+module Opam = Current_opam_test
+
+let fetch = Git.fetch
+let build = Docker.build
+let test = Docker.run ~cmd:["make"; "test"]
+let push = Docker.push
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
    a PR on GitHub), this returns success if the tests pass on it. *)
@@ -55,7 +59,7 @@ let v5 commit =
   let src = fetch commit in
   let bin = build src in
   let ok = test bin in
-  Current_opam.revdeps src
+  Opam.revdeps src
   |> Current.gate ~on:ok
   |> Current.list_iter (fun s -> s |> fetch |> build |> test)
 
@@ -88,13 +92,13 @@ let write_dot ~name s =
   | Error (`Msg x) -> failwith x
 
 let test_commit =
-  Current_git.commit ~repo:"my/project" ~hash:"123"
+  Git.commit ~repo:"my/project" ~hash:"123"
 
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
 let test ~name v =
-  Current_git.reset ();
+  Git.reset ();
   (* Perform an initial analysis: *)
   let input = Current.track "PR head" @@ Current.return test_commit in
   let s, x, inputs = Current.run @@ v input in
@@ -102,7 +106,7 @@ let test ~name v =
   Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
   write_dot ~name:(name ^ "-before") s;
-  Current_git.complete_clone test_commit;
+  Git.complete_clone test_commit;
   (* After supplying the input: *)
   let s, x, inputs = Current.run @@ v input in
   Fmt.pr "@.After: %a@." Current.Static.pp s;
