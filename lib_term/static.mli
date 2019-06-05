@@ -8,16 +8,24 @@ type state =
   | Pass
   | Fail
 
-(* The [~bind] argument is the static node of the bind operator whose callback
-   created the object, if any. *)
+type env
 
-val return   : bind:t option -> unit -> t
-val fail     : bind:t option -> unit -> t
-val pending  : bind:t option -> unit -> t
-val pair     : bind:t option -> t -> t -> t
-val bind     : bind:t option -> name:string -> t -> state -> t
-val list_map : bind:t option -> f:t -> t -> t
-val gate     : bind:t option -> on:t -> t -> t
+val make_env : unit -> env
+(** All linked static values must be created within the same environment (this is
+    used to number them). *)
+
+val with_bind : t -> env -> env
+(* [with_bind b ctx] is the environment to use when evaluating the function
+   passed to a [bind]. All static values created within this environment get an
+   implicit dependency on [b]. *)
+
+val return   : env:env -> unit -> t
+val fail     : env:env -> unit -> t
+val pending  : env:env -> unit -> t
+val pair     : env:env -> t -> t -> t
+val bind     : env:env -> name:string -> t -> state -> t
+val list_map : env:env -> f:t -> t -> t
+val gate     : env:env -> on:t -> t -> t
 
 val set_state : t -> state -> unit
 

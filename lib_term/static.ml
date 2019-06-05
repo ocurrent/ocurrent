@@ -21,25 +21,28 @@ and metadata_ty =
   | Gate_on of { ctrl : t; value : t }
   | List_map of { items : t; fn : t }
 
-let next =
-  let n = ref 0 in
-  fun () ->
-    let r = !n in
-    n := r + 1;
-    r
+type env = {
+  next : int ref;
+  bind : t option;
+}
 
-let make ~bind ty state =
-  let i = next () in
-  { i; ty; bind; state }
+let make_env () =
+  { next = ref 0; bind = None }
 
-let return ~bind () =
-  make ~bind Constant Pass
+let with_bind bind env = { env with bind = Some bind }
 
-let fail ~bind () =
-  make ~bind Constant Fail
+let make ~env ty state =
+  incr env.next;
+  { i = !(env.next); ty; bind = env.bind; state }
 
-let pending ~bind () =
-  make ~bind Constant Active
+let return ~env () =
+  make ~env Constant Pass
+
+let fail ~env () =
+  make ~env Constant Fail
+
+let pending ~env () =
+  make ~env Constant Active
 
 let ( =? ) a b =
   match a, b with
@@ -60,19 +63,19 @@ let pair_state a b =
   | (Blocked | Active), _ -> Blocked
   | Pass, Pass -> Pass
 
-let pair ~bind a b =
+let pair ~env a b =
   let a = simplify a in
   let b = simplify b in
   let single_context =
-    a.bind =? b.bind && b.bind =? bind
+    a.bind =? b.bind && b.bind =? env.bind
   in
   match single_context, a.ty, b.ty with
   | true, Constant, _ -> b
   | true, _, Constant -> a
   | _ ->
-    make ~bind (Pair (a, b)) (pair_state a b)
+    make ~env (Pair (a, b)) (pair_state a b)
 
-let bind ~bind:parent ~name x state =
+let bind ~env:parent ~name x state =
   let x = simplify x in
   let ty =
     match x.ty with
@@ -84,15 +87,15 @@ let bind ~bind:parent ~name x state =
     | Blocked | Active -> Blocked
     | Pass | Fail -> state
   in
-  make ~bind:parent ty state
+  make ~env:parent ty state
 
-let list_map ~bind ~f items =
-  make ~bind (List_map { items; fn = f }) items.state
+let list_map ~env ~f items =
+  make ~env (List_map { items; fn = f }) items.state
 
-let gate ~bind ~on:ctrl value =
+let gate ~env ~on:ctrl value =
   let ctrl = simplify ctrl in
   let value = simplify value in
-  make ~bind (Gate_on { ctrl; value }) (pair_state ctrl value)
+  make ~env (Gate_on { ctrl; value }) (pair_state ctrl value)
 
 let set_state t state =
   t.state <- state
