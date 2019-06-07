@@ -69,15 +69,17 @@ let v5 commit =
 (* Test driver *)
 
 let test_commit =
-  Git.commit ~repo:"my/project" ~hash:"123"
+  Git.Commit.v ~repo:"my/project" ~hash:"123"
 
-let with_analysis ~name (t : unit Current.t) =
+module Commit_var = Current.Var(Git.Commit)
+
+let with_analysis ~name ~i (t : unit Current.t) =
   let data =
     let+ a = Current.Analysis.get t in
     Fmt.pr "Analysis: %a@." Current.Analysis.pp a;
     Fmt.strf "%a" Current.Analysis.pp_dot a
   in
-  let path = Current.return (Fpath.v (Fmt.strf "%s.dot" name)) in
+  let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
   Current_fs.save path data
 
 (* Write two SVG files for pipeline [v]: one containing the static analysis
@@ -85,17 +87,25 @@ let with_analysis ~name (t : unit Current.t) =
    supplied to it. *)
 let test ~name v =
   Git.reset ();
-  print_newline ();
   (* Perform an initial analysis: *)
-  let input = Current.track "PR head" @@ Current.return test_commit in
-  let x, inputs = Current.Executor.run @@ with_analysis ~name:(name ^ ".1") @@ v input in
-  Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
-  Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
-  Git.complete_clone test_commit;
-  (* After supplying the input: *)
-  let x, inputs = Current.Executor.run @@ with_analysis ~name:(name ^ ".2") @@ v input in
-  Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
-  Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs
+  let head = Commit_var.create ~name:"head" (Ok test_commit) in
+  let i = ref 1 in
+  let trace x inputs =
+    Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
+    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp) inputs;
+    begin
+      let ready i = Lwt.state i#changed <> Lwt.Sleep in
+      match List.find_opt ready inputs with
+      | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp i
+      | None -> ()
+    end;
+    incr i;
+    match !i with
+    | 2 -> Git.complete_clone test_commit
+    | _ -> raise Exit
+  in
+  try Lwt_main.run @@ Current.Engine.run ~trace (fun () -> with_analysis ~name ~i @@ v (Commit_var.get head))
+  with Exit -> ()
 
 let () =
   test ~name:"v1" v1;

@@ -1,4 +1,4 @@
 (library
   (public_name current)
-  (libraries current_term)
+  (libraries current_term lwt)
   (preprocess future_syntax))

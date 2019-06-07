@@ -14,5 +14,6 @@ depends: [
   "fmt"
   "bos"
   "ppx_deriving"
+  "lwt"
   "dune" {build}
 ]

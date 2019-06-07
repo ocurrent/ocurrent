@@ -1,3 +1,9 @@
+module type T = sig
+  type t
+  val equal : t -> t -> bool
+  val pp : t Fmt.t
+end
+
 module type INPUT = sig
   type t
   (** An input that was used while evaluating a term.

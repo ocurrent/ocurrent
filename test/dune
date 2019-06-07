@@ -1,6 +1,6 @@
 (executable
   (name test)
-  (libraries current fmt fmt.tty logs.fmt bos
+  (libraries current fmt fmt.tty logs.fmt bos lwt.unix
              current_fs
              current_docker_test
              current_git_test

@@ -1,14 +1,17 @@
 (** Git plugin for OCurrent. *)
 
-type commit
+module Commit : sig
+  type t
+  val v : repo:string -> hash:string -> t
+  val equal : t -> t -> bool
+  val pp : t Fmt.t
+end
 
-val commit : repo:string -> hash:string -> commit
-
-val complete_clone : commit -> unit
+val complete_clone : Commit.t -> unit
 (** Test function that records a clone as completed. *)
 
 val reset : unit -> unit
 (** Reset all repositories to uncloned. *)
 
-val fetch : commit Current.t -> Fpath.t Current.t
+val fetch : Commit.t Current.t -> Fpath.t Current.t
 (** [fetch commit] pulls [commit] to a local Git repository. *)

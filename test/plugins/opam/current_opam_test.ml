@@ -8,6 +8,6 @@ let revdeps src =
   "get-revdeps" |>
   let** _src = src in
   Current.return [
-    Git.commit ~repo:"example.org/foo" ~hash:"111";
-    Git.commit ~repo:"example.org/bar" ~hash:"222";
+    Git.Commit.v ~repo:"example.org/foo" ~hash:"111";
+    Git.Commit.v ~repo:"example.org/bar" ~hash:"222";
   ]
