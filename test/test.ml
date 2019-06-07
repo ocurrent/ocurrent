@@ -75,7 +75,7 @@ let ( / ) = Fpath.( / )
 
 let write_dot_to_channel ch x =
   let f = Format.formatter_of_out_channel ch in
-  Current.Static.pp_dot f x;
+  Current.Analysis.pp_dot f x;
   Format.pp_print_flush f ();
   Ok ()
 
@@ -101,17 +101,17 @@ let test ~name v =
   Git.reset ();
   (* Perform an initial analysis: *)
   let input = Current.track "PR head" @@ Current.return test_commit in
-  let s, x, inputs = Current.run @@ v input in
-  Fmt.pr "@.Before: %a@." Current.Static.pp s;
-  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) x;
+  let s, x, inputs = Current.Executor.run @@ v input in
+  Fmt.pr "@.Before: %a@." Current.Analysis.pp s;
+  Fmt.pr "--> %a@." (Current.Executor.pp_output (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
   write_dot ~name:(name ^ "-before") s;
   Git.complete_clone test_commit;
   (* After supplying the input: *)
-  let s, x, inputs = Current.run @@ v input in
-  Fmt.pr "@.After: %a@." Current.Static.pp s;
+  let s, x, inputs = Current.Executor.run @@ v input in
+  Fmt.pr "@.After: %a@." Current.Analysis.pp s;
   write_dot ~name:(name ^ "-after") s;
-  Fmt.pr "--> %a@." (Current.pp_output (Fmt.unit "()")) x;
+  Fmt.pr "--> %a@." (Current.Executor.pp_output (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs
 
 let () =

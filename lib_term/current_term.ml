@@ -1,15 +1,13 @@
-module type INPUT = sig
-  type t
-end
+module S = S
 
-module Make (Input : INPUT) = struct
+module Make (Input : S.INPUT) = struct
   type 'a node = {
-    md : Static.t;
+    md : Analysis.t;
     fn : 'a Dyn.t;
   }
 
   type context = {
-    env : Static.env;
+    env : Analysis.env;
     mutable inputs : Input.t list;
   }
 
@@ -37,7 +35,7 @@ module Make (Input : INPUT) = struct
         let env =
           match bind with
           | None -> ctx.env
-          | Some b -> Static.with_bind b ctx.env
+          | Some b -> Analysis.with_bind b ctx.env
         in
         let r = f ~env ctx in
         last := Some (ctx, r);
@@ -45,32 +43,32 @@ module Make (Input : INPUT) = struct
 
   let pending () =
     cache @@ fun ~env _ctx ->
-    make (Static.pending ~env ()) Dyn.pending
+    make (Analysis.pending ~env ()) Dyn.pending
 
   let return x =
     cache @@ fun ~env _ctx ->
-    make (Static.return ~env ()) (Dyn.return x)
+    make (Analysis.return ~env ()) (Dyn.return x)
 
   let fail msg =
     cache @@ fun ~env _ctx ->
-    make (Static.fail ~env ()) (Dyn.fail msg)
+    make (Analysis.fail ~env ()) (Dyn.fail msg)
 
   let bind ?(name="?") (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
-    let md = Static.bind ~env ~name x.md in
+    let md = Analysis.bind ~env ~name x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md Static.Fail) (Dyn.fail e)
-    | Error (`Pending) -> make (md Static.Active) Dyn.pending
+    | Error (`Msg e) -> make (md Analysis.Fail) (Dyn.fail e)
+    | Error (`Pending) -> make (md Analysis.Active) Dyn.pending
     | Ok y ->
-      let md = md Static.Pass in
+      let md = md Analysis.Pass in
       let f2 = with_bind_context md f y in
       let r = f2 ctx in
-      Static.set_state md (
+      Analysis.set_state md (
         match Dyn.run r.fn with
-        | Error (`Msg _) -> Static.Fail
-        | Error (`Pending) -> Static.Active
-        | Ok _ -> Static.Pass
+        | Error (`Msg _) -> Analysis.Fail
+        | Error (`Pending) -> Analysis.Active
+        | Ok _ -> Analysis.Pass
       );
       r
 
@@ -84,7 +82,7 @@ module Make (Input : INPUT) = struct
     cache @@ fun ~env ctx ->
     let a = a ctx in
     let b = b ctx in
-    let md = Static.pair ~env a.md b.md in
+    let md = Analysis.pair ~env a.md b.md in
     let fn = Dyn.pair a.fn b.fn in
     make md fn
 
@@ -119,7 +117,7 @@ module Make (Input : INPUT) = struct
     | Error _ ->
       (* Not ready; use static version of map. *)
       let f = f (pending ()) ctx in
-      let md = Static.list_map ~env ~f:f.md xs.md in
+      let md = Analysis.list_map ~env ~f:f.md xs.md in
       make md Dyn.pending
     | Ok items ->
       (* Ready. Expand inputs. *)
@@ -131,7 +129,7 @@ module Make (Input : INPUT) = struct
           y :: ys
       in
       let results = aux items ctx in
-      { results with md = Static.list_map ~env ~f:results.md xs.md }
+      { results with md = Analysis.list_map ~env ~f:results.md xs.md }
 
   let list_iter f xs =
     let+ (_ : unit list) = list_map f xs in
@@ -141,22 +139,24 @@ module Make (Input : INPUT) = struct
     cache @@ fun ~env ctx ->
     let t = t ctx in
     let on = on ctx in
-    let md = Static.gate ~env ~on:on.md t.md in
+    let md = Analysis.gate ~env ~on:on.md t.md in
     let fn =
       Dyn.bind on.fn @@ fun () ->
       t.fn
     in
     make md fn
 
-  let run x =
-    let env = Static.make_env () in
-    let ctx = { env; inputs = [] } in
-    let x = x ctx in
-    x.md, Dyn.run x.fn, ctx.inputs
+  module Executor = struct
+    let run x =
+      let env = Analysis.make_env () in
+      let ctx = { env; inputs = [] } in
+      let x = x ctx in
+      x.md, Dyn.run x.fn, ctx.inputs
 
-  type 'a output = 'a Dyn.or_error
+    type 'a output = 'a Dyn.or_error
 
-  let pp_output = Dyn.pp
+    let pp_output = Dyn.pp
+  end
 
-  module Static = Static
+  module Analysis = Analysis
 end
