@@ -1,0 +1,7 @@
+digraph pipeline {
+  node [shape="box"]
+  rankdir=LR
+  n2 [label="fetch",fillcolor="orange",style="filled"]
+  n4 [label="custom-build",fillcolor="lightgray",style="filled"]
+  n2 -> n4
+  }

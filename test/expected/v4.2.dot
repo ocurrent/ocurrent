@@ -1,0 +1,13 @@
+digraph pipeline {
+  node [shape="box"]
+  rankdir=LR
+  n2 [label="fetch",fillcolor="lightgreen",style="filled"]
+  n4 [label="custom-build",fillcolor="orangered",style="filled"]
+  n2 -> n4
+  n6 [label="build",fillcolor="lightgreen",style="filled"]
+  n4 -> n6
+  n4 -> n6
+  n8 [label="docker run make test",fillcolor="orangered",style="filled"]
+  n6 -> n8
+  n4 -> n8
+  }

@@ -5,3 +5,24 @@
              current_git_test
              current_opam_test)
   (preprocess future_syntax))
+
+(rule
+ (targets
+   v1.1.dot v1.2.dot
+   v2.1.dot v2.2.dot
+   v3.1.dot v3.2.dot
+   v4.1.dot v4.2.dot
+   v5.1.dot v5.2.dot
+ )
+ (action  (run ./test.exe)))
+
+(alias
+ (name runtest)
+ (action
+  (progn
+   (diff expected/v1.1.dot v1.1.dot) (diff expected/v1.2.dot v1.2.dot)
+   (diff expected/v2.1.dot v2.1.dot) (diff expected/v2.2.dot v2.2.dot)
+   (diff expected/v3.1.dot v3.1.dot) (diff expected/v3.2.dot v3.2.dot)
+   (diff expected/v4.1.dot v4.1.dot) (diff expected/v4.2.dot v4.2.dot)
+   (diff expected/v5.1.dot v5.1.dot) (diff expected/v5.2.dot v5.2.dot)
+ )))

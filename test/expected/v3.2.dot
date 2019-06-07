@@ -1,0 +1,38 @@
+digraph pipeline {
+  node [shape="box"]
+  rankdir=LR
+  n2 [label="fetch",fillcolor="lightgreen",style="filled"]
+  n12 [label="build-win",fillcolor="lightgreen",style="filled"]
+  n2 -> n12
+  n14 [label="docker run make test",fillcolor="lightgreen",style="filled"]
+  n12 -> n14
+  n8 [label="build-mac",fillcolor="lightgreen",style="filled"]
+  n2 -> n8
+  n10 [label="docker run make test",fillcolor="lightgreen",style="filled"]
+  n8 -> n10
+  n4 [label="build-lin",fillcolor="lightgreen",style="filled"]
+  n2 -> n4
+  n6 [label="docker run make test",fillcolor="lightgreen",style="filled"]
+  n4 -> n6
+  n24 [label="",fillcolor="lightgreen",style="filled",shape="circle"]
+  n6 -> n24 [style="dashed"]
+  n10 -> n24 [style="dashed"]
+  n14 -> n24 [style="dashed"]
+  n12 -> n24
+  n25 [label="docker push foo/win",fillcolor="lightgreen",style="filled"]
+  n24 -> n25
+  n21 [label="",fillcolor="lightgreen",style="filled",shape="circle"]
+  n6 -> n21 [style="dashed"]
+  n10 -> n21 [style="dashed"]
+  n14 -> n21 [style="dashed"]
+  n8 -> n21
+  n22 [label="docker push foo/mac",fillcolor="lightgreen",style="filled"]
+  n21 -> n22
+  n18 [label="",fillcolor="lightgreen",style="filled",shape="circle"]
+  n6 -> n18 [style="dashed"]
+  n10 -> n18 [style="dashed"]
+  n14 -> n18 [style="dashed"]
+  n4 -> n18
+  n19 [label="docker push foo/lin",fillcolor="lightgreen",style="filled"]
+  n18 -> n19
+  }
