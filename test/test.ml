@@ -95,7 +95,7 @@ let test ~name v =
   let input = Current.track "PR head" @@ Current.return test_commit in
   let s, x, inputs = Current.Executor.run @@ v input in
   Fmt.pr "@.Before: %a@." Current.Analysis.pp s;
-  Fmt.pr "--> %a@." (Current.Executor.pp_output (Fmt.unit "()")) x;
+  Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
   write_dot ~name:(name ^ ".1") s;
   Git.complete_clone test_commit;
@@ -103,7 +103,7 @@ let test ~name v =
   let s, x, inputs = Current.Executor.run @@ v input in
   Fmt.pr "@.After: %a@." Current.Analysis.pp s;
   write_dot ~name:(name ^ ".2") s;
-  Fmt.pr "--> %a@." (Current.Executor.pp_output (Fmt.unit "()")) x;
+  Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs
 
 let () =

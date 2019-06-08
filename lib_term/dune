@@ -2,4 +2,7 @@
   (public_name current.term)
   (name current_term)
   (libraries fmt bos)
-  (preprocess future_syntax))
+  (preprocess (per_module
+                ((pps ppx_deriving.std) dyn)
+                (future_syntax current_term s)
+              )))

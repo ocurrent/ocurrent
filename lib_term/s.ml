@@ -96,11 +96,13 @@ module type EXECUTOR = sig
   type analysis
   (** See [ANALYSIS]. *)
 
-  type 'a output = ('a, [`Pending | `Msg of string]) result
+  module Output : sig
+    type 'a t = ('a, [`Pending | `Msg of string]) result
+    val pp : 'a Fmt.t -> 'a t Fmt.t
+    val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  end
 
-  val pp_output : 'a Fmt.t -> 'a output Fmt.t
-
-  val run : 'a term -> analysis * 'a output * input list
+  val run : 'a term -> analysis * 'a Output.t * input list
   (** [run t] evaluates term [t], returning whatever information about the
       term could be determined statically given the input, the current
       output, and the set of inputs that were used during the evaluation.

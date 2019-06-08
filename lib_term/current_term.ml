@@ -153,9 +153,7 @@ module Make (Input : S.INPUT) = struct
       let x = x ctx in
       x.md, Dyn.run x.fn, ctx.inputs
 
-    type 'a output = 'a Dyn.or_error
-
-    let pp_output = Dyn.pp
+    module Output = Dyn.Output
   end
 
   module Analysis = Analysis

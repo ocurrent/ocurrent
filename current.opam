@@ -13,5 +13,6 @@ depends: [
   "ocaml" {>= "4.07.0"}
   "fmt"
   "bos"
+  "ppx_deriving"
   "dune" {build}
 ]
