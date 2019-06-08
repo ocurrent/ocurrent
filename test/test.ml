@@ -4,6 +4,11 @@ module Git = Current_git_test
 module Docker = Current_docker_test
 module Opam = Current_opam_test
 
+let () =
+  Fmt_tty.setup_std_outputs ();
+  Logs.(set_level (Some Info));
+  Logs.set_reporter (Logs_fmt.reporter ())
+
 let fetch = Git.fetch
 let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
@@ -63,33 +68,17 @@ let v5 commit =
 
 (* Test driver *)
 
-let output_dir = Fpath.v "."
-
-let or_die = function
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m
-
-let ( / ) = Fpath.( / )
-
-let write_dot_to_channel ch x =
-  let f = Format.formatter_of_out_channel ch in
-  Current.Analysis.pp_dot f x;
-  Format.pp_print_flush f ();
-  Ok ()
-
-let write_dot ~name s =
-  let _ : bool = Bos.OS.Dir.create output_dir |> or_die in
-  let dotfile = output_dir / Fmt.strf "%s.dot" name in
-  Bos.OS.File.with_oc dotfile write_dot_to_channel s |> or_die |> or_die;
-  Fmt.pr "Wrote %a@." Fpath.pp dotfile
-
 let test_commit =
   Git.commit ~repo:"my/project" ~hash:"123"
 
 let with_analysis ~name (t : unit Current.t) =
-  let+ a = Current.Analysis.get t in
-  Fmt.pr "Analysis: %a@." Current.Analysis.pp a;
-  write_dot ~name a
+  let data =
+    let+ a = Current.Analysis.get t in
+    Fmt.pr "Analysis: %a@." Current.Analysis.pp a;
+    Fmt.strf "%a" Current.Analysis.pp_dot a
+  in
+  let path = Current.return (Fpath.v (Fmt.strf "%s.dot" name)) in
+  Current_fs.save path data
 
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
