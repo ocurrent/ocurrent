@@ -1,38 +1,38 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="fetch",fillcolor="orange",style="filled"]
-  n8 [label="build-win",fillcolor="lightgray",style="filled"]
-  n2 -> n8
+  n8 [label="fetch",fillcolor="orange",style="filled"]
+  n7 [label="build-win",fillcolor="lightgray",style="filled"]
+  n8 -> n7
+  n6 [label="docker run make test",fillcolor="lightgray",style="filled"]
+  n7 -> n6
+  n10 [label="build-mac",fillcolor="lightgray",style="filled"]
+  n8 -> n10
   n9 [label="docker run make test",fillcolor="lightgray",style="filled"]
-  n8 -> n9
-  n6 [label="build-mac",fillcolor="lightgray",style="filled"]
-  n2 -> n6
-  n7 [label="docker run make test",fillcolor="lightgray",style="filled"]
-  n6 -> n7
-  n4 [label="build-lin",fillcolor="lightgray",style="filled"]
-  n2 -> n4
-  n5 [label="docker run make test",fillcolor="lightgray",style="filled"]
-  n4 -> n5
-  n16 [label="",fillcolor="lightgray",style="filled",shape="circle"]
-  n5 -> n16 [style="dashed"]
-  n7 -> n16 [style="dashed"]
-  n9 -> n16 [style="dashed"]
-  n8 -> n16
-  n17 [label="docker push foo/win",fillcolor="lightgray",style="filled"]
-  n16 -> n17
+  n10 -> n9
+  n12 [label="build-lin",fillcolor="lightgray",style="filled"]
+  n8 -> n12
+  n11 [label="docker run make test",fillcolor="lightgray",style="filled"]
+  n12 -> n11
+  n3 [label="",fillcolor="lightgray",style="filled",shape="circle"]
+  n11 -> n3 [style="dashed"]
+  n9 -> n3 [style="dashed"]
+  n6 -> n3 [style="dashed"]
+  n7 -> n3
+  n2 [label="docker push foo/win",fillcolor="lightgray",style="filled"]
+  n3 -> n2
   n14 [label="",fillcolor="lightgray",style="filled",shape="circle"]
-  n5 -> n14 [style="dashed"]
-  n7 -> n14 [style="dashed"]
+  n11 -> n14 [style="dashed"]
   n9 -> n14 [style="dashed"]
-  n6 -> n14
-  n15 [label="docker push foo/mac",fillcolor="lightgray",style="filled"]
-  n14 -> n15
-  n12 [label="",fillcolor="lightgray",style="filled",shape="circle"]
-  n5 -> n12 [style="dashed"]
-  n7 -> n12 [style="dashed"]
-  n9 -> n12 [style="dashed"]
-  n4 -> n12
-  n13 [label="docker push foo/lin",fillcolor="lightgray",style="filled"]
-  n12 -> n13
+  n6 -> n14 [style="dashed"]
+  n10 -> n14
+  n13 [label="docker push foo/mac",fillcolor="lightgray",style="filled"]
+  n14 -> n13
+  n16 [label="",fillcolor="lightgray",style="filled",shape="circle"]
+  n11 -> n16 [style="dashed"]
+  n9 -> n16 [style="dashed"]
+  n6 -> n16 [style="dashed"]
+  n12 -> n16
+  n15 [label="docker push foo/lin",fillcolor="lightgray",style="filled"]
+  n16 -> n15
   }

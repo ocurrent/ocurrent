@@ -1,23 +1,23 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="fetch",fillcolor="orange",style="filled"]
-  n5 [label="build",fillcolor="lightgray",style="filled"]
-  n2 -> n5
+  n4 [label="fetch",fillcolor="orange",style="filled"]
+  n3 [label="build",fillcolor="lightgray",style="filled"]
+  n4 -> n3
+  n2 [label="docker run make test",fillcolor="lightgray",style="filled"]
+  n3 -> n2
+  n5 [label="get-revdeps",fillcolor="lightgray",style="filled"]
+  n4 -> n5
+  n1 [label="",fillcolor="lightgray",style="filled",shape="circle"]
+  n2 -> n1 [style="dashed"]
+  n5 -> n1
+  subgraph cluster_0 {
+  n0 [label="map",shape="none"]
+  n8 [label="fetch",fillcolor="lightgray",style="filled"]
+  n7 [label="build",fillcolor="lightgray",style="filled"]
+  n8 -> n7
   n6 [label="docker run make test",fillcolor="lightgray",style="filled"]
-  n5 -> n6
-  n4 [label="get-revdeps",fillcolor="lightgray",style="filled"]
-  n2 -> n4
-  n7 [label="",fillcolor="lightgray",style="filled",shape="circle"]
-  n6 -> n7 [style="dashed"]
-  n4 -> n7
-  subgraph cluster_12 {
-  n12 [label="map",shape="none"]
-  n9 [label="fetch",fillcolor="lightgray",style="filled"]
-  n10 [label="build",fillcolor="lightgray",style="filled"]
-  n9 -> n10
-  n11 [label="docker run make test",fillcolor="lightgray",style="filled"]
-  n10 -> n11
+  n7 -> n6
   }
-  n7 -> n12
+  n1 -> n0
   }

@@ -7,8 +7,27 @@ type state =
   | Pass
   | Fail
 
+module Id : sig
+  type t
+  val mint : unit -> t
+
+  module Set : Set.S with type elt = t
+  module Map : Map.S with type key = t
+end = struct
+  module Key = struct
+    type t = < >
+    let compare = compare
+  end
+
+  type t = Key.t
+  let mint () = object end
+
+  module Set = Set.Make(Key)
+  module Map = Map.Make(Key)
+end
+
 type t = {
-  i : int;
+  id : Id.t;
   bind : t option;
   ty : metadata_ty;
   mutable state : state;  (* For bind, we must create the node before knowing the state *)
@@ -33,7 +52,7 @@ let with_bind bind env = { env with bind = Some bind }
 
 let make ~env ty state =
   incr env.next;
-  { i = !(env.next); ty; bind = env.bind; state }
+  { id = Id.mint (); ty; bind = env.bind; state }
 
 let return ~env () =
   make ~env Constant Pass
@@ -47,7 +66,7 @@ let pending ~env () =
 let ( =? ) a b =
   match a, b with
   | None, None -> true
-  | Some a, Some b -> a.i = b.i
+  | Some a, Some b -> a.id = b.id
   | _ -> false
 
 let simplify x =
@@ -101,12 +120,12 @@ let set_state t state =
   t.state <- state
 
 let pp f x =
-  let seen = ref IntSet.empty in
+  let seen = ref Id.Set.empty in
   let rec aux f md =
-    if IntSet.mem md.i !seen then
+    if Id.Set.mem md.id !seen then
       Fmt.string f "..."
     else (
-      seen := IntSet.add md.i !seen;
+      seen := Id.Set.add md.id !seen;
       match md.ty with
       | Constant ->
         begin match md.bind with
@@ -122,14 +141,22 @@ let pp f x =
   in
   aux f x
 
+type out_node = {
+  i : int;
+  outputs : int list;
+}
+
 let pp_dot f x =
-  let seen = ref IntMap.empty in
-  let edge ?style ?color a b = Dot.edge f ?style ?color a.i b.i in
+  let next = ref 0 in
+  let seen : out_node Id.Map.t ref = ref Id.Map.empty in
+  let edge ?style ?color a b = Dot.edge f ?style ?color a b in
   let ( ==> ) a b = edge a b in
   let rec aux md =
-    match IntMap.find_opt md.i !seen with
-    | Some x -> x
+    match Id.Map.find_opt md.id !seen with
+    | Some x -> x.outputs
     | None ->
+      let i = !next in
+      incr next;
       let ctx =
         match md.bind with
         | None -> []
@@ -145,36 +172,36 @@ let pp_dot f x =
       let node = Dot.node ~style:"filled" ~bg f in
       let outputs =
         match md.ty with
-        | Constant when ctx = [] -> node md.i "(const)"; [md]
+        | Constant when ctx = [] -> node i "(const)"; [i]
         | Constant -> ctx
-        | Prim name -> node md.i name; md :: ctx
+        | Prim name -> node i name; i :: ctx
         | Bind (x, name) ->
           let inputs = aux x in
-          node md.i name;
-          inputs |> List.iter (fun input -> input ==> md);
-          ctx |> List.iter (fun input -> input ==> md);
-          [md]
+          node i name;
+          inputs |> List.iter (fun input -> input ==> i);
+          ctx |> List.iter (fun input -> input ==> i);
+          [i]
         | Pair (x, y) ->
           aux x @ aux y @ ctx
         | Gate_on { ctrl; value } ->
           let ctrls = aux ctrl in
           let values = aux value in
-          node md.i "" ~shape:"circle";
-          ctrls |> List.iter (fun input -> edge input md ~style:"dashed");
-          values |> List.iter (fun input -> input ==> md);
-          ctx |> List.iter (fun input -> input ==> md);
-          [md]
+          node i "" ~shape:"circle";
+          ctrls |> List.iter (fun input -> edge input i ~style:"dashed");
+          values |> List.iter (fun input -> input ==> i);
+          ctx |> List.iter (fun input -> input ==> i);
+          [i]
         | List_map { items; fn } ->
           let items = aux items in
-          Dot.begin_cluster f md.i;
-          Dot.node f ~shape:"none" md.i "map";
-          ctx |> List.iter (fun input -> input ==> md);
+          Dot.begin_cluster f i;
+          Dot.node f ~shape:"none" i "map";
+          ctx |> List.iter (fun input -> input ==> i);
           let outputs = aux fn in
           Dot.end_cluster f;
-          items |> List.iter (fun input -> edge input md);
+          items |> List.iter (fun input -> edge input i);
           outputs
       in
-      seen := IntMap.add md.i outputs !seen;
+      seen := Id.Map.add md.id { i; outputs } !seen;
       outputs
   in
   Fmt.pf f "@[<v2>digraph pipeline {@,\
