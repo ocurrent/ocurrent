@@ -86,23 +86,25 @@ let write_dot ~name s =
 let test_commit =
   Git.commit ~repo:"my/project" ~hash:"123"
 
+let with_analysis ~name (t : unit Current.t) =
+  let+ a = Current.Analysis.get t in
+  Fmt.pr "Analysis: %a@." Current.Analysis.pp a;
+  write_dot ~name a
+
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
 let test ~name v =
   Git.reset ();
+  print_newline ();
   (* Perform an initial analysis: *)
   let input = Current.track "PR head" @@ Current.return test_commit in
-  let s, x, inputs = Current.Executor.run @@ v input in
-  Fmt.pr "@.Before: %a@." Current.Analysis.pp s;
+  let x, inputs = Current.Executor.run @@ with_analysis ~name:(name ^ ".1") @@ v input in
   Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs;
-  write_dot ~name:(name ^ ".1") s;
   Git.complete_clone test_commit;
   (* After supplying the input: *)
-  let s, x, inputs = Current.Executor.run @@ v input in
-  Fmt.pr "@.After: %a@." Current.Analysis.pp s;
-  write_dot ~name:(name ^ ".2") s;
+  let x, inputs = Current.Executor.run @@ with_analysis ~name:(name ^ ".2") @@ v input in
   Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
   Fmt.pr "Depends on: %a@." Fmt.(Dump.list string) inputs
 

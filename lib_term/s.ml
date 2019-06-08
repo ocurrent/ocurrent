@@ -5,9 +5,14 @@ module type INPUT = sig
 end
 
 module type ANALYSIS = sig
+  type 'a term
+  (** See [TERM]. *)
+
   type t
   (** Information about the dependency graph of a term.
       This is useful to display the term's state as a diagram. *)
+
+  val get : _ term -> t term
 
   val pp : t Fmt.t
   (** [pp] formats a [t] as a simple string. *)
@@ -93,23 +98,14 @@ module type EXECUTOR = sig
   type input
   (** See [INPUT]. *)
 
-  type analysis
-  (** See [ANALYSIS]. *)
-
   module Output : sig
     type 'a t = ('a, [`Pending | `Msg of string]) result
     val pp : 'a Fmt.t -> 'a t Fmt.t
     val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   end
 
-  val run : 'a term -> analysis * 'a Output.t * input list
-  (** [run t] evaluates term [t], returning whatever information about the
-      term could be determined statically given the input, the current
-      output, and the set of inputs that were used during the evaluation.
-
-      If any of the inputs change, you should call [run] again to get the new
-      results.
-
-      To perform a pure static analysis of a pipeline function [f] before the
-      input is known, use [run (f pending)]. *)
+  val run : 'a term -> 'a Output.t * input list
+  (** [run t] evaluates term [t], returning the current output and the set of
+      inputs that were used during the evaluation. If any of the inputs change,
+      you should call [run] again to get the new results. *)
 end

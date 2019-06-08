@@ -151,10 +151,17 @@ module Make (Input : S.INPUT) = struct
       let env = Analysis.make_env () in
       let ctx = { env; inputs = [] } in
       let x = x ctx in
-      x.md, Dyn.run x.fn, ctx.inputs
+      Dyn.run x.fn, ctx.inputs
 
     module Output = Dyn.Output
   end
 
-  module Analysis = Analysis
+  module Analysis = struct
+    include Analysis
+
+    let get t =
+      cache @@ fun ~env:_ ctx ->
+      let t = t ctx in
+      make t.md @@ Dyn.return t.md
+  end
 end
