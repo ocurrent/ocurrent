@@ -2,6 +2,8 @@
 
 module S = S
 
+module Output = Output
+
 module Make (Input : S.INPUT) : sig
   include S.TERM with type input := Input.t
 

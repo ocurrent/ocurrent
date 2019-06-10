@@ -91,7 +91,7 @@ let test ~name v =
   let head = Commit_var.create ~name:"head" (Ok test_commit) in
   let i = ref 1 in
   let trace x inputs =
-    Fmt.pr "--> %a@." (Current.Executor.Output.pp (Fmt.unit "()")) x;
+    Fmt.pr "--> %a@." (Current_term.Output.pp (Fmt.unit "()")) x;
     Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp) inputs;
     begin
       let ready i = Lwt.state i#changed <> Lwt.Sleep in

@@ -104,12 +104,6 @@ module type EXECUTOR = sig
   type input
   (** See [INPUT]. *)
 
-  module Output : sig
-    type 'a t = ('a, [`Pending | `Msg of string]) result
-    val pp : 'a Fmt.t -> 'a t Fmt.t
-    val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
-  end
-
   val run : 'a term -> 'a Output.t * input list
   (** [run t] evaluates term [t], returning the current output and the set of
       inputs that were used during the evaluation. If any of the inputs change,

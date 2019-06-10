@@ -14,13 +14,9 @@ type 'a term = 'a t
 
 module Analysis : Current_term.S.ANALYSIS with type 'a term := 'a t
 
-module Executor : Current_term.S.EXECUTOR with
-  type 'a term := 'a t and
-  type input := Input.t
-
 module Engine : sig
   val run :
-    ?trace:(unit Executor.Output.t -> Input.t list -> unit) ->
+    ?trace:(unit Current_term.Output.t -> Input.t list -> unit) ->
     (unit -> unit t) ->
     'a Lwt.t
   (** [run f] evaluates [f ()] immediately, and again whenever one of its
@@ -29,11 +25,11 @@ end
 
 module Var (T : Current_term.S.T) : sig
   type t
-  (** A variable with a current value of type [T.t Executor.Output.t]. *)
+  (** A variable with a current value of type [T.t Current_term.Output.t]. *)
 
   val get : t -> T.t term
 
-  val create : name:string -> T.t Executor.Output.t -> t
-  val set : t -> T.t Executor.Output.t -> unit
-  val update : t -> (T.t Executor.Output.t -> T.t Executor.Output.t) -> unit
+  val create : name:string -> T.t Current_term.Output.t -> t
+  val set : t -> T.t Current_term.Output.t -> unit
+  val update : t -> (T.t Current_term.Output.t -> T.t Current_term.Output.t) -> unit
 end

@@ -3,6 +3,6 @@
   (name current_term)
   (libraries fmt bos)
   (preprocess (per_module
-                ((pps ppx_deriving.std) dyn)
+                ((pps ppx_deriving.std) output)
                 (future_syntax current_term s)
               )))

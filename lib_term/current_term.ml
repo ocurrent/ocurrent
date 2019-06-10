@@ -1,4 +1,5 @@
 module S = S
+module Output = Output
 
 module Make (Input : S.INPUT) = struct
   type 'a node = {
@@ -152,8 +153,6 @@ module Make (Input : S.INPUT) = struct
       let ctx = { env; inputs = [] } in
       let x = x ctx in
       Dyn.run x.fn, ctx.inputs
-
-    module Output = Dyn.Output
   end
 
   module Analysis = struct

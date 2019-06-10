@@ -1,11 +1,6 @@
 (* The runtime CI monad, similar to DataKitCI.
    Nothing interesting here. *)
 
-module Output : sig
-  type 'a t = ('a, [`Pending | `Msg of string]) result
-  [@@deriving eq, show]
-end
-
 type +'a t
 
 val pending : 'a t

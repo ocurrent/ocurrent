@@ -1,8 +1,3 @@
-module Output = struct
-  type 'a t = ('a, [`Pending | `Msg of string]) result
-  [@@deriving eq, show]
-end
-
 type 'a t = 'a Output.t
 
 let return x = Ok x

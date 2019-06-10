@@ -15,7 +15,7 @@ type 'a term = 'a t
 
 module Var (T : Current_term.S.T) = struct
   type t = {
-    mutable current : T.t Executor.Output.t;
+    mutable current : T.t Current_term.Output.t;
     name : string;
     cond : unit Lwt_condition.t;
   }
@@ -29,7 +29,7 @@ module Var (T : Current_term.S.T) = struct
 
       method changed =
         let rec aux () =
-          if Executor.Output.equal T.equal t.current v then
+          if Current_term.Output.equal T.equal t.current v then
             Lwt_condition.wait t.cond >>= aux
           else
             Lwt.return ()
@@ -58,7 +58,7 @@ let default_trace r inputs =
   Fmt.pr "@[<v2>Evaluation complete:@,\
           Result: %a@,\
           Watching: %a@]@."
-    Executor.(Output.pp Fmt.(unit "()")) r
+    Current_term.(Output.pp Fmt.(unit "()")) r
     Fmt.(Dump.list Input.pp) inputs
 
 module Engine = struct
