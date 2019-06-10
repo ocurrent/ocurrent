@@ -63,6 +63,11 @@ let fail ~env () =
 let pending ~env () =
   make ~env Constant Active
 
+let of_output ~env = function
+  | Ok _ -> return ~env ()
+  | Error `Msg _ -> fail ~env ()
+  | Error `Pending -> pending ~env ()
+
 let ( =? ) a b =
   match a, b with
   | None, None -> true

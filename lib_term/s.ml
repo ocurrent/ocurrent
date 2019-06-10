@@ -43,6 +43,9 @@ module type TERM = sig
   val fail : string -> 'a t
   (** [fail m] is a term that immediately fails with message [m]. *)
 
+  val of_output : 'a Output.t -> 'a t
+  (** [of_output x] is a returned, failed or pending term. *)
+
   val map : ('a -> 'b) -> 'a t -> 'b t
   (** [map f x] is a term that runs [x] and then transforms the result using [f]. *)
 

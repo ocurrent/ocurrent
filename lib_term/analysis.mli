@@ -19,13 +19,14 @@ val with_bind : t -> env -> env
    passed to a [bind]. All static values created within this environment get an
    implicit dependency on [b]. *)
 
-val return   : env:env -> unit -> t
-val fail     : env:env -> unit -> t
-val pending  : env:env -> unit -> t
-val pair     : env:env -> t -> t -> t
-val bind     : env:env -> name:string -> t -> state -> t
-val list_map : env:env -> f:t -> t -> t
-val gate     : env:env -> on:t -> t -> t
+val return    : env:env -> unit -> t
+val fail      : env:env -> unit -> t
+val pending   : env:env -> unit -> t
+val of_output : env:env -> _ Output.t -> t
+val pair      : env:env -> t -> t -> t
+val bind      : env:env -> name:string -> t -> state -> t
+val list_map  : env:env -> f:t -> t -> t
+val gate      : env:env -> on:t -> t -> t
 
 val set_state : t -> state -> unit
 

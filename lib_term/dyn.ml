@@ -2,6 +2,7 @@ type 'a t = 'a Output.t
 
 let return x = Ok x
 let fail msg = Error (`Msg msg)
+let of_output x = x
 
 let bind x f =
   match x with

@@ -37,13 +37,7 @@ module Var (T : Current_term.S.T) = struct
     end
 
   let get t =
-    let v =
-      match t.current with
-      | Ok v -> return v
-      | Error (`Msg m) -> fail m
-      | Error `Pending -> pending ()
-    in
-    track (new watch t t.current) v
+    track (new watch t t.current) (of_output t.current)
 
   let set t v =
     t.current <- v;
