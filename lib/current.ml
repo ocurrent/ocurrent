@@ -4,6 +4,7 @@ module Input = struct
   class type watch = object
     method pp : Format.formatter -> unit
     method changed : unit Lwt.t
+    method release : unit
   end
 
   type 'a t = unit -> 'a Current_term.Output.t * watch
@@ -41,6 +42,8 @@ module Var (T : Current_term.S.T) = struct
           else
             Lwt.return ()
         in aux ()
+
+      method release = ()
     end
 
   let get t =
@@ -63,11 +66,15 @@ let default_trace r inputs =
     Fmt.(Dump.list Input.pp_watch) inputs
 
 module Engine = struct
-  let rec run ?(trace=default_trace) f =
-    Fmt.pr "Evaluating...@.";
-    let r, inputs = Executor.run (f ()) in
-    trace r inputs;
-    Fmt.pr "Waiting for inputs to change...@.";
-    Lwt.choose (List.map (fun i -> i#changed) inputs) >>= fun () ->
-    run ~trace f
+  let run ?(trace=default_trace) f =
+    let rec aux ~old_watches =
+      Fmt.pr "Evaluating...@.";
+      let r, watches = Executor.run (f ()) in
+      List.iter (fun w -> w#release) old_watches;
+      trace r watches;
+      Fmt.pr "Waiting for inputs to change...@.";
+      Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
+      aux ~old_watches:watches
+    in
+    aux ~old_watches:[]
 end

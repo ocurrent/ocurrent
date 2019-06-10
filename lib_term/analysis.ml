@@ -108,8 +108,8 @@ let bind ~env:parent ~name x state =
   in
   let state =
     match x.state with
-    | Blocked | Active -> Blocked
-    | Pass | Fail -> state
+    | Blocked | Active | Fail -> Blocked
+    | Pass -> state
   in
   make ~env:parent ty state
 

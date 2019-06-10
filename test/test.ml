@@ -82,30 +82,42 @@ let with_analysis ~name ~i (t : unit Current.t) =
   let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
   Current_fs.save path data
 
+let ready i = Lwt.state i#changed <> Lwt.Sleep
+
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
 let test ~name v =
   Git.reset ();
+  Docker.reset ();
   (* Perform an initial analysis: *)
   let head = Commit_var.create ~name:"head" (Ok test_commit) in
   let i = ref 1 in
-  let trace x inputs =
+  let trace x watches =
     Fmt.pr "--> %a@." (Current_term.Output.pp (Fmt.unit "()")) x;
-    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp_watch) inputs;
+    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp_watch) watches;
     begin
-      let ready i = Lwt.state i#changed <> Lwt.Sleep in
-      match List.find_opt ready inputs with
+      match List.find_opt ready watches with
       | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i
       | None -> ()
     end;
     incr i;
-    match !i with
+    begin match !i with
     | 2 -> Git.complete_clone test_commit
-    | _ -> raise Exit
+    | 3 ->
+      Docker.complete "image-src-123" ~cmd:["make"; "test"] `Complete;
+      Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] `Complete;
+      Docker.complete "win-image-src-123" ~cmd:["make"; "test"] `Failed;
+      Docker.complete "image-bad" ~cmd:["make"; "test"] `Failed;
+    | _ ->
+      List.iter (fun w -> w#release) watches;
+      raise Exit
+    end;
+    if not (List.exists ready watches) then raise Exit
   in
   try Lwt_main.run @@ Current.Engine.run ~trace (fun () -> with_analysis ~name ~i @@ v (Commit_var.get head))
-  with Exit -> ()
+  with Exit ->
+    Docker.assert_finished ()
 
 let () =
   test ~name:"v1" v1;

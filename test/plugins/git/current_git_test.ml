@@ -1,9 +1,25 @@
 open Current.Syntax
 
+let src = Logs.Src.create "current.test.git" ~doc:"OCurrent test git plugin"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module RepoMap = Map.Make(String)
+
+type clone_state =
+  | Cloning of Fpath.t Current.Input.t * Fpath.t Lwt.u
+  | Cloned of Fpath.t
+
+let state : clone_state RepoMap.t ref = ref RepoMap.empty
 
 let clone repo =
   let ready, set_ready = Lwt.wait () in
+  let watch =
+    object
+      method pp f = Fmt.pf f "git clone %S" repo
+      method changed = Lwt.map ignore ready
+      method release = ()
+    end
+  in
   let get () =
     let v =
       match Lwt.state ready with
@@ -11,21 +27,9 @@ let clone repo =
       | Lwt.Fail f -> Error (`Msg (Printexc.to_string f))
       | Lwt.Return x -> Ok x
     in
-    let watch =
-      object
-        method pp f = Fmt.pf f "git clone %S" repo
-        method changed = Lwt.map ignore ready
-      end
-    in
     v, watch
   in
   Current.Input.of_fn get, set_ready
-
-type clone_state =
-  | Cloning of Fpath.t Current.Input.t * Fpath.t Lwt.u
-  | Cloned of Fpath.t
-
-let state : clone_state RepoMap.t ref = ref RepoMap.empty
 
 module Commit = struct
   type t = {

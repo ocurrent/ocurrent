@@ -2,11 +2,19 @@ module Input : sig
   class type watch = object
     method pp : Format.formatter -> unit
     method changed : unit Lwt.t
+    method release : unit
   end
 
   type 'a t
 
   val of_fn : (unit -> 'a Current_term.Output.t * watch) -> 'a t
+  (** [of_fn f] is an input that calls [f ()] when it is evalutated.
+      When [f] is called, the caller gets a ref-count on [watch] and will
+      call [release] exactly once when the watch is no longer needed.
+
+      Note: the engine calls [f] in an evaluation before calling [release]
+      on the previous watch, so if the ref-count drops to zero then you can
+      cancel the job. *)
 
   val pp_watch : watch Fmt.t
 end
