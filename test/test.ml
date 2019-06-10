@@ -92,11 +92,11 @@ let test ~name v =
   let i = ref 1 in
   let trace x inputs =
     Fmt.pr "--> %a@." (Current_term.Output.pp (Fmt.unit "()")) x;
-    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp) inputs;
+    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp_watch) inputs;
     begin
       let ready i = Lwt.state i#changed <> Lwt.Sleep in
       match List.find_opt ready inputs with
-      | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp i
+      | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i
       | None -> ()
     end;
     incr i;

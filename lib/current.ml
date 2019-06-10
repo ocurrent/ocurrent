@@ -1,12 +1,18 @@
 open Lwt.Infix
 
 module Input = struct
-  class type t = object
+  class type watch = object
     method pp : Format.formatter -> unit
     method changed : unit Lwt.t
   end
 
-  let pp f t = t#pp f
+  type 'a t = unit -> 'a Current_term.Output.t * watch
+
+  let of_fn t = t
+
+  let get (t : 'a t) = t ()
+
+  let pp_watch f t = t#pp f
 end
 
 include Current_term.Make(Input)
@@ -23,7 +29,8 @@ module Var (T : Current_term.S.T) = struct
   let create ~name current =
     { current; name; cond = Lwt_condition.create () }
 
-  class watch t v =
+  class watch t =
+    let v = t.current in
     object
       method pp f = Fmt.string f t.name
 
@@ -37,7 +44,7 @@ module Var (T : Current_term.S.T) = struct
     end
 
   let get t =
-    track (new watch t t.current) (of_output t.current)
+    track (fun () -> t.current, new watch t )
 
   let set t v =
     t.current <- v;
@@ -53,7 +60,7 @@ let default_trace r inputs =
           Result: %a@,\
           Watching: %a@]@."
     Current_term.(Output.pp Fmt.(unit "()")) r
-    Fmt.(Dump.list Input.pp) inputs
+    Fmt.(Dump.list Input.pp_watch) inputs
 
 module Engine = struct
   let rec run ?(trace=default_trace) f =

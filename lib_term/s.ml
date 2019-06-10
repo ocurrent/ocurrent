@@ -5,9 +5,13 @@ module type T = sig
 end
 
 module type INPUT = sig
-  type t
+  type 'a t
   (** An input that was used while evaluating a term.
       If the input changes, the term should be re-evaluated. *)
+
+  type watch
+
+  val get : 'a t -> 'a Output.t * watch
 end
 
 module type ANALYSIS = sig
@@ -28,7 +32,7 @@ module type ANALYSIS = sig
 end
 
 module type TERM = sig
-  type input
+  type 'a input
   (** See [INPUT]. *)
 
   type +'a t
@@ -72,10 +76,8 @@ module type TERM = sig
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
-  val track : input -> 'a t -> 'a t
-  (** [track i t] is like [t], but records that [t] depends on [i].
-      This is needed to implement the primitive building-blocks that make up
-      pipelines. *)
+  val track : 'a input -> 'a t
+  (** [track i] evaluates to the current value of [i]. *)
 
   module Syntax : sig
     val (let+) : 'a t -> ('a -> 'b) -> 'b t
@@ -104,10 +106,10 @@ module type EXECUTOR = sig
   type 'a term
   (** See [TERM]. *)
 
-  type input
+  type watch
   (** See [INPUT]. *)
 
-  val run : 'a term -> 'a Output.t * input list
+  val run : 'a term -> 'a Output.t * watch list
   (** [run t] evaluates term [t], returning the current output and the set of
       inputs that were used during the evaluation. If any of the inputs change,
       you should call [run] again to get the new results. *)

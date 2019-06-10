@@ -2,16 +2,27 @@ open Current.Syntax
 
 module RepoMap = Map.Make(String)
 
-class clone repo =
+let clone repo =
   let ready, set_ready = Lwt.wait () in
-  object
-    method pp f = Fmt.pf f "git clone %S" repo
-    method changed = ready
-    method set_complete = Lwt.wakeup set_ready ()
-  end
+  let get () =
+    let v =
+      match Lwt.state ready with
+      | Lwt.Sleep -> Error `Pending
+      | Lwt.Fail f -> Error (`Msg (Printexc.to_string f))
+      | Lwt.Return x -> Ok x
+    in
+    let watch =
+      object
+        method pp f = Fmt.pf f "git clone %S" repo
+        method changed = Lwt.map ignore ready
+      end
+    in
+    v, watch
+  in
+  Current.Input.of_fn get, set_ready
 
 type clone_state =
-  | Cloning of clone
+  | Cloning of Fpath.t Current.Input.t * Fpath.t Lwt.u
   | Cloned of Fpath.t
 
 let state : clone_state RepoMap.t ref = ref RepoMap.empty
@@ -34,10 +45,10 @@ let complete_clone {Commit.repo; hash} =
   match RepoMap.find_opt repo !state with
   | None -> Fmt.failwith "No clone started for %S!" repo
   | Some Cloned _ -> Fmt.failwith "Clone already complete for %S!" repo
-  | Some Cloning c ->
+  | Some Cloning (_, set) ->
     let r = Fpath.v ("src-" ^ hash) in
     state := RepoMap.add repo (Cloned r) !state;
-    c#set_complete
+    Lwt.wakeup set r
 
 let reset () =
   state := RepoMap.empty
@@ -47,13 +58,12 @@ let fetch c = "fetch" |>
   let s =
     match RepoMap.find_opt repo !state with
     | None ->
-      let s = Cloning (new clone repo) in
+      let input, set = clone repo in
+      let s = Cloning (input, set) in
       state := RepoMap.add repo s !state;
       s
     | Some s -> s
   in
   match s with
-  | Cloning i ->
-    Current.track (i :> Current.Input.t) (Current.pending ())
-  | Cloned path ->
-    Current.return path
+  | Cloning (i, _) -> Current.track i
+  | Cloned path -> Current.return path

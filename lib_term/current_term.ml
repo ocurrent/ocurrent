@@ -9,7 +9,7 @@ module Make (Input : S.INPUT) = struct
 
   type context = {
     env : Analysis.env;
-    mutable inputs : Input.t list;
+    mutable inputs : Input.watch list;
   }
 
   type 'a t = context -> 'a node
@@ -91,10 +91,11 @@ module Make (Input : S.INPUT) = struct
     let fn = Dyn.pair a.fn b.fn in
     make md fn
 
-  let track i t =
-    cache @@ fun ~env:_ ctx ->
-    ctx.inputs <- i :: ctx.inputs;
-    t ctx
+  let track i =
+    cache @@ fun ~env ctx ->
+    let v, watch = Input.get i in
+    ctx.inputs <- watch :: ctx.inputs;
+    make (Analysis.of_output ~env v) (Dyn.of_output v)
 
   module Syntax = struct
     let (let**) x f name = bind ~name f x
