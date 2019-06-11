@@ -138,10 +138,10 @@ let pp f x =
           | None -> Fmt.string f "(const)"
         end
       | Prim name -> Fmt.string f name
-      | Bind (x, name) -> Fmt.pf f "%a >>= %s" aux x name
-      | Pair (x, y) -> Fmt.pf f "(%a, %a)" aux x aux y
-      | Gate_on { ctrl; value } -> Fmt.pf f "%a; %a" aux ctrl aux value
-      | List_map { items; fn } -> Fmt.pf f "%a >> list_map (%a)" aux items aux fn
+      | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
+      | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
+      | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
+      | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
     )
   in
   aux f x

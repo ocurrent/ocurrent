@@ -1,6 +1,6 @@
 open Current.Syntax
 
-let src = Logs.Src.create "current.test.docker" ~doc:"OCurrent test docker plugin"
+let src = Logs.Src.create "test.docker" ~doc:"OCurrent test docker plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type source = Fpath.t

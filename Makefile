@@ -4,7 +4,7 @@ DOTS=$(sort $(wildcard _build/default/test/*.dot))
 
 test:
 	dune build @check
-	if dune runtest; then make svgs; else make svgs; exit 1; fi
+	if dune runtest --no-buffer; then make svgs; else make svgs; exit 1; fi
 
 svg:
 	mkdir svg

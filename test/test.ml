@@ -4,10 +4,21 @@ module Git = Current_git_test
 module Docker = Current_docker_test
 module Opam = Current_opam_test
 
+let reporter =
+  let report src level ~over k msgf =
+    let k _ = over (); k () in
+    let src = Logs.Src.name src in
+    msgf @@ fun ?header ?tags:_ fmt ->
+    Fmt.kpf k Fmt.stdout ("%a %a @[" ^^ fmt ^^ "@]@.")
+      Fmt.(styled `Magenta string) (Printf.sprintf "%11s" src)
+      Logs_fmt.pp_header (level, header)
+  in
+  { Logs.report = report }
+
 let () =
   Fmt_tty.setup_std_outputs ();
   Logs.(set_level (Some Info));
-  Logs.set_reporter (Logs_fmt.reporter ())
+  Logs.set_reporter reporter
 
 let fetch = Git.fetch
 let build = Docker.build
@@ -76,7 +87,7 @@ module Commit_var = Current.Var(Git.Commit)
 let with_analysis ~name ~i (t : unit Current.t) =
   let data =
     let+ a = Current.Analysis.get t in
-    Fmt.pr "Analysis: %a@." Current.Analysis.pp a;
+    Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp a);
     Fmt.strf "%a" Current.Analysis.pp_dot a
   in
   let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
@@ -94,8 +105,8 @@ let test ~name v =
   let head = Commit_var.create ~name:"head" (Ok test_commit) in
   let i = ref 1 in
   let trace x watches =
-    Fmt.pr "--> %a@." (Current_term.Output.pp (Fmt.unit "()")) x;
-    Fmt.pr "Depends on: %a@." Fmt.(Dump.list Current.Input.pp_watch) watches;
+    Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
+    Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Input.pp_watch) watches);
     begin
       match List.find_opt ready watches with
       | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i

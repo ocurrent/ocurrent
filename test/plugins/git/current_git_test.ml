@@ -1,6 +1,6 @@
 open Current.Syntax
 
-let src = Logs.Src.create "current.test.git" ~doc:"OCurrent test git plugin"
+let src = Logs.Src.create "test.git" ~doc:"OCurrent test git plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module RepoMap = Map.Make(String)

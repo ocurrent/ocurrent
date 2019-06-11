@@ -1,5 +1,8 @@
 open Lwt.Infix
 
+let src = Logs.Src.create "current" ~doc:"OCurrent engine"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Input = struct
   class type watch = object
     method pp : Format.formatter -> unit
@@ -59,20 +62,22 @@ module Var (T : Current_term.S.T) = struct
 end
 
 let default_trace r inputs =
-  Fmt.pr "@[<v2>Evaluation complete:@,\
-          Result: %a@,\
-          Watching: %a@]@."
-    Current_term.(Output.pp Fmt.(unit "()")) r
-    Fmt.(Dump.list Input.pp_watch) inputs
+  Log.info (fun f ->
+      f "@[<v2>Evaluation complete:@,\
+         Result: %a@,\
+         Watching: %a@]@."
+        Current_term.(Output.pp Fmt.(unit "()")) r
+        Fmt.(Dump.list Input.pp_watch) inputs
+    )
 
 module Engine = struct
   let run ?(trace=default_trace) f =
     let rec aux ~old_watches =
-      Fmt.pr "Evaluating...@.";
+      Log.info (fun f -> f "Evaluating...");
       let r, watches = Executor.run (f ()) in
       List.iter (fun w -> w#release) old_watches;
       trace r watches;
-      Fmt.pr "Waiting for inputs to change...@.";
+      Log.info (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
       aux ~old_watches:watches
     in
