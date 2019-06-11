@@ -1,7 +1,7 @@
 (** Integration with Docker containers. *)
 
 type source = Fpath.t
-type image
+module Image : sig type t end
 
-val build : source Current.t -> image Current.t
+val build : source Current.t -> Image.t Current.t
 (** [build src] builds a Docker image from source. *)

@@ -5,7 +5,10 @@ let src = Logs.Src.create "current.docker" ~doc:"OCurrent docker plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type source = Fpath.t
-type image = string
+
+module Image = struct
+  type t = string
+end
 
 module Key : sig
   include Set.OrderedType
@@ -31,55 +34,34 @@ end = struct
     Fmt.strf "build-of-%s-%s" (Fpath.basename t) hash
 end
 
-module Builds = Map.Make(Key)
+module Builder = struct
+  type t = No_context
+  module Key = Key
+  module Value = Image
 
-type build = image Current.Input.t
+  let build ~switch:_ No_context key =
+    let tag = Key.docker_tag key in
+    let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string (Key.dir key) |] in
+    let proc = Lwt_process.open_process_none ("", cmd) in
+    proc#status >|= function
+    | Unix.WEXITED 0 ->
+      Log.info (fun f -> f "Build of docker image %S succeeded" tag);
+      Ok tag
+    | Unix.WEXITED n ->
+      Error (`Msg (Fmt.strf "Build failed with exit status %d" n))
+    | Unix.WSIGNALED s ->
+      Error (`Msg (Fmt.strf "Build failed with signal %d" s))
+    | Unix.WSTOPPED x ->
+      Error (`Msg (Fmt.strf "Expected exit status: stopped with %d" x))
 
-let builds : build Builds.t ref = ref Builds.empty
+  let pp f key = Fmt.pf f "docker build %a" Key.pp key
 
-let do_build (key : Key.t) =
-  let tag = Key.docker_tag key in
-  let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string (Key.dir key) |] in
-  let proc = Lwt_process.open_process_none ("", cmd) in
-  let ready, set_ready = Lwt.wait () in
-  Lwt.async (fun () ->
-      proc#status >|= function
-      | Unix.WEXITED 0 ->
-        Log.info (fun f -> f "Build of docker image %S succeeded" tag);
-        Lwt.wakeup set_ready ()
-      | Unix.WEXITED n ->
-        let msg = Fmt.strf "Build failed with exit status %d" n in
-        Lwt.wakeup_exn set_ready (Failure msg)
-      | Unix.WSIGNALED s ->
-        let msg = Fmt.strf "Build failed with signal %d" s in
-        Lwt.wakeup_exn set_ready (Failure msg)
-      | Unix.WSTOPPED x -> Fmt.failwith "Expected exit status: stopped with %d" x
-    );
-  Current.Input.of_fn @@ fun () ->
-  match Lwt.state ready with
-  | Lwt.Sleep ->
-    let watch =
-      object
-        method pp f = Fmt.pf f "docker build %a" Key.pp key
-        method changed = ready
-        method release = ()
-      end
-    in
-    Error `Pending, [watch]
-  | Lwt.Return () -> Ok tag, []
-  | Lwt.Fail (Failure msg) -> Error (`Msg msg), []
-  | Lwt.Fail x -> Error (`Msg (Printexc.to_string x)), []
+  let auto_cancel = true
+end
+
+module C = Current_cache.Make(Builder)
 
 let build c =
   "build" |>
   let** c = c in
-  let key = Key.of_path c in
-  let b =
-    match Builds.find_opt key !builds with
-    | Some b -> b
-    | None ->
-      let b = do_build key in
-      builds := Builds.add key b !builds;
-      b
-  in
-  Current.track b
+  C.get Builder.No_context @@ Key.of_path c

@@ -1,4 +1,4 @@
 (library
   (name current_docker)
-  (libraries current fpath lwt.unix)
+  (libraries current current.cache fpath lwt.unix)
   (preprocess future_syntax))
