@@ -94,7 +94,7 @@ module Make (Input : S.INPUT) = struct
   let track i =
     cache @@ fun ~env ctx ->
     let v, watch = Input.get i in
-    ctx.inputs <- watch :: ctx.inputs;
+    ctx.inputs <- watch @ ctx.inputs;
     make (Analysis.of_output ~env v) (Dyn.of_output v)
 
   module Syntax = struct

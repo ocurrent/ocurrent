@@ -7,13 +7,13 @@ module Input : sig
 
   type 'a t
 
-  val of_fn : (unit -> 'a Current_term.Output.t * watch) -> 'a t
+  val of_fn : (unit -> 'a Current_term.Output.t * watch list) -> 'a t
   (** [of_fn f] is an input that calls [f ()] when it is evalutated.
-      When [f] is called, the caller gets a ref-count on [watch] and will
-      call [release] exactly once when the watch is no longer needed.
+      When [f] is called, the caller gets a ref-count on the watches and will
+      call [release] exactly once when each watch is no longer needed.
 
       Note: the engine calls [f] in an evaluation before calling [release]
-      on the previous watch, so if the ref-count drops to zero then you can
+      on the previous watches, so if the ref-count drops to zero then you can
       cancel the job. *)
 
   val pp_watch : watch Fmt.t

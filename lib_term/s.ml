@@ -11,7 +11,7 @@ module type INPUT = sig
 
   type watch
 
-  val get : 'a t -> 'a Output.t * watch
+  val get : 'a t -> 'a Output.t * watch list
 end
 
 module type ANALYSIS = sig

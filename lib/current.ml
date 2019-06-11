@@ -10,7 +10,7 @@ module Input = struct
     method release : unit
   end
 
-  type 'a t = unit -> 'a Current_term.Output.t * watch
+  type 'a t = unit -> 'a Current_term.Output.t * watch list
 
   let of_fn t = t
 
@@ -50,7 +50,7 @@ module Var (T : Current_term.S.T) = struct
     end
 
   let get t =
-    track (fun () -> t.current, new watch t )
+    track (fun () -> t.current, [new watch t] )
 
   let set t v =
     t.current <- v;
