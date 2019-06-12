@@ -38,7 +38,7 @@ let ready i = Lwt.state i#changed <> Lwt.Sleep
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
-let test ~name v =
+let test ~name v actions =
   Git.reset ();
   Docker.reset ();
   (* Perform an initial analysis: *)
@@ -52,18 +52,13 @@ let test ~name v =
       | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i
       | None -> ()
     end;
-    incr i;
-    begin match !i with
-    | 2 -> Git.complete_clone test_commit
-    | 3 ->
-      Docker.complete "image-src-123" ~cmd:["make"; "test"] `Complete;
-      Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] `Complete;
-      Docker.complete "win-image-src-123" ~cmd:["make"; "test"] `Failed;
-      Docker.complete "image-bad" ~cmd:["make"; "test"] `Failed;
-    | _ ->
-      List.iter (fun w -> w#release) watches;
-      raise Exit
+    begin
+      try actions !i
+      with Exit ->
+        List.iter (fun w -> w#release) watches;
+        raise Exit
     end;
+    incr i;
     if not (List.exists ready watches) then raise Exit
   in
   try Lwt_main.run @@ Current.Engine.run ~trace (fun () -> with_analysis ~name ~i @@ v (Commit_var.get head))
