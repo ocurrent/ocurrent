@@ -169,10 +169,10 @@ let pp_dot f x =
       in
       let bg =
         match md.state with
-        | Blocked -> "lightgray"
-        | Active -> "orange"
-        | Pass -> "lightgreen"
-        | Fail -> "orangered"
+        | Blocked -> "#d3d3d3"
+        | Active -> "#ffa500"
+        | Pass -> "#90ee90"
+        | Fail -> "#ff4500"
       in
       let node = Dot.node ~style:"filled" ~bg f in
       let outputs =
