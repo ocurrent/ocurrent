@@ -7,6 +7,7 @@ module Input = struct
   class type watch = object
     method pp : Format.formatter -> unit
     method changed : unit Lwt.t
+    method cancel : (unit -> unit) option
     method release : unit
   end
 
@@ -33,7 +34,7 @@ module Var (T : Current_term.S.T) = struct
   let create ~name current =
     { current; name; cond = Lwt_condition.create () }
 
-  class watch t =
+  let watch t =
     let v = t.current in
     object
       method pp f = Fmt.string f t.name
@@ -47,10 +48,12 @@ module Var (T : Current_term.S.T) = struct
         in aux ()
 
       method release = ()
+
+      method cancel = None
     end
 
   let get t =
-    track (fun () -> t.current, [new watch t] )
+    track (fun () -> t.current, [watch t] )
 
   let set t v =
     t.current <- v;

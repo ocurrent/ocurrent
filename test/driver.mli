@@ -8,3 +8,6 @@ val test :
 (** [test ~name pipeline actions] runs [pipeline]. After each interation,
     it calls [actions i] where [i] is the number of the next step ([1] on the
     first call). If [actions i] raises [Exit] then the tests finish. *)
+
+val cancel : string -> unit
+(** [cancel msg] cancels the watch named [msg]. *)

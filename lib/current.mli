@@ -1,11 +1,24 @@
 module Input : sig
   class type watch = object
     method pp : Format.formatter -> unit
+    (** Format a message for the user explaining what is being waited on. *)
+
     method changed : unit Lwt.t
+    (** A Lwt promise that resolves when the input has changed (and so terms
+        using it should be recalculated). *)
+
+    method cancel : (unit -> unit) option
+    (** A function to call if the user explicitly requests the operation be cancelled,
+        or [None] if it is not something that can be cancelled. *)
+
     method release : unit
+    (** Called to release the caller's reference to the watch (reduce the
+        ref-count by 1). Some inputs may cancel a build if the ref-count
+        reaches zero. *)
   end
 
   type 'a t
+  (** An input that produces an ['a term]. *)
 
   val of_fn : (unit -> 'a Current_term.Output.t * watch list) -> 'a t
   (** [of_fn f] is an input that calls [f ()] when it is evalutated.
@@ -17,6 +30,7 @@ module Input : sig
       cancel the job. *)
 
   val pp_watch : watch Fmt.t
+  (** [pp_watch f w] is [w#pp f]. *)
 end
 
 include Current_term.S.TERM with type 'a input := 'a Input.t

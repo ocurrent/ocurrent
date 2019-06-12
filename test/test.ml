@@ -22,6 +22,12 @@ let test_v1 () =
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
+let test_v1_cancel () =
+  Driver.test ~name:"v1c" v1 @@ function
+  | 1 -> Git.complete_clone test_commit
+  | 2 -> Driver.cancel "docker run image-src-123 make test"
+  | _ -> raise Exit
+
 (* Similar, but here the test step requires both the binary and
    the source (perhaps for the test cases). If the tests pass then
    it deploys the binary too. *)
@@ -96,8 +102,13 @@ let test_v5 () =
   | _ -> raise Exit
 
 let () =
-  test_v1 ();
-  test_v2 ();
-  test_v3 ();
-  test_v4 ();
-  test_v5 ();
+  try
+    test_v1 ();
+    test_v1_cancel ();
+    test_v2 ();
+    test_v3 ();
+    test_v4 ();
+    test_v5 ();
+  with Failure m ->
+    Fmt.pr "Tests failed!@.%s@." m;
+    exit 1

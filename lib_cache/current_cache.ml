@@ -25,14 +25,15 @@ module Make(B : BUILDER) = struct
     let switch = Lwt_switch.create () in
     let ready, set_ready = Lwt.wait () in
     let ref_count = ref 0 in
+    let cancel () = Lwt.async (fun () -> Lwt_switch.turn_off switch) in
     let watch =
       object
         method pp f = B.pp f key
         method changed = Lwt.map ignore ready
+        method cancel = Some cancel
         method release =
           decr ref_count;
-          if !ref_count = 0 && B.auto_cancel then
-            Lwt.async (fun () -> Lwt_switch.turn_off switch)
+          if !ref_count = 0 && B.auto_cancel then cancel ()
       end
     in
     Lwt.async (fun () ->

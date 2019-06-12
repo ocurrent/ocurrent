@@ -33,6 +33,17 @@ let with_analysis ~name ~i (t : unit Current.t) =
   let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
   Current_fs.save path data
 
+let current_watches = ref []
+
+let cancel msg =
+  let name w = Fmt.strf "%a" Current.Input.pp_watch w in
+  match List.find_opt (fun w -> name w = msg) !current_watches with
+  | None -> Fmt.failwith "No such watch %S." msg
+  | Some w ->
+    match w#cancel with
+    | Some c -> c ()
+    | None -> Fmt.failwith "Watch %S cannot be cancelled" msg
+
 let ready i = Lwt.state i#changed <> Lwt.Sleep
 
 (* Write two SVG files for pipeline [v]: one containing the static analysis
@@ -45,6 +56,7 @@ let test ~name v actions =
   let head = Commit_var.create ~name:"head" (Ok test_commit) in
   let i = ref 1 in
   let trace x watches =
+    current_watches := watches;
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
     Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Input.pp_watch) watches);
     begin
