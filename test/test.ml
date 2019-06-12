@@ -19,7 +19,7 @@ let v1 commit =
 let test_v1 () =
   Driver.test ~name:"v1" v1 @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] `Complete
+  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
 (* Similar, but here the test step requires both the binary and
@@ -33,7 +33,7 @@ let v2 commit =
 let test_v2 () =
   Driver.test ~name:"v2" v2 @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] `Complete
+  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
 (* Build Linux, Mac and Windows binaries. If *all* tests pass (for
@@ -54,8 +54,8 @@ let test_v3 () =
   Driver.test ~name:"v3" v3 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 ->
-    Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] `Complete;
-    Docker.complete "win-image-src-123" ~cmd:["make"; "test"] `Failed;
+    Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] @@ Ok ();
+    Docker.complete "win-image-src-123" ~cmd:["make"; "test"] @@ Error (`Msg "Missing DLL");
   | _ -> raise Exit
 
 (* Monadic bind is also available if you need to take a decision based
@@ -73,7 +73,7 @@ let v4 commit =
 let test_v4 () =
   Driver.test ~name:"v4" v4 @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] `Failed
+  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Error (`Msg "Failed")
   | _ -> raise Exit
 
 (* The opam-repo-ci pipeline. Build the package and test it.
@@ -92,7 +92,7 @@ let v5 commit =
 let test_v5 () =
   Driver.test ~name:"v5" v5 @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] `Complete
+  | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
 let () =

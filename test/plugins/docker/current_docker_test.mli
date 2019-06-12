@@ -9,7 +9,7 @@ val build : ?on:string -> source Current.t -> image Current.t
 val run : image Current.t -> cmd:string list -> unit Current.t
 (** [run image ~cmd] runs [cmd] in Docker image [image]. *)
 
-val complete : string -> cmd:string list -> [`Failed | `Complete] -> unit
+val complete : string -> cmd:string list -> (unit, [`Msg of string]) result -> unit
 (** Marks a previous [run] as complete. *)
 
 val push : image Current.t -> tag:string -> unit Current.t

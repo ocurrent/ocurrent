@@ -18,13 +18,6 @@ module Key = struct
   let compare = compare
 end
 
-module Containers = Map.Make(Key)
-
-type state =
-  unit Current.Input.t * [`Failed | `Complete] Lwt.u
-
-let containers : state Containers.t ref = ref Containers.empty
-
 let build_on platform ~src =
   "build-" ^ platform |>
   let** c = src in
@@ -40,49 +33,45 @@ let build ?on src =
   | None -> build src
   | Some platform -> build_on platform ~src
 
-let docker_run key =
-  Log.info (fun f -> f "%a" Key.pp key);
-  let ready, set_ready = Lwt.wait () in
-  let ref_count = ref 0 in
-  let get () =
-    match Lwt.state ready with
-    | Lwt.Sleep ->
-      incr ref_count;
-      let watch =
-        object
-          method changed = Lwt.map ignore ready
-          method pp f = Key.pp f key
-          method release =
-            decr ref_count;
-            if !ref_count = 0 && Lwt.state ready = Lwt.Sleep then (
-              Lwt.wakeup set_ready `Failed
-            )
-        end
-      in
-      Error `Pending, [watch]
-    | Lwt.Return `Complete -> Ok (), []
-    | Lwt.Return `Failed -> Error (`Msg "Failed"), []
-    | Lwt.Fail ex -> Error (`Msg (Printexc.to_string ex)), []
-  in
-  let input = Current.Input.of_fn get in
-  let r = (input, set_ready) in
-  containers := Containers.add key r !containers;
-  input
+
+module Containers = Map.Make(Key)
+
+let containers : (unit, [`Msg of string]) result Lwt.u Containers.t ref = ref Containers.empty
+
+module Run = struct
+  type t = No_context
+  module Key = Key
+  module Value = struct type t = unit end
+
+  let pp = Key.pp
+
+  let build ~switch No_context (key : Key.t) =
+    let ready, set_ready = Lwt.wait () in
+    containers := Containers.add key set_ready !containers;
+    Lwt_switch.add_hook (Some switch) (fun () ->
+        if Lwt.state ready = Lwt.Sleep then (
+          Lwt.wakeup set_ready @@ Error (`Msg "Cancelled");
+        );
+        Lwt.return_unit
+      );
+    ready
+
+  let auto_cancel = true
+end
+
+module Run_cache = Current_cache.Make(Run)
 
 let run image ~cmd =
   Fmt.strf "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let** image = image in
   let key = { Key.image; cmd } in
-  Current.track @@
-  match Containers.find_opt key !containers with
-  | Some (c, _) -> c
-  | None -> docker_run key
+  Run_cache.get Run.No_context key
 
-let complete image ~cmd (r : [ `Complete | `Failed ]) =
+let complete image ~cmd r =
   let key = { Key.image; cmd } in
   match Containers.find_opt key !containers with
-  | Some (_, s) -> Lwt.wakeup s r
-  | _ -> ()
+  | Some s -> Lwt.wakeup s r
+  | None -> Fmt.failwith "Container %a not running!" Key.pp key
 
 let push image ~tag =
   Fmt.strf "docker push %s" tag |>
@@ -90,10 +79,11 @@ let push image ~tag =
   Current.return ()
 
 let reset () =
-  containers := Containers.empty
+  containers := Containers.empty;
+  Run_cache.reset ()
 
 let assert_finished () =
-  !containers |> Containers.iter (fun key (_, s) ->
+  !containers |> Containers.iter (fun key s ->
       let ex = Failure (Fmt.strf "Container %a still running!" Key.pp key) in
       try Lwt.wakeup_exn s ex; raise ex
       with Invalid_argument _ -> () (* Already resolved - good! *)
