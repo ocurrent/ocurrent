@@ -1,0 +1,4 @@
+(library
+  (name current_git)
+  (libraries current current.cache fpath lwt.unix)
+  (preprocess future_syntax))

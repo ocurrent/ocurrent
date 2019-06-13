@@ -34,6 +34,9 @@ module Make (B : BUILDER) : sig
   val get : B.t -> B.Key.t -> B.Value.t Current.t
   (** [get b k] is a term for the result of building [k]. *)
 
+  val invalidate : B.Key.t -> unit
+  (** [invalidate key] removes key from the cache. *)
+
   val reset : unit -> unit
   (** [reset ()] clears the cache. Useful for unit-tests. *)
 end

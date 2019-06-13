@@ -57,6 +57,10 @@ module Make(B : BUILDER) = struct
       builds := Builds.add key b !builds;
       b
 
+  let invalidate key =
+    (* TODO: assert that the build is not currently in progress. *)
+    builds := Builds.remove key !builds
+
   let reset () =
     builds := Builds.empty
 end

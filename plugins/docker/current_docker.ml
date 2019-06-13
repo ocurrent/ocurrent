@@ -4,44 +4,23 @@ open Current.Syntax
 let src = Logs.Src.create "current.docker" ~doc:"OCurrent docker plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-type source = Fpath.t
+type source = Current_git.Commit.t
 
 module Image = struct
   type t = string
 end
 
-module Key : sig
-  include Set.OrderedType
-  val of_path : Fpath.t -> t
-  val dir : t -> Fpath.t
-  val docker_tag : t -> string
-  val pp : t Fmt.t
-end = struct
-  type t = Fpath.t
-
-  let of_path t =
-    if Fpath.is_abs t then t
-    else Fpath.normalize @@ Fpath.append (Fpath.v @@ Sys.getcwd ()) t
-
-  let compare = Fpath.compare
-
-  let pp = Fpath.pp
-
-  let dir t = t
-
-  let docker_tag t =
-    let hash = Fpath.to_string t |> Digest.string |> Digest.to_hex in
-    Fmt.strf "build-of-%s-%s" (Fpath.basename t) hash
-end
-
 module Builder = struct
   type t = No_context
-  module Key = Key
+  module Key = Current_git.Commit
   module Value = Image
 
-  let build ~switch:_ No_context key =
-    let tag = Key.docker_tag key in
-    let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string (Key.dir key) |] in
+  let docker_tag t = Fmt.strf "build-of-%s" (Key.id t)
+
+  let build ~switch:_ No_context commit =
+    let tag = docker_tag commit in
+    Current_git.with_checkout commit @@ fun dir ->
+    let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string dir |] in
     let proc = Lwt_process.open_process_none ("", cmd) in
     proc#status >|= function
     | Unix.WEXITED 0 ->
@@ -61,7 +40,7 @@ end
 
 module C = Current_cache.Make(Builder)
 
-let build c =
+let build src =
   "build" |>
-  let** c = c in
-  C.get Builder.No_context @@ Key.of_path c
+  let** src = src in
+  C.get Builder.No_context src

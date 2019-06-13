@@ -1,3 +1,5 @@
+type 'a or_error = ('a, [`Msg of string]) result
+
 module Input : sig
   class type watch = object
     method pp : Format.formatter -> unit
@@ -59,3 +61,7 @@ module Var (T : Current_term.S.T) : sig
   val set : t -> T.t Current_term.Output.t -> unit
   val update : t -> (T.t Current_term.Output.t -> T.t Current_term.Output.t) -> unit
 end
+
+val state_dir : string -> Fpath.t
+(** [state_dir name] is a directory under which state (build results, logs) can be stored.
+    [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory. *)

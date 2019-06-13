@@ -3,6 +3,8 @@ open Lwt.Infix
 let src = Logs.Src.create "current" ~doc:"OCurrent engine"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+type 'a or_error = ('a, [`Msg of string]) result
+
 module Input = struct
   class type watch = object
     method pp : Format.formatter -> unit
@@ -68,7 +70,7 @@ let default_trace r inputs =
   Log.info (fun f ->
       f "@[<v2>Evaluation complete:@,\
          Result: %a@,\
-         Watching: %a@]@."
+         Watching: %a@]"
         Current_term.(Output.pp Fmt.(unit "()")) r
         Fmt.(Dump.list Input.pp_watch) inputs
     )
@@ -86,3 +88,13 @@ module Engine = struct
     in
     aux ~old_watches:[]
 end
+
+let state_dir_root = Fpath.v @@ Filename.concat (Sys.getcwd ()) "var"
+
+let state_dir name =
+  let name = Fpath.v name in
+  assert (Fpath.is_rel name);
+  let path = Fpath.append state_dir_root name in
+  match Bos.OS.Dir.create path with
+  | Ok (_ : bool) -> path
+  | Error (`Msg m) -> failwith m
