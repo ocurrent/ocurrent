@@ -1,3 +1,5 @@
+val init_logging : unit -> unit
+
 val test_commit : Current_git_test.Commit.t
 
 val test :

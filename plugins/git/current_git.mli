@@ -24,3 +24,15 @@ val fetch : Commit_id.t Current.t -> Commit.t Current.t
 val with_checkout : Commit.t -> (Fpath.t -> 'a Current.or_error Lwt.t) -> 'a Current.or_error Lwt.t
 (** [with_checkout c fn] clones [c] to a temporary directory and runs [fn tmpdir]. When it returns,
     the directory is deleted. *)
+
+module Local : sig
+  type t
+  (** A local Git repository. *)
+
+  val v : Fpath.t -> t
+  (** [v path] is the local Git repository at [path]. *)
+
+  val head : t -> string -> Commit_id.t Current.t
+  (** [head t gref] evaluates to the commit at the head of [gref].
+      e.g. [head t "/refs/heads/master"] *)
+end

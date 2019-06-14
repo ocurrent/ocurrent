@@ -98,3 +98,89 @@ let state_dir name =
   match Bos.OS.Dir.create path with
   | Ok (_ : bool) -> path
   | Error (`Msg m) -> failwith m
+
+module Monitor : sig
+  val create :
+    read:(unit -> 'a or_error Lwt.t) ->
+    watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
+    pp:(Format.formatter -> unit) ->
+    'a Input.t
+end = struct
+  type 'a t = {
+    read : unit -> 'a or_error Lwt.t;
+    watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
+    pp : Format.formatter -> unit;
+    mutable value : 'a Current_term.Output.t;
+    mutable ref_count : int;              (* Number of terms using this input *)
+    mutable need_refresh : bool;          (* Update detected after current read started *)
+    mutable active : bool;                (* Monitor thread is running *)
+    cond : unit Lwt_condition.t;          (* Maybe time to leave the "wait" state *)
+    external_cond : unit Lwt_condition.t; (* New value ready for external user *)
+  }
+
+  let refresh t () =
+    t.need_refresh <- true;
+    Lwt_condition.broadcast t.cond ()
+
+  let rec enable t =
+    t.watch (refresh t) >>= fun unwatch ->
+    if t.ref_count = 0 then disable ~unwatch t
+    else get_value t ~unwatch
+  and disable ~unwatch t =
+    unwatch () >>= fun () ->
+    if t.ref_count > 0 then enable t
+    else (
+      assert (t.active);
+      t.active <- false;
+      (* Clear the saved value, so that if we get activated again then we don't
+         start by serving up the previous value, which could be quite stale by then. *)
+      t.value <- Error `Pending;
+      Lwt.return `Finished
+    )
+  and get_value ~unwatch t =
+    t.need_refresh <- false;
+    t.read () >>= fun v ->
+    t.value <- (v :> _ Current_term.Output.t);
+    Lwt_condition.broadcast t.external_cond ();
+    wait ~unwatch t
+  and wait ~unwatch t =
+    if t.ref_count = 0 then disable ~unwatch t
+    else if t.need_refresh then get_value ~unwatch t
+    else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
+
+  let run t =
+    Input.of_fn @@ fun () ->
+    t.ref_count <- t.ref_count + 1;
+    if not t.active then (
+      t.active <- true;
+      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
+    );  (* (else the previous thread will check [ref_count] before exiting) *)
+    let changed = Lwt_condition.wait t.external_cond in
+    let watch =
+      object
+        method changed = changed
+        method cancel = None
+        method pp f = t.pp f
+        method release =
+          assert (t.ref_count > 0);
+          t.ref_count <- t.ref_count - 1;
+          if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
+      end
+    in
+    t.value, [watch]
+
+  let create ~read ~watch ~pp =
+    let cond = Lwt_condition.create () in
+    let external_cond = Lwt_condition.create () in
+    let t = {
+      ref_count = 0;
+      active = false;
+      need_refresh = true;
+      cond; external_cond;
+      value = Error `Pending;
+      read; watch; pp
+    } in
+    run t
+end
+
+let monitor = Monitor.create

@@ -123,3 +123,71 @@ let with_checkout commit fn =
       Fetch_cache.invalidate id;
       Lwt.return (Error not_cached)
     | Ok () -> Lwt.return (Error e)
+
+module Local = struct
+  module Ref_map = Map.Make(String)
+
+  let next_id =
+    let i = ref 0 in
+    fun () ->
+      let id = !i in
+      incr i;
+      id
+
+  type t = {
+    repo : Fpath.t;
+    mutable heads : Commit_id.t Current.Input.t Ref_map.t;
+  }
+
+  let pp_repo f t = Fpath.pp f t.repo
+
+  let v repo =
+    let heads = Ref_map.empty in
+    { repo; heads }
+
+  let read_reference t gref =
+    let cmd = [| "git"; "-C"; Fpath.to_string t.repo; "rev-parse"; "--revs-only"; gref |] in
+    Lwt_process.pread ("", cmd) >|= fun out ->
+    match String.trim out with
+    | "" -> Error (`Msg (Fmt.strf "Unknown ref %S" gref))
+    | hash -> Ok { Commit_id.repo = Fpath.to_string t.repo; gref; hash }
+
+  let make_input t gref =
+    let dot_git = Fpath.(t.repo / ".git") in
+    if not (Astring.String.is_prefix ~affix:"refs/" gref) then
+      Fmt.failwith "Reference %S should start \"refs/\"" gref;
+    let read () = read_reference t gref in
+    let watch refresh =
+      let watch_dir = Fpath.append dot_git (Fpath.v @@ Filename.dirname gref) in
+      Log.info (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
+      Irmin_watcher.hook (next_id ()) (Fpath.to_string watch_dir) (fun path ->
+          if path = Filename.basename gref then (
+            Log.info (fun f -> f "Detected change in %S" path);
+            refresh ();
+          ) else (
+            Log.debug (fun f -> f "Ignoring change in %S" path);
+          );
+          Lwt.return_unit
+        )
+      >|= fun unwatch ->
+      Log.info (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
+      fun () ->
+        Log.info (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
+        unwatch ()
+    in
+    let pp f =
+      Fmt.pf f "%a#%s" pp_repo t gref
+    in
+    Current.monitor ~read ~watch ~pp
+
+  let head t gref =
+    let i =
+      match Ref_map.find_opt gref t.heads with
+      | Some i -> i
+      | None ->
+        let i = make_input t gref in
+        t.heads <- Ref_map.add gref i t.heads;
+        i
+    in
+    Current.track i
+end

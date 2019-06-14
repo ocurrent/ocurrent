@@ -11,7 +11,7 @@ let reporter =
   in
   { Logs.report = report }
 
-let () =
+let init_logging () =
   Fmt_tty.setup_std_outputs ();
   Logs.(set_level (Some Info));
   Logs.set_reporter reporter

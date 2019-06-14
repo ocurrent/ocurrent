@@ -1,4 +1,4 @@
 (library
   (name current_git)
-  (libraries current current.cache fpath lwt.unix)
+  (libraries current current.cache fpath lwt.unix irmin-watcher)
   (preprocess future_syntax))

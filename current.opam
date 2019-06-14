@@ -15,5 +15,7 @@ depends: [
   "bos"
   "ppx_deriving"
   "lwt"
+  "irmin-watcher"
   "dune" {build}
+  "alcotest" {with-test}
 ]

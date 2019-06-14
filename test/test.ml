@@ -4,6 +4,8 @@ module Git = Current_git_test
 module Docker = Current_docker_test
 module Opam = Current_opam_test
 
+let () = Driver.init_logging ()
+
 let fetch = Git.fetch
 let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
