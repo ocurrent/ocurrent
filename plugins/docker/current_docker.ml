@@ -17,11 +17,19 @@ module Builder = struct
 
   let docker_tag t = Fmt.strf "build-of-%s" (Key.id t)
 
-  let build ~switch:_ No_context commit =
+  let build ~switch No_context commit =
     let tag = docker_tag commit in
     Current_git.with_checkout commit @@ fun dir ->
     let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string dir |] in
     let proc = Lwt_process.open_process_none ("", cmd) in
+    Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
+        if proc#state = Lwt_process.Running then (
+          Log.info (fun f -> f "Cancelling build of %a" Key.pp commit);
+          proc#terminate;
+        );
+        Lwt.return_unit
+      )
+    >>= fun () ->
     proc#status >|= function
     | Unix.WEXITED 0 ->
       Log.info (fun f -> f "Build of docker image %S succeeded" tag);

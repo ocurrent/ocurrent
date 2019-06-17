@@ -21,6 +21,10 @@ module Make(B : BUILDER) = struct
 
   let builds : B.Value.t Current.Input.t Builds.t ref = ref Builds.empty
 
+  let invalidate key =
+    (* TODO: assert that the build is not currently in progress. *)
+    builds := Builds.remove key !builds
+
   let do_build ctx key =
     let switch = Lwt_switch.create () in
     let ready, set_ready = Lwt.wait () in
@@ -33,7 +37,10 @@ module Make(B : BUILDER) = struct
         method cancel = Some cancel
         method release =
           decr ref_count;
-          if !ref_count = 0 && B.auto_cancel then cancel ()
+          if !ref_count = 0 && B.auto_cancel && Lwt.state ready = Lwt.Sleep then (
+            cancel ();
+            invalidate key
+          )
       end
     in
     Lwt.async (fun () ->
@@ -56,10 +63,6 @@ module Make(B : BUILDER) = struct
       let b = do_build ctx key in
       builds := Builds.add key b !builds;
       b
-
-  let invalidate key =
-    (* TODO: assert that the build is not currently in progress. *)
-    builds := Builds.remove key !builds
 
   let reset () =
     builds := Builds.empty
