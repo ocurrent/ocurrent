@@ -178,7 +178,8 @@ module Local = struct
     Current.monitor ~read ~watch ~pp
 
   let commit_of_ref t head_ref =
-    let* x = head_ref in
+    "read gref" |>
+    let** x = head_ref in
     match x with
     | `Commit c -> Current.return c
     | `Ref gref ->
