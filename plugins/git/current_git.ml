@@ -136,14 +136,11 @@ module Local = struct
 
   type t = {
     repo : Fpath.t;
+    head : [`Ref of string | `Commit of Commit_id.t] Current.Input.t;
     mutable heads : Commit_id.t Current.Input.t Ref_map.t;
   }
 
   let pp_repo f t = Fpath.pp f t.repo
-
-  let v repo =
-    let heads = Ref_map.empty in
-    { repo; heads }
 
   let read_reference t gref =
     let cmd = [| "git"; "-C"; Fpath.to_string t.repo; "rev-parse"; "--revs-only"; gref |] in
@@ -180,14 +177,62 @@ module Local = struct
     in
     Current.monitor ~read ~watch ~pp
 
-  let head t gref =
-    let i =
-      match Ref_map.find_opt gref t.heads with
-      | Some i -> i
-      | None ->
-        let i = make_input t gref in
-        t.heads <- Ref_map.add gref i t.heads;
-        i
+  let commit_of_ref t head_ref =
+    let* x = head_ref in
+    match x with
+    | `Commit c -> Current.return c
+    | `Ref gref ->
+      let i =
+        match Ref_map.find_opt gref t.heads with
+        | Some i -> i
+        | None ->
+          let i = make_input t gref in
+          t.heads <- Ref_map.add gref i t.heads;
+          i
+      in
+      Current.track i
+
+  let head t = Current.track t.head
+
+  let read_head repo =
+    let path = Fpath.(repo / ".git" / "HEAD") in
+    match Bos.OS.File.read path with
+    | Error _ as e -> e
+    | Ok contents ->
+      let open Astring in (* (from ocaml-git) *)
+      match String.cuts ~sep:" " (String.trim contents) with
+      | [hash] -> Ok (`Commit {Commit_id.repo = Fpath.to_string repo; gref = "HEAD"; hash})
+      | [_;r]  -> Ok (`Ref r)
+      | _      -> Error (`Msg (Fmt.strf "Can't parse HEAD %S" contents))
+
+  let make_head_input repo =
+    let dot_git = Fpath.(repo / ".git") in
+    let read () = Lwt.return (read_head repo) in
+    let watch refresh =
+      let watch_dir = dot_git in
+      Log.info (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
+      Irmin_watcher.hook (next_id ()) (Fpath.to_string watch_dir) (fun path ->
+          if path = "HEAD" then (
+            Log.info (fun f -> f "Detected change in %S" path);
+            refresh ();
+          ) else (
+            Log.debug (fun f -> f "Ignoring change in %S" path);
+          );
+          Lwt.return_unit
+        )
+      >|= fun unwatch ->
+      Log.info (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
+      fun () ->
+        Log.info (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
+        unwatch ()
     in
-    Current.track i
+    let pp f =
+      Fmt.pf f "HEAD(%a)" Fpath.pp repo
+    in
+    Current.monitor ~read ~watch ~pp
+
+  let v repo =
+    let head = make_head_input repo in
+    let heads = Ref_map.empty in
+    { repo; head; heads }
 end

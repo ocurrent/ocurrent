@@ -32,7 +32,13 @@ module Local : sig
   val v : Fpath.t -> t
   (** [v path] is the local Git repository at [path]. *)
 
-  val head : t -> string -> Commit_id.t Current.t
+  val head : t -> [`Commit of Commit_id.t | `Ref of string ] Current.t
+  (** [head] is the current branch ref (e.g. "/refs/heads/master"). *)
+
+  val commit_of_ref :
+    t ->
+    [< `Commit of Commit_id.t | `Ref of string ] Current.t ->
+    Commit_id.t Current.t
   (** [head t gref] evaluates to the commit at the head of [gref].
       e.g. [head t "/refs/heads/master"] *)
 end
