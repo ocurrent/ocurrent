@@ -32,7 +32,7 @@ let repo =
   | [| _; path |] -> path
   | _ -> Fmt.failwith "Usage: docker_build_local DIR"
 
-(* Run "docker build" on the latest commit in Git repository [path]. *)
+(* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline () =
   let head = Git.Local.(commit_of_ref repo (head repo)) in
   let src = Git.fetch head in
