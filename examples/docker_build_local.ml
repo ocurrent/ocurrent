@@ -41,11 +41,13 @@ let pipeline () =
 
 (* Render pipeline as dot file *)
 let pipeline () =
+  let result = pipeline () in
   let dot_data =
-    let+ a = Current.Analysis.get (pipeline ()) in
+    let+ a = Current.Analysis.get result in
     Fmt.strf "%a" Current.Analysis.pp_dot a
   in
-  Current_fs.save (Current.return dotfile) dot_data
+  let* () = Current_fs.save (Current.return dotfile) dot_data in
+  result
 
 (* Mainloop *)
 let () =

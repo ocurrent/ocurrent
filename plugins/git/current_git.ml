@@ -233,6 +233,7 @@ module Local = struct
     Current.monitor ~read ~watch ~pp
 
   let v repo =
+    let repo = Fpath.normalize @@ Fpath.append (Fpath.v (Sys.getcwd ())) repo in
     let head = make_head_input repo in
     let heads = Ref_map.empty in
     { repo; head; heads }
