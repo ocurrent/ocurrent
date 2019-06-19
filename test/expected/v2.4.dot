@@ -9,6 +9,6 @@ digraph pipeline {
   n2 [label="",fillcolor="#90ee90",style="filled",shape="circle"]
   n3 -> n2 [style="dashed"]
   n4 -> n2
-  n1 [label="docker push foo/bar",fillcolor="#ffa500",style="filled"]
+  n1 [label="docker push foo/bar",fillcolor="#90ee90",style="filled"]
   n2 -> n1
   }

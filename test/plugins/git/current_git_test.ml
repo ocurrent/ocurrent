@@ -42,6 +42,8 @@ module Builder = struct
     ready
 
   let auto_cancel = false
+
+  let level _ _ = Current.Level.Average
 end
 
 module C = Current_cache.Make(Builder)

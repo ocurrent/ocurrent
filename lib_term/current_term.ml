@@ -8,7 +8,8 @@ module Make (Input : S.INPUT) = struct
   }
 
   type context = {
-    env : Analysis.env;
+    user_env : Input.env;
+    default_env : Analysis.env;
     mutable inputs : Input.watch list;
   }
 
@@ -35,8 +36,8 @@ module Make (Input : S.INPUT) = struct
       | _ ->
         let env =
           match bind with
-          | None -> ctx.env
-          | Some b -> Analysis.with_bind b ctx.env
+          | None -> ctx.default_env
+          | Some b -> Analysis.with_bind b ctx.default_env
         in
         let r = f ~env ctx in
         last := Some (ctx, r);
@@ -58,7 +59,7 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (Analysis.of_output ~env x) (Dyn.of_output x)
 
-  let bind ?(name="?") (f:'a -> 'b t) (x:'a t) =
+  let bind ?(name="") (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
     let md = Analysis.bind ~env ~name x.md in
@@ -152,10 +153,14 @@ module Make (Input : S.INPUT) = struct
     in
     make md fn
 
+  let env =
+    cache @@ fun ~env ctx ->
+    make (Analysis.return ~env ()) (Dyn.return ctx.user_env)
+
   module Executor = struct
-    let run x =
-      let env = Analysis.make_env () in
-      let ctx = { env; inputs = [] } in
+    let run ~env:user_env x =
+      let default_env = Analysis.make_env () in
+      let ctx = { default_env; user_env; inputs = [] } in
       let x = x ctx in
       Dyn.run x.fn, ctx.inputs
   end

@@ -28,6 +28,10 @@ module type BUILDER = sig
   val auto_cancel : bool
   (** [true] if a build should be cancelled if it is no longer needed, or
       [false] to cancel only when the user explicitly requests it. *)
+
+  val level : t -> Key.t -> Current.Level.t
+  (** [level t k] provides an estimate of how risky / expensive this operation is.
+      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end
 
 module Make (B : BUILDER) : sig

@@ -16,6 +16,7 @@ depends: [
   "ppx_deriving"
   "lwt"
   "irmin-watcher"
+  "cmdliner"
   "dune" {build}
   "alcotest" {with-test}
 ]

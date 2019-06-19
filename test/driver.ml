@@ -49,7 +49,7 @@ let ready i = Lwt.state i#changed <> Lwt.Sleep
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
-let test ~name v actions =
+let test ?config ~name v actions =
   Git.reset ();
   Docker.reset ();
   (* Perform an initial analysis: *)
@@ -73,6 +73,8 @@ let test ~name v actions =
     incr i;
     if not (List.exists ready watches) then raise Exit
   in
-  try Lwt_main.run @@ Current.Engine.run ~trace (fun () -> with_analysis ~name ~i @@ v (Commit_var.get head))
+  try
+    Lwt_main.run @@ Current.Engine.run ?config ~trace @@ fun () ->
+    with_analysis ~name ~i @@ v (Commit_var.get head)
   with Exit ->
     Docker.assert_finished ()

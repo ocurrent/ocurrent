@@ -11,6 +11,9 @@ module type INPUT = sig
 
   type watch
 
+  type env
+  (** A context which the caller can associate with an execution. *)
+
   val get : 'a t -> 'a Output.t * watch list
 end
 
@@ -109,8 +112,11 @@ module type EXECUTOR = sig
   type watch
   (** See [INPUT]. *)
 
-  val run : 'a term -> 'a Output.t * watch list
-  (** [run t] evaluates term [t], returning the current output and the set of
-      inputs that were used during the evaluation. If any of the inputs change,
-      you should call [run] again to get the new results. *)
+  type env
+  (** See [INPUT]. *)
+
+  val run : env:env -> 'a term -> 'a Output.t * watch list
+  (** [run ~env t] evaluates term [t], returning the current output and the set
+      of inputs that were used during the evaluation. If any of the inputs
+      change, you should call [run] again to get the new results. *)
 end

@@ -21,6 +21,14 @@ module Commit_id = struct
   let pp f {repo; gref; hash} =
     Fmt.pf f "%s#%s (%s)" repo gref hash
 
+  let is_local t =
+    if Astring.String.is_prefix ~affix:"file:" t.repo then true
+    else match String.index_opt t.repo ':',
+               String.index_opt t.repo '/' with
+    | Some i, Some j -> i < j     (* http://... is remote; /http:foo is local *)
+    | None, _ -> true             (* All remote URLs have colons *)
+    | Some _, None -> false       (* foo:bar is remote *)
+
   let equal = (=)
   let compare = compare
 end
@@ -102,6 +110,10 @@ module Fetcher = struct
   let pp f key = Fmt.pf f "git fetch %a" Key.pp key
 
   let auto_cancel = false
+
+  let level _ k =
+    if Commit_id.is_local k then Current.Level.Harmless
+    else Current.Level.Mostly_harmless
 end
 
 module Fetch_cache = Current_cache.Make(Fetcher)

@@ -44,6 +44,8 @@ module Builder = struct
   let pp f key = Fmt.pf f "docker build %a" Key.pp key
 
   let auto_cancel = true
+
+  let level _ _ = Current.Level.Average
 end
 
 module C = Current_cache.Make(Builder)

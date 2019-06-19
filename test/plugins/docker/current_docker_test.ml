@@ -4,11 +4,16 @@ let src = Logs.Src.create "test.docker" ~doc:"OCurrent test docker plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type source = Fpath.t
-type image = string
+
+module Image = struct
+  type t = string
+  let pp = Fmt.string
+  let compare = String.compare
+end
 
 module Key = struct
   type t = {
-    image : image;
+    image : Image.t;
     cmd : string list;
   }
 
@@ -57,6 +62,8 @@ module Run = struct
     ready
 
   let auto_cancel = true
+
+  let level _ _ = Current.Level.Average
 end
 
 module Run_cache = Current_cache.Make(Run)
@@ -65,7 +72,7 @@ let run image ~cmd =
   Fmt.strf "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let** image = image in
   let key = { Key.image; cmd } in
-  Run_cache.get Run.No_context key
+  Run_cache.get No_context key
 
 let complete image ~cmd r =
   let key = { Key.image; cmd } in
@@ -73,14 +80,31 @@ let complete image ~cmd r =
   | Some s -> Lwt.wakeup s r
   | None -> Fmt.failwith "Container %a not running!" Key.pp key
 
+module Push = struct
+  type t = No_context
+  module Key = Image
+  module Value = struct type t = unit end
+
+  let pp = Key.pp
+
+  let build ~switch:_ No_context _ = Lwt.return (Ok ())
+
+  let auto_cancel = false
+
+  let level _ _ = Current.Level.Dangerous
+end
+
+module Push_cache = Current_cache.Make(Push)
+
 let push image ~tag =
   Fmt.strf "docker push %s" tag |>
-  let** _ = image in
-  Current.return ()
+  let** image = image in
+  Push_cache.get No_context image
 
 let reset () =
   containers := Containers.empty;
-  Run_cache.reset ()
+  Run_cache.reset ();
+  Push_cache.reset ()
 
 let assert_finished () =
   !containers |> Containers.iter (fun key s ->

@@ -39,9 +39,11 @@ let v2 commit =
   bin |> Current.gate ~on:(test bin) |> push ~tag:"foo/bar"
 
 let test_v2 () =
-  Driver.test ~name:"v2" v2 @@ function
+  let config = Current.Config.v ~confirm:Current.Level.Dangerous () in
+  Driver.test ~config ~name:"v2" v2 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
+  | 3 -> Current.Config.set_confirm config None
   | _ -> raise Exit
 
 (* Build Linux, Mac and Windows binaries. If *all* tests pass (for

@@ -5,6 +5,44 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 type 'a or_error = ('a, [`Msg of string]) result
 
+module Config = struct
+  type t = {
+    mutable confirm : Level.t option;
+    level_cond : unit Lwt_condition.t;
+  }
+
+  let v ?confirm () =
+    let level_cond = Lwt_condition.create () in
+    { confirm; level_cond }
+
+  let default = v ()
+
+  let set_confirm t level =
+    t.confirm <- level;
+    Lwt_condition.broadcast t.level_cond ()
+
+  let rec confirmed l t =
+    match t.confirm with
+    | Some threshold when Level.compare l threshold >= 0 ->
+      Lwt_condition.wait t.level_cond >>= fun () ->
+      confirmed l t
+    | _ ->
+      Lwt.return_unit
+
+  open Cmdliner
+
+  let cmdliner_confirm =
+    let levels = List.map (fun l -> Level.to_string l, Some l) Level.values in
+    let conv = Arg.enum @@ ("none", None) :: levels in
+    Arg.opt conv None @@
+    Arg.info ~doc:"Confirm before starting operations at or above this level."
+      ["confirm"]
+
+  let cmdliner =
+    let make confirm = v ?confirm () in
+    Term.(const make $ Arg.value cmdliner_confirm)
+end
+
 module Input = struct
   class type watch = object
     method pp : Format.formatter -> unit
@@ -15,6 +53,8 @@ module Input = struct
 
   type 'a t = unit -> 'a Current_term.Output.t * watch list
 
+  type env = Config.t
+
   let of_fn t = t
 
   let get (t : 'a t) = t ()
@@ -23,6 +63,11 @@ module Input = struct
 end
 
 include Current_term.Make(Input)
+
+let confirmed l =
+  let open Syntax in
+  let+ config = env in
+  Config.confirmed l config
 
 type 'a term = 'a t
 
@@ -76,10 +121,10 @@ let default_trace r inputs =
     )
 
 module Engine = struct
-  let run ?(trace=default_trace) f =
+  let run ?(config=Config.default) ?(trace=default_trace) f =
     let rec aux ~old_watches =
       Log.info (fun f -> f "Evaluating...");
-      let r, watches = Executor.run (f ()) in
+      let r, watches = Executor.run ~env:config (f ()) in
       List.iter (fun w -> w#release) old_watches;
       trace r watches;
       Log.info (fun f -> f "Waiting for inputs to change...");
@@ -184,3 +229,5 @@ end = struct
 end
 
 let monitor = Monitor.create
+
+module Level = Level

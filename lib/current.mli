@@ -1,5 +1,7 @@
 type 'a or_error = ('a, [`Msg of string]) result
 
+module Level = Level
+
 module Input : sig
   class type watch = object
     method pp : Format.formatter -> unit
@@ -61,8 +63,27 @@ type 'a term = 'a t
 
 module Analysis : Current_term.S.ANALYSIS with type 'a term := 'a t
 
+module Config : sig
+  type t
+
+  val v : ?confirm:Level.t -> unit -> t
+  (** A new configuration.
+      @param confirm : confirm before performing operations at or above this level. *)
+
+  val set_confirm : t -> Level.t option -> unit
+  (** Change the [confirm] setting. Existing jobs waiting for confirmation
+      will now start if permitted by the new configuration. *)
+
+  val cmdliner : t Cmdliner.Term.t
+end
+
+val confirmed : Level.t -> unit Lwt.t term
+(** [confirmed l] evaluates to a promise that resolves once we are ready to run
+    an action at level [l] or higher. *)
+
 module Engine : sig
   val run :
+    ?config:Config.t ->
     ?trace:(unit Current_term.Output.t -> Input.watch list -> unit) ->
     (unit -> unit t) ->
     'a Lwt.t

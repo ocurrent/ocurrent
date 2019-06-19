@@ -21,18 +21,12 @@ one), monitors them, and automatically recalculates when an input changes.
 [docker_build_local.ml][] contains a simple example pipeline:
 
 ```ocaml
-let repo = ...
-
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
-let pipeline () =
+let pipeline ~repo () =
   let head = Git.Local.(commit_of_ref repo (head repo)) in
   let src = Git.fetch head in
   let+ _image = Docker.build src in
   ()
-
-(* Mainloop *)
-let () =
-  Lwt_main.run (Current.Engine.run pipeline)
 ```
 
 This monitors a local Git repository (`repo`), from which it gets the current branch
@@ -45,7 +39,7 @@ You can test it using a clone of the OCurrent repository itself:
 ```bash
 $ git clone https://github.com/talex5/ocurrent.git
 $ cd ocurrent/
-$ dune exec ./examples/docker_build_local.exe .
+$ dune exec -- ./examples/docker_build_local.exe .
 [...]
     current [INFO] Evaluation complete:
                      Result: Pending
@@ -69,8 +63,8 @@ The example code wraps the previous `pipeline` like this:
 let dotfile = Fpath.v "pipeline.dot"
 
 (* Render pipeline as dot file *)
-let pipeline () =
-  let result = pipeline () in
+let pipeline ~repo () =
+  let result = pipeline ~repo () in
   let dot_data =
     let+ a = Current.Analysis.get result in
     Fmt.strf "%a" Current.Analysis.pp_dot a

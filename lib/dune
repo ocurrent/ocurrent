@@ -1,4 +1,7 @@
 (library
   (public_name current)
-  (libraries current_term lwt)
-  (preprocess future_syntax))
+  (libraries current_term lwt cmdliner)
+  (preprocess (per_module
+                ((pps ppx_deriving.std) level)
+                (future_syntax current)
+              )))

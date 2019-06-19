@@ -100,18 +100,21 @@ let pair ~env a b =
     make ~env (Pair (a, b)) (pair_state a b)
 
 let bind ~env:parent ~name x state =
-  let x = simplify x in
-  let ty =
-    match x.ty with
-    | Constant -> Prim name
-    | _ -> Bind (x, name)
-  in
-  let state =
-    match x.state with
-    | Blocked | Active | Fail -> Blocked
-    | Pass -> state
-  in
-  make ~env:parent ty state
+  match name, parent with
+  | "", { bind = Some bind; _ } -> bind
+  | _ ->
+    let x = simplify x in
+    let ty =
+      match x.ty with
+      | Constant -> Prim name
+      | _ -> Bind (x, name)
+    in
+    let state =
+      match x.state with
+      | Blocked | Active | Fail -> Blocked
+      | Pass -> state
+    in
+    make ~env:parent ty state
 
 let list_map ~env ~f items =
   make ~env (List_map { items; fn = f }) items.state
