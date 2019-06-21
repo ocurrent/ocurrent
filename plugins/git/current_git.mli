@@ -35,10 +35,10 @@ module Local : sig
   val head : t -> [`Commit of Commit_id.t | `Ref of string ] Current.t
   (** [head] is the current branch ref (e.g. "/refs/heads/master"). *)
 
-  val commit_of_ref :
-    t ->
-    [< `Commit of Commit_id.t | `Ref of string ] Current.t ->
-    Commit_id.t Current.t
-  (** [head t gref] evaluates to the commit at the head of [gref].
-      e.g. [head t "/refs/heads/master"] *)
+  val head_commit : t -> Commit.t Current.t
+  (** [head_commit] is the commit at the head of the current branch. *)
+
+  val commit_of_ref : t -> string -> Commit.t Current.t
+  (** [commit_of_ref t gref] evaluates to the commit at the head of [gref].
+      e.g. [commit_of_ref t "/refs/heads/master"] *)
 end

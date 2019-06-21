@@ -149,7 +149,7 @@ module Local = struct
   type t = {
     repo : Fpath.t;
     head : [`Ref of string | `Commit of Commit_id.t] Current.Input.t;
-    mutable heads : Commit_id.t Current.Input.t Ref_map.t;
+    mutable heads : Commit.t Current.Input.t Ref_map.t;
   }
 
   let pp_repo f t = Fpath.pp f t.repo
@@ -159,7 +159,9 @@ module Local = struct
     Lwt_process.pread ("", cmd) >|= fun out ->
     match String.trim out with
     | "" -> Error (`Msg (Fmt.strf "Unknown ref %S" gref))
-    | hash -> Ok { Commit_id.repo = Fpath.to_string t.repo; gref; hash }
+    | hash ->
+      let id = { Commit_id.repo = Fpath.to_string t.repo; gref; hash } in
+      Ok { Commit.repo = t.repo; id }
 
   let make_input t gref =
     let dot_git = Fpath.(t.repo / ".git") in
@@ -189,23 +191,25 @@ module Local = struct
     in
     Current.monitor ~read ~watch ~pp
 
-  let commit_of_ref t head_ref =
-    "read gref" |>
-    let** x = head_ref in
-    match x with
-    | `Commit c -> Current.return c
-    | `Ref gref ->
-      let i =
-        match Ref_map.find_opt gref t.heads with
-        | Some i -> i
-        | None ->
-          let i = make_input t gref in
-          t.heads <- Ref_map.add gref i t.heads;
-          i
-      in
-      Current.track i
+  let commit_of_ref t gref =
+    let i =
+      match Ref_map.find_opt gref t.heads with
+      | Some i -> i
+      | None ->
+        let i = make_input t gref in
+        t.heads <- Ref_map.add gref i t.heads;
+        i
+    in
+    Current.track i
 
   let head t = Current.track t.head
+
+  let head_commit t =
+    "head commit" |>
+    let** h = head t in
+    match h with
+    | `Commit id -> Current.return { Commit.repo = t.repo; id }
+    | `Ref gref -> commit_of_ref t gref
 
   let read_head repo =
     let path = Fpath.(repo / ".git" / "HEAD") in

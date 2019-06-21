@@ -25,10 +25,9 @@ let () =
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
-  let head = Git.Local.(commit_of_ref repo (head repo)) in
-  let src = Git.fetch head in
-  let+ _image = Docker.build src in
-  ()
+  let src = Git.Local.head_commit repo in
+  let image = Docker.build src in
+  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
 
 (* Render pipeline as dot file *)
 let pipeline ~repo () =

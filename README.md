@@ -23,16 +23,15 @@ one), monitors them, and automatically recalculates when an input changes.
 ```ocaml
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
-  let head = Git.Local.(commit_of_ref repo (head repo)) in
-  let src = Git.fetch head in
-  let+ _image = Docker.build src in
-  ()
+  let src = Git.Local.head_commit repo in
+  let image = Docker.build src in
+  Docker.run image ~args:["dune"; "exec"; "--";
+                          "examples/docker_build_local.exe"; "--help"]
 ```
 
-This monitors a local Git repository (`repo`), from which it gets the current branch
-(`(head repo)`, from `$repo/.git/HEAD`) and then the head commit on that branch
-(`commit_of_ref (head repo)`). It copies it to a temporary clone (`Git.fetch`) and builds
-it with `docker build /path/to/clone`.
+This monitors a local Git repository (`repo`), from which it gets the current head commit.
+It copies it to a temporary clone and builds it with `docker build /path/to/clone`, then
+executes the example with `--help` to check that it runs.
 
 You can test it using a clone of the OCurrent repository itself:
 
@@ -47,6 +46,7 @@ $ dune exec -- ./examples/docker_build_local.exe .
                                 HEAD(/home/user/ocurrent/)]
 [...]
 current.docker [INFO] Build of docker image "build-of-d75e33fd875d80cd8e0cddf83904dd6d7aea12d3" succeeded
+[...]
     current [INFO] Evaluation complete:
                      Result: Ok ()
                      Watching: [/home/user/ocurrent/#refs/heads/master;
@@ -55,6 +55,17 @@ current.docker [INFO] Build of docker image "build-of-d75e33fd875d80cd8e0cddf839
 
 If you make a new commit or change branch (e.g. `git checkout -b test HEAD~1`) then OCurrent will
 notice and build it again.
+
+The example code above works mostly with values of type `'a Current.t`.
+For example, `Docker.build` takes a source current and returns a Docker image current.
+If you have a function that works on concrete values then you can use `Current.map`
+(or the `let+` syntax) to make it work on currents instead.
+
+You can also use `Current.bind` (or the `let*` syntax) if you can only decide
+what the next part of the pipeline should be by looking at a concrete input.
+However, using `bind` limits OCurrent's ability to analyse the pipeline,
+because it must wait for the input to be ready before knowing what happens
+next.
 
 OCurrent can generate a graph showing the current state of the pipeline.
 The example code wraps the previous `pipeline` like this:
@@ -73,8 +84,14 @@ let pipeline ~repo () =
   result
 ```
 
-This causes it to maintain also a `pipeline.dot` file showing the current state of the pipeline.
-You can turn this into e.g. SVG with `dot -Tsvg pipeline.dot  -o pipeline.svg`:
+This causes it to maintain also a `pipeline.dot` file showing the current state
+of the pipeline.
+
+Note the use of `let+` to convert an `Analysis.t Current.t` to a `string Current.t`,
+and `let*` to allow us to return the pipeline `result` (which might be pending or failed,
+rather than a concrete value).
+
+You can turn the dot file into e.g. SVG with `dot -Tsvg pipeline.dot  -o pipeline.svg`:
 
 <p align='center'>
   <img src="./doc/example1.svg"/>
