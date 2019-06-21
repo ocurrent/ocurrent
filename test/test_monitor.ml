@@ -130,7 +130,14 @@ let trace step out inputs =
     assert false
 
 
-let () =
+let basic () =
   let step = ref 0 in
   try Lwt_main.run @@ Current.Engine.run test_pipeline ~trace:(trace step)
   with Exit -> ()
+
+let () =
+  Alcotest.run "test_monitor" [
+    "monitor", [
+      Alcotest.test_case "basic" `Quick basic;
+    ]
+  ]

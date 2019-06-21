@@ -106,13 +106,13 @@ let test_v5 () =
   | _ -> raise Exit
 
 let () =
-  try
-    test_v1 ();
-    test_v1_cancel ();
-    test_v2 ();
-    test_v3 ();
-    test_v4 ();
-    test_v5 ();
-  with Failure m ->
-    Fmt.pr "Tests failed!@.%s@." m;
-    exit 1
+  Alcotest.run "test" [
+    "pipelines", [
+      Alcotest.test_case "v1"        `Quick test_v1;
+      Alcotest.test_case "v1-cancel" `Quick test_v1_cancel;
+      Alcotest.test_case "v2"        `Quick test_v2;
+      Alcotest.test_case "v3"        `Quick test_v3;
+      Alcotest.test_case "v4"        `Quick test_v4;
+      Alcotest.test_case "v5"        `Quick test_v5;
+    ]
+  ]
