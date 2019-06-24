@@ -1,4 +1,7 @@
 (library
   (name current_docker)
-  (libraries current current.cache current_git fpath lwt.unix)
-  (preprocess future_syntax))
+  (libraries current current.cache current_git fpath lwt.unix dockerfile)
+  (preprocess (per_module
+                ((pps ppx_deriving.std) build)
+                (future_syntax current_docker)
+              )))

@@ -1,60 +1,20 @@
 open Lwt.Infix
 open Current.Syntax
 
-let src = Logs.Src.create "current.docker" ~doc:"OCurrent docker plugin"
-module Log = (val Logs.src_log src : Logs.LOG)
-
 type source = Current_git.Commit.t
-
-module Image = struct
-  type t = string
-  let pp = Fmt.string
-end
-
-module Build = struct
-  type t = No_context
-  module Key = Current_git.Commit
-  module Value = Image
-
-  let docker_tag t = Fmt.strf "build-of-%s" (Key.id t)
-
-  let build ~switch No_context commit =
-    let tag = docker_tag commit in
-    Current_git.with_checkout commit @@ fun dir ->
-    let cmd = [| "docker"; "build"; "-t"; tag; "--"; Fpath.to_string dir |] in
-    let proc = Lwt_process.open_process_none ("", cmd) in
-    Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
-        if proc#state = Lwt_process.Running then (
-          Log.info (fun f -> f "Cancelling build of %a" Key.pp commit);
-          proc#terminate;
-        );
-        Lwt.return_unit
-      )
-    >>= fun () ->
-    proc#status >|= function
-    | Unix.WEXITED 0 ->
-      Log.info (fun f -> f "Build of docker image %S succeeded" tag);
-      Ok tag
-    | Unix.WEXITED n ->
-      Error (`Msg (Fmt.strf "Build failed with exit status %d" n))
-    | Unix.WSIGNALED s ->
-      Error (`Msg (Fmt.strf "Build failed with signal %d" s))
-    | Unix.WSTOPPED x ->
-      Error (`Msg (Fmt.strf "Expected exit status: stopped with %d" x))
-
-  let pp f key = Fmt.pf f "docker build %a" Key.pp key
-
-  let auto_cancel = true
-
-  let level _ _ = Current.Level.Average
-end
+module Image = Image
 
 module BC = Current_cache.Make(Build)
 
-let build src =
+let build ?dockerfile src =
   "build" |>
-  let** src = src in
-  BC.get Build.No_context src
+  let** commit = src in
+  let dockerfile =
+    match dockerfile with
+    | None -> None
+    | Some df -> Some (Dockerfile.string_of_t df)
+  in
+  BC.get Build.No_context { Build.Key.commit; dockerfile }
 
 module Unit = struct
   type t = unit

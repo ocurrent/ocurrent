@@ -17,6 +17,7 @@ depends: [
   "lwt"
   "irmin-watcher"
   "cmdliner"
+  "dockerfile"
   "dune" {build}
   "alcotest" {with-test}
 ]
