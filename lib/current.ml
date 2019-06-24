@@ -231,3 +231,11 @@ end
 let monitor = Monitor.create
 
 module Level = Level
+
+module Unit = struct
+  type t = unit
+
+  let pp f () = Fmt.string f "()"
+  let compare () () = 0
+  let equal () () = true
+end

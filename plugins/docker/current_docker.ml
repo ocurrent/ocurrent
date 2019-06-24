@@ -4,21 +4,31 @@ open Current.Syntax
 type source = Current_git.Commit.t
 module Image = Image
 
+module PC = Current_cache.Make(Pull)
+
+let pull tag =
+  Fmt.strf "pull %s" tag |>
+  let** () = Current.return () in
+  PC.get Pull.No_context tag
+
 module BC = Current_cache.Make(Build)
 
-let build ?dockerfile src =
-  "build" |>
-  let** commit = src in
+let pp_sp_label = Fmt.(option (prefix sp string))
+
+let build ?label ?dockerfile ~pull src =
+  Fmt.strf "build%a" pp_sp_label label |>
+  let** commit = src
+  and* dockerfile =
+    match dockerfile with
+    | None -> Current.return None
+    | Some x -> let+ y = x in Some y
+  in
   let dockerfile =
     match dockerfile with
     | None -> None
     | Some df -> Some (Dockerfile.string_of_t df)
   in
-  BC.get Build.No_context { Build.Key.commit; dockerfile }
-
-module Unit = struct
-  type t = unit
-end
+  BC.get { Build.pull } { Build.Key.commit; dockerfile }
 
 module Run = struct
   type t = No_context
@@ -29,7 +39,7 @@ module Run = struct
     let pp f (image, args) = Fmt.pf f "docker run @[%a %a@]" Image.pp image pp_args args
     let compare = compare
   end
-  module Value = Unit
+  module Value = Current.Unit
 
   let build ~switch No_context key =
     let (image, args) = key in

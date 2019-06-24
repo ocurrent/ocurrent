@@ -3,19 +3,37 @@ open Current.Syntax
 module Git = Current_git
 module Docker = Current_docker
 
-let dotfile = Fpath.v "pipeline.dot"
-
-let pull = false    (* Whether to check for updates using "docker build --pull" *)
-
 let () = Logging.init ()
+
+let dockerfile ~base ~ocaml_version =
+  let open Dockerfile in
+  from (Docker.Image.tag base) @@
+  run "opam switch %s" ocaml_version @@
+  workdir "/src" @@
+  add ~src:["*.opam"] ~dst:"/src" () @@
+  env ["OPAMERRLOGLEN", "0"] @@
+  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  copy ~src:["*.opam"] ~dst:"/src" () @@
+  run "opam install -tv ."
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let image = Docker.build ~pull src in
-  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
+  let base = Docker.pull "ocaml/opam2" in
+  let build ocaml_version =
+    let dockerfile =
+      let+ base = base in
+      dockerfile ~base ~ocaml_version
+    in
+    Docker.build ~label:ocaml_version ~pull:false ~dockerfile src |> Current.ignore_value
+  in
+  Current.all [
+    build "4.07";
+    build "4.08"
+  ]
 
 (* Render pipeline as dot file *)
+let dotfile = Fpath.v "pipeline.dot"
 let pipeline ~repo () =
   let result = pipeline ~repo () in
   let dot_data =

@@ -1,4 +1,4 @@
-(executable
-  (name docker_build_local)
+(executables
+  (names docker_build_local build_matrix)
   (libraries current lwt.unix current_docker current_git current_fs logs.fmt fmt.tty)
   (preprocess future_syntax))

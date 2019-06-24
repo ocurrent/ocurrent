@@ -105,3 +105,13 @@ end
 val state_dir : string -> Fpath.t
 (** [state_dir name] is a directory under which state (build results, logs) can be stored.
     [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory. *)
+
+module Unit : sig
+  (** Missing from the OCaml standard library. *)
+
+  type t = unit
+
+  val pp : t Fmt.t
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+end

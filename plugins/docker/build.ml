@@ -1,6 +1,8 @@
 open Lwt.Infix
 
-type t = No_context
+type t = {
+  pull : bool;
+}
 
 module Key = struct
   type t = {
@@ -39,7 +41,7 @@ let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg ->
   Error (`Msg msg)
 
-let build ~switch No_context key =
+let build ~switch { pull } key =
   let { Key.commit; dockerfile } = key in
   let tag = docker_tag key in
   Current_git.with_checkout commit @@ fun dir ->
@@ -48,8 +50,9 @@ let build ~switch No_context key =
     | None -> "Dockerfile"
     | Some _ -> "-"
   in
-  let cmd = [| "docker"; "build"; "-f"; f; "-t"; tag; "--"; Fpath.to_string dir |] in
-  let proc = Lwt_process.open_process_out ("", cmd) in
+  let opts = if pull then ["--pull"] else [] in
+  let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "-t"; tag; "--"; Fpath.to_string dir] in
+  let proc = Lwt_process.open_process_out ("", Array.of_list cmd) in
   Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling build of %a" Current_git.Commit.pp commit);
