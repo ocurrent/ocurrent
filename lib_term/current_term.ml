@@ -84,6 +84,8 @@ module Make (Input : S.INPUT) = struct
     let fn = Dyn.map f x.fn in
     make x.md fn
 
+  let ignore_value x = map ignore x
+
   let pair a b =
     cache @@ fun ~env ctx ->
     let a = a ctx in

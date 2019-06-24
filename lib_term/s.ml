@@ -50,6 +50,9 @@ module type TERM = sig
   val fail : string -> 'a t
   (** [fail m] is a term that immediately fails with message [m]. *)
 
+  val ignore_value : 'a t -> unit t
+  (** [ignore_value x] is [map ignore x]. *)
+
   val of_output : 'a Output.t -> 'a t
   (** [of_output x] is a returned, failed or pending term. *)
 
