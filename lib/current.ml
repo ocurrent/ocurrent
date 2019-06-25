@@ -144,6 +144,11 @@ let state_dir name =
   | Ok (_ : bool) -> path
   | Error (`Msg m) -> failwith m
 
+let db = lazy (
+  let db_dir = state_dir "db" in
+  Sqlite3.db_open Fpath.(to_string (db_dir / "sqlite.db"))
+)
+
 module Monitor : sig
   val create :
     read:(unit -> 'a or_error Lwt.t) ->

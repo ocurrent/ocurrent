@@ -43,6 +43,11 @@ module Job = struct
       (tm_year + 1900) (tm_mon + 1) tm_mday
       tm_hour tm_min tm_sec
 
+  let log_id (path, _) =
+    match Fpath.split_base path with
+    | parent_dir, leaf ->
+      Fpath.(base parent_dir // leaf) |> Fpath.to_string
+
   let fd (_, ch) =
     Unix.descr_of_out_channel ch
 end
@@ -90,6 +95,7 @@ module Make(B : BUILDER) = struct
     builds := Builds.remove (B.Key.digest key) !builds
 
   let do_build ~confirmed ctx key =
+    let key_digest = B.Key.digest key in
     let switch = Lwt_switch.create () in
     let ready, set_ready = Lwt.wait () in
     let ref_count = ref 0 in
@@ -107,30 +113,47 @@ module Make(B : BUILDER) = struct
           )
       end
     in
-    Lwt.async (fun () ->
-        let job = Job.create ~switch ~id:B.id () in
-        Job.log job "Starting build for %a" B.pp key;
-        Lwt.finalize
-          (fun () ->
-             Lwt.try_bind
-               (fun () ->
-                  confirm confirmed >>= fun () ->
-                  B.build ~switch ctx job key
-               )
-               (fun x ->
-                  begin match x with
-                    | Ok _ -> Job.log job "Success"
-                    | Error (`Msg m) -> Job.log job "Failed: %s" m
-                  end;
-                  Lwt.wakeup set_ready x;
-                  Lwt.return_unit)
-               (fun ex ->
-                  Job.log job "Error: %a" Fmt.exn ex;
-                  Lwt.wakeup_exn set_ready ex;
-                  Lwt.return_unit)
+    begin match Db.lookup ~builder:B.id key_digest with
+      | Some v ->
+        Log.info (fun f -> f "Loaded cached result for %a" B.pp key);
+        let v =
+          match v with
+          | Ok v -> Ok (B.Value.unmarshal v)
+          | Error _ as e -> e
+        in
+        Lwt.wakeup set_ready v
+      | None ->
+        Lwt.async (fun () ->
+            let job = Job.create ~switch ~id:B.id () in
+            let log = Job.log_id job in
+            Job.log job "Starting build for %a" B.pp key;
+            Lwt.finalize
+              (fun () ->
+                 Lwt.try_bind
+                   (fun () ->
+                      confirm confirmed >>= fun () ->
+                      B.build ~switch ctx job key
+                   )
+                   (fun x ->
+                      begin match x with
+                        | Ok v ->
+                          Job.log job "Success";
+                          Db.record ~builder:B.id ~key:(B.Key.digest key) ~log (Ok (B.Value.marshal v))
+                        | Error (`Msg m) as e ->
+                          Job.log job "Failed: %s" m;
+                          Db.record ~builder:B.id ~key:(B.Key.digest key) ~log e
+                      end;
+                      Lwt.wakeup set_ready x;
+                      Lwt.return_unit)
+                   (fun ex ->
+                      Job.log job "Error: %a" Fmt.exn ex;
+                      Db.record ~builder:B.id ~key:(B.Key.digest key) ~log (Error (`Msg (Printexc.to_string ex)));
+                      Lwt.wakeup_exn set_ready ex;
+                      Lwt.return_unit)
+              )
+              (fun () -> Lwt_switch.turn_off switch)
           )
-          (fun () -> Lwt_switch.turn_off switch)
-      );
+    end;
     Current.Input.of_fn @@ fun () ->
     match Lwt.state ready with
     | Lwt.Sleep -> incr ref_count; Error `Pending, [watch]
@@ -150,5 +173,6 @@ module Make(B : BUILDER) = struct
       b
 
   let reset () =
-    builds := Builds.empty
+    builds := Builds.empty;
+    Db.drop_all ()
 end

@@ -106,6 +106,9 @@ val state_dir : string -> Fpath.t
 (** [state_dir name] is a directory under which state (build results, logs) can be stored.
     [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory. *)
 
+val db : Sqlite3.db Lazy.t
+(** An sqlite database stored in [state_dir "db"]. *)
+
 module String : sig
   type t = string
   val digest : t -> string

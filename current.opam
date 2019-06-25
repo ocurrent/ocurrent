@@ -19,6 +19,7 @@ depends: [
   "cmdliner"
   "dockerfile"
   "ppx_deriving_yojson"
+  "sqlite3"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

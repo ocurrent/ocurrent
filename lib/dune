@@ -1,6 +1,6 @@
 (library
   (public_name current)
-  (libraries current_term lwt cmdliner)
+  (libraries current_term lwt cmdliner sqlite3)
   (preprocess (per_module
                 ((pps ppx_deriving.std) level)
                 (future_syntax current)
