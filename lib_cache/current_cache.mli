@@ -22,7 +22,11 @@ module type BUILDER = sig
   module Key : sig
     (** A key is an input that needs to be built. *)
 
-    include Set.OrderedType
+    type t
+
+    val digest : t -> string
+    (** [digest t] is a unique string for [t] that can be used as a primary key in a database.
+        Two [t]s are considered equal if they have the same digest. *)
   end
 
   module Value : sig

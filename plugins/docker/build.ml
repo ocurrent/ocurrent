@@ -10,7 +10,7 @@ module Key = struct
     dockerfile : string option;
   } [@@deriving ord]
 
-  let id { commit; dockerfile } =
+  let digest { commit; dockerfile } =
     let dockerfile =
       match dockerfile with
       | None -> ""
@@ -18,12 +18,12 @@ module Key = struct
     in
     Current_git.Commit.id commit ^ dockerfile
 
-  let pp f t = Fmt.string f (id t)
+  let pp f t = Fmt.string f (digest t)
 end
 
 module Value = Image
 
-let docker_tag t = Fmt.strf "build-of-%s" (Key.id t)
+let docker_tag t = Fmt.strf "build-of-%s" (Key.digest t)
 
 let send_dockerfile ~dockerfile ch =
   Lwt.try_bind

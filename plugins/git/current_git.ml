@@ -16,7 +16,15 @@ module Commit_id = struct
     hash : string;  (* Hash that [gref] is expected to have. *)
   }
 
-  let v ~repo ~gref ~hash = { repo; gref; hash }
+  let ensure_no_spaces x =
+    if String.contains x ' ' then
+      Fmt.failwith "Spaces are not allowed here (in %S)" x
+
+  let v ~repo ~gref ~hash =
+    ensure_no_spaces repo;
+    ensure_no_spaces gref;
+    ensure_no_spaces hash;
+    { repo; gref; hash }
 
   let pp f {repo; gref; hash} =
     Fmt.pf f "%s#%s (%s)" repo gref hash
@@ -31,6 +39,7 @@ module Commit_id = struct
 
   let equal = (=)
   let compare = compare
+  let digest {repo; gref; hash} = Fmt.strf "%s %s %s" repo gref hash
 end
 
 let git ~job ?cwd args =
@@ -83,7 +92,7 @@ let dir_exists d =
   | Ok x -> x
   | Error (`Msg x) -> failwith x
 
-module Fetcher = struct
+module Fetch = struct
   type t = No_context
   module Key = Commit_id
   module Value = Commit
@@ -116,12 +125,12 @@ module Fetcher = struct
     else Current.Level.Mostly_harmless
 end
 
-module Fetch_cache = Current_cache.Make(Fetcher)
+module Fetch_cache = Current_cache.Make(Fetch)
 
 let fetch cid =
   "fetch" |>
   let** cid = cid in
-  Fetch_cache.get Fetcher.No_context cid
+  Fetch_cache.get Fetch.No_context cid
 
 let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in

@@ -19,7 +19,7 @@ module Commit = struct
     Fmt.pf f "%s#%s" repo hash
 
   let equal = (=)
-  let compare = compare
+  let digest { repo; hash } = Fmt.strf "%s#%s" repo hash
 end
 
 let complete_clone {Commit.repo; hash} =
@@ -29,7 +29,7 @@ let complete_clone {Commit.repo; hash} =
     let r = Fpath.v ("src-" ^ hash) in
     Lwt.wakeup set (Ok r)
 
-module Builder = struct
+module Clone = struct
   type t = No_context
   module Key = Commit
   module Value = Fpath
@@ -46,12 +46,12 @@ module Builder = struct
   let level _ _ = Current.Level.Average
 end
 
-module C = Current_cache.Make(Builder)
+module C = Current_cache.Make(Clone)
 
 let fetch c =
   "fetch" |>
   let** c = c in
-  C.get Builder.No_context c
+  C.get Clone.No_context c
 
 let reset () =
   state := RepoMap.empty;

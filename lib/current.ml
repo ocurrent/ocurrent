@@ -232,6 +232,12 @@ let monitor = Monitor.create
 
 module Level = Level
 
+module String = struct
+  type t = string
+  let digest t = t
+  let pp = Fmt.string
+end
+
 module Unit = struct
   type t = unit
 

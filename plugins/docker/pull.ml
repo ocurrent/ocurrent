@@ -2,7 +2,7 @@ open Lwt.Infix
 
 type t = No_context
 
-module Key = String
+module Key = Current.String
 module Value = Image
 
 let build ~switch No_context job image =

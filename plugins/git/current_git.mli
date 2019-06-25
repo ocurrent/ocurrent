@@ -9,6 +9,7 @@ module Commit_id : sig
 
   val equal : t -> t -> bool
   val pp : t Fmt.t
+  val digest : t -> string
 end
 
 module Commit : sig

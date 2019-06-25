@@ -1,3 +1,2 @@
-type t = string
-let pp = Fmt.string
+include Current.String
 let tag t = t

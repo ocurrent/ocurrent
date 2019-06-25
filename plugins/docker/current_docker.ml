@@ -37,7 +37,8 @@ module Run = struct
 
     let pp_args = Fmt.(list ~sep:sp (quote string))
     let pp f (image, args) = Fmt.pf f "docker run @[%a %a@]" Image.pp image pp_args args
-    let compare = compare
+    let digest (image, args) =
+      Fmt.strf "%S %a" (Image.tag image) pp_args args
   end
   module Value = Current.Unit
 

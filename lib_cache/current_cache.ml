@@ -51,7 +51,8 @@ module type BUILDER = sig
   type t
 
   module Key : sig
-    include Set.OrderedType
+    type t
+    val digest : t -> string
   end
 
   module Value : sig
@@ -76,13 +77,13 @@ let confirm (confirmed, level) =
     Log.info (fun f -> f "Confirm-level now >= %a" Current.Level.pp level)
 
 module Make(B : BUILDER) = struct
-  module Builds = Map.Make(B.Key)
+  module Builds = Map.Make(String)
 
   let builds : B.Value.t Current.Input.t Builds.t ref = ref Builds.empty
 
   let invalidate key =
     (* TODO: assert that the build is not currently in progress. *)
-    builds := Builds.remove key !builds
+    builds := Builds.remove (B.Key.digest key) !builds
 
   let do_build ~confirmed ctx key =
     let switch = Lwt_switch.create () in
@@ -136,11 +137,12 @@ module Make(B : BUILDER) = struct
     let level = B.level ctx key in
     let* confirmed = Current.confirmed level in
     Current.track @@
-    match Builds.find_opt key !builds with
+    let key_digest = B.Key.digest key in
+    match Builds.find_opt key_digest !builds with
     | Some b -> b
     | None ->
       let b = do_build ~confirmed:(confirmed, level) ctx key in
-      builds := Builds.add key b !builds;
+      builds := Builds.add key_digest b !builds;
       b
 
   let reset () =

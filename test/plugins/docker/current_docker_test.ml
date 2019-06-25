@@ -8,7 +8,7 @@ type source = Fpath.t
 module Image = struct
   type t = string
   let pp = Fmt.string
-  let compare = String.compare
+  let digest t = t
 end
 
 module Key = struct
@@ -18,9 +18,11 @@ module Key = struct
   }
 
   let pp f { image; cmd } =
-    Fmt.pf f "docker run %s @[%a@]" image Fmt.(list ~sep:sp string) cmd
+    Fmt.pf f "docker run %S @[%a@]" image Fmt.(list ~sep:sp (quote string)) cmd
 
   let compare = compare
+
+  let digest = Fmt.to_to_string pp
 end
 
 let build_on platform ~src =
