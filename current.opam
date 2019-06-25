@@ -18,6 +18,7 @@ depends: [
   "irmin-watcher"
   "cmdliner"
   "dockerfile"
+  "ppx_deriving_yojson"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

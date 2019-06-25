@@ -32,7 +32,11 @@ let complete_clone {Commit.repo; hash} =
 module Clone = struct
   type t = No_context
   module Key = Commit
-  module Value = Fpath
+  module Value = struct
+    type t = Fpath.t
+    let marshal = Fpath.to_string
+    let unmarshal = Fpath.v
+  end
 
   let id = "git-clone"
 

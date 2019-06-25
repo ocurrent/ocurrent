@@ -236,6 +236,8 @@ module String = struct
   type t = string
   let digest t = t
   let pp = Fmt.string
+  let marshal t = t
+  let unmarshal t = t
 end
 
 module Unit = struct
@@ -244,4 +246,8 @@ module Unit = struct
   let pp f () = Fmt.string f "()"
   let compare () () = 0
   let equal () () = true
+  let marshal () = "()"
+  let unmarshal = function
+    | "()" -> ()
+    | x -> Fmt.failwith "Unit.unmarshal(%S)" x
 end

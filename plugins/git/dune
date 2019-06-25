@@ -1,4 +1,7 @@
 (library
   (name current_git)
-  (libraries current current.cache fpath lwt.unix irmin-watcher)
-  (preprocess future_syntax))
+  (libraries current current.cache fpath lwt.unix irmin-watcher ppx_deriving_yojson)
+  (preprocess (per_module
+                ((pps ppx_deriving_yojson) commit_id commit)
+                (future_syntax current_git)
+              )))

@@ -48,7 +48,7 @@ let containers : (unit, [`Msg of string]) result Lwt.u Containers.t ref = ref Co
 module Run = struct
   type t = No_context
   module Key = Key
-  module Value = struct type t = unit end
+  module Value = Current.Unit
 
   let id = "docker-run"
 
@@ -87,7 +87,7 @@ let complete image ~cmd r =
 module Push = struct
   type t = No_context
   module Key = Image
-  module Value = struct type t = unit end
+  module Value = Current.Unit
 
   let id = "docker-push"
 

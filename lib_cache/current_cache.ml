@@ -59,6 +59,8 @@ module type BUILDER = sig
 
   module Value : sig
     type t
+    val marshal : t -> string
+    val unmarshal : string -> t
   end
 
   val pp : Key.t Fmt.t

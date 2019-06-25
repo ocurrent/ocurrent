@@ -18,6 +18,9 @@ module Commit : sig
   val id : t -> string
   val equal : t -> t -> bool
   val pp : t Fmt.t
+
+  val marshal : t -> string
+  val unmarshal : string -> t
 end
 
 val fetch : Commit_id.t Current.t -> Commit.t Current.t

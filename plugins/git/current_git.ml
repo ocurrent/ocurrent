@@ -4,78 +4,13 @@ open Lwt.Infix
 let src = Logs.Src.create "current.git" ~doc:"OCurrent git plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Commit_id = Commit_id
+module Commit = Commit
+
 let ( >>!= ) x f =
   x >>= function
   | Ok y -> f y
   | Error _ as e -> Lwt.return e
-
-module Commit_id = struct
-  type t = {
-    repo : string;  (* Remote repository from which to pull. *)
-    gref : string;  (* Ref to pull, e.g. "master" or "pull/12/head". *)
-    hash : string;  (* Hash that [gref] is expected to have. *)
-  }
-
-  let ensure_no_spaces x =
-    if String.contains x ' ' then
-      Fmt.failwith "Spaces are not allowed here (in %S)" x
-
-  let v ~repo ~gref ~hash =
-    ensure_no_spaces repo;
-    ensure_no_spaces gref;
-    ensure_no_spaces hash;
-    { repo; gref; hash }
-
-  let pp f {repo; gref; hash} =
-    Fmt.pf f "%s#%s (%s)" repo gref hash
-
-  let is_local t =
-    if Astring.String.is_prefix ~affix:"file:" t.repo then true
-    else match String.index_opt t.repo ':',
-               String.index_opt t.repo '/' with
-    | Some i, Some j -> i < j     (* http://... is remote; /http:foo is local *)
-    | None, _ -> true             (* All remote URLs have colons *)
-    | Some _, None -> false       (* foo:bar is remote *)
-
-  let equal = (=)
-  let compare = compare
-  let digest {repo; gref; hash} = Fmt.strf "%s %s %s" repo gref hash
-end
-
-let git ~job ?cwd args =
-  let args =
-    match cwd with
-    | None -> args
-    | Some cwd -> "-C" :: Fpath.to_string cwd :: args
-  in
-  let cmd = Array.of_list ("git" :: args) in
-  Process.exec ~job ("", cmd)
-
-let git_clone ~job ~src dst =
-  git ~job ["clone"; src; Fpath.to_string dst]
-
-let git_fetch ~job ~src ~dst gref =
-  git ~job ~cwd:dst ["fetch"; src; gref]
-
-let git_reset_hard ~job ~repo hash =
-  git ~job ~cwd:repo ["reset"; "--hard"; hash]
-
-module Commit = struct
-  type t = {
-    repo : Fpath.t;
-    id : Commit_id.t;
-  }
-
-  let id t = t.id.Commit_id.hash
-  let compare a b = String.compare (id a) (id b)
-  let equal a b = String.equal (id a) (id b)
-  let pp = Fmt.using id Fmt.string
-
-  let check_cached t =
-    let hash = id t in
-    let branch = Fmt.strf "fetch-%s" hash in
-    git ~cwd:t.repo ["branch"; "-f"; branch; hash]
-end
 
 let id_of_repo repo =
   let base = Filename.basename repo in
@@ -105,14 +40,14 @@ module Fetch = struct
     (* Ensure we have a local clone of the repository. *)
     begin
       if dir_exists local_repo then Lwt.return (Ok ())
-      else git_clone ~job ~src:remote_repo local_repo
+      else Cmd.git_clone ~job ~src:remote_repo local_repo
     end >>!= fun () ->
     let commit = { Commit.repo = local_repo; id = key } in
     (* Fetch the commit (if missing). *)
     begin
       Commit.check_cached ~job commit >>= function
       | Ok () -> Lwt.return (Ok ())
-      | Error _ -> git_fetch ~job ~src:remote_repo ~dst:local_repo gref
+      | Error _ -> Cmd.git_fetch ~job ~src:remote_repo ~dst:local_repo gref
     end >>!= fun () ->
     (* Check we got the commit we wanted. *)
     Commit.check_cached ~job commit >>!= fun () ->
@@ -137,8 +72,8 @@ let fetch cid =
 let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in
   Process.with_tmpdir ~prefix:"git-checkout" ~mode:0o700 @@ fun tmpdir ->
-  git_clone ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
-  git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
+  Cmd.git_clone ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
+  Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
   | Ok () -> fn tmpdir
   | Error e ->
     Commit.check_cached ~job commit >>= function

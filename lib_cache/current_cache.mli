@@ -37,6 +37,9 @@ module type BUILDER = sig
     (** The result of a successful build. *)
 
     type t
+
+    val marshal : t -> string
+    val unmarshal : string -> t
   end
 
   val pp : Key.t Fmt.t
