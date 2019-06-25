@@ -41,10 +41,13 @@ module Run = struct
   end
   module Value = Current.Unit
 
-  let build ~switch No_context key =
+  let build ~switch No_context job key =
     let (image, args) = key in
     let cmd = Array.of_list @@ ["docker"; "run"; "-i"; image] @ args in
-    let proc = Lwt_process.open_process_none ("", cmd) in
+    let log_fd = Current_cache.Job.fd job in
+    let stdout = `FD_copy log_fd in
+    let stderr = `FD_copy log_fd in
+    let proc = Lwt_process.open_process_none ~stdout ~stderr ("", cmd) in
     Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
         if proc#state = Lwt_process.Running then (
           Log.info (fun f -> f "Cancelling run of %a" Key.pp key);

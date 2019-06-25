@@ -33,23 +33,23 @@ module Commit_id = struct
   let compare = compare
 end
 
-let git ?cwd args =
+let git ~job ?cwd args =
   let args =
     match cwd with
     | None -> args
     | Some cwd -> "-C" :: Fpath.to_string cwd :: args
   in
   let cmd = Array.of_list ("git" :: args) in
-  Process.exec ("", cmd)
+  Process.exec ~job ("", cmd)
 
-let git_clone ~src dst =
-  git ["clone"; src; Fpath.to_string dst]
+let git_clone ~job ~src dst =
+  git ~job ["clone"; src; Fpath.to_string dst]
 
-let git_fetch ~src ~dst gref =
-  git ~cwd:dst ["fetch"; src; gref]
+let git_fetch ~job ~src ~dst gref =
+  git ~job ~cwd:dst ["fetch"; src; gref]
 
-let git_reset_hard ~repo hash =
-  git ~cwd:repo ["reset"; "--hard"; hash]
+let git_reset_hard ~job ~repo hash =
+  git ~job ~cwd:repo ["reset"; "--hard"; hash]
 
 module Commit = struct
   type t = {
@@ -88,23 +88,23 @@ module Fetcher = struct
   module Key = Commit_id
   module Value = Commit
 
-  let build ~switch:_ No_context key =
+  let build ~switch:_ No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
     let local_repo = local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
       if dir_exists local_repo then Lwt.return (Ok ())
-      else git_clone ~src:remote_repo local_repo
+      else git_clone ~job ~src:remote_repo local_repo
     end >>!= fun () ->
     let commit = { Commit.repo = local_repo; id = key } in
     (* Fetch the commit (if missing). *)
     begin
-      Commit.check_cached commit >>= function
+      Commit.check_cached ~job commit >>= function
       | Ok () -> Lwt.return (Ok ())
-      | Error _ -> git_fetch ~src:remote_repo ~dst:local_repo gref
+      | Error _ -> git_fetch ~job ~src:remote_repo ~dst:local_repo gref
     end >>!= fun () ->
     (* Check we got the commit we wanted. *)
-    Commit.check_cached commit >>!= fun () ->
+    Commit.check_cached ~job commit >>!= fun () ->
     Lwt.return @@ Ok commit
 
   let pp f key = Fmt.pf f "git fetch %a" Key.pp key
@@ -123,14 +123,14 @@ let fetch cid =
   let** cid = cid in
   Fetch_cache.get Fetcher.No_context cid
 
-let with_checkout commit fn =
+let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in
   Process.with_tmpdir ~prefix:"git-checkout" ~mode:0o700 @@ fun tmpdir ->
-  git_clone ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
-  git_reset_hard ~repo:tmpdir id.Commit_id.hash >>= function
+  git_clone ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
+  git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
   | Ok () -> fn tmpdir
   | Error e ->
-    Commit.check_cached commit >>= function
+    Commit.check_cached ~job commit >>= function
     | Error not_cached ->
       Fetch_cache.invalidate id;
       Lwt.return (Error not_cached)

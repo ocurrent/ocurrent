@@ -2,6 +2,18 @@
     A cache maps keys to values. Looking up a key that isn't known starts a new
     build to create it. *)
 
+module Job : sig
+  type t
+
+  val write : t -> string -> unit
+  (** [write t data] appends [data] to the log. *)
+
+  val log : t -> ('a, Format.formatter, unit, unit) format4 -> 'a
+  (** [log t fmt] appends a formatted message to the log, with a newline added at the end. *)
+
+  val fd : t -> Unix.file_descr
+end
+
 module type BUILDER = sig
   type t
   (** Extra build context or configuration information (e.g. credentials to
@@ -22,8 +34,10 @@ module type BUILDER = sig
   val pp : Key.t Fmt.t
   (** Describe the operation that builds a [Value.t] from the given [key]. *)
 
-  val build : switch:Lwt_switch.t -> t -> Key.t -> (Value.t, [`Msg of string]) result Lwt.t
-  (** [build ~switch t k] builds [k]. If the switch is turned off, the build should be cancelled. *)
+  val build : switch:Lwt_switch.t -> t -> Job.t -> Key.t -> (Value.t, [`Msg of string]) result Lwt.t
+  (** [build ~switch t j k] builds [k].
+      If the switch is turned off, the build should be cancelled.
+      Log messages can be written to [j]. *)
 
   val auto_cancel : bool
   (** [true] if a build should be cancelled if it is no longer needed, or

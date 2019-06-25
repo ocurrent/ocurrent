@@ -50,7 +50,7 @@ module Run = struct
 
   let pp = Key.pp
 
-  let build ~switch No_context (key : Key.t) =
+  let build ~switch No_context _job (key : Key.t) =
     let ready, set_ready = Lwt.wait () in
     containers := Containers.add key set_ready !containers;
     Lwt_switch.add_hook (Some switch) (fun () ->
@@ -87,7 +87,7 @@ module Push = struct
 
   let pp = Key.pp
 
-  let build ~switch:_ No_context _ = Lwt.return (Ok ())
+  let build ~switch:_ No_context _job _key = Lwt.return (Ok ())
 
   let auto_cancel = false
 

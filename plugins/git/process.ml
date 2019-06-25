@@ -60,5 +60,8 @@ let with_tmpdir ?prefix ?mode fn =
       rm_f_tree tmpdir;
       Lwt.return () )
 
-let exec cmd =
-  Lwt_process.exec cmd >|= check_status cmd
+let exec ~job cmd =
+  let log_fd = Current_cache.Job.fd job in
+  let stdout = `FD_copy log_fd in
+  let stderr = `FD_copy log_fd in
+  Lwt_process.exec ~stdout ~stderr cmd >|= check_status cmd

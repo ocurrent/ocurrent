@@ -36,7 +36,7 @@ module Builder = struct
 
   let pp f key = Fmt.pf f "git clone %S" key.Commit.repo
 
-  let build ~switch:_ No_context (key : Key.t) =
+  let build ~switch:_ No_context _job (key : Key.t) =
     let ready, set_ready = Lwt.wait () in
     state := RepoMap.add key.Commit.repo set_ready !state;
     ready

@@ -1,5 +1,5 @@
 (library
   (public_name current.cache)
   (name current_cache)
-  (libraries current lwt)
+  (libraries current lwt lwt.unix)
   (preprocess future_syntax))

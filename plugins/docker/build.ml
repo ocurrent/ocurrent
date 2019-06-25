@@ -41,10 +41,10 @@ let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg ->
   Error (`Msg msg)
 
-let build ~switch { pull } key =
+let build ~switch { pull } job key =
   let { Key.commit; dockerfile } = key in
   let tag = docker_tag key in
-  Current_git.with_checkout commit @@ fun dir ->
+  Current_git.with_checkout ~job commit @@ fun dir ->
   let f =
     match dockerfile with
     | None -> "Dockerfile"
@@ -52,7 +52,10 @@ let build ~switch { pull } key =
   in
   let opts = if pull then ["--pull"] else [] in
   let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "-t"; tag; "--"; Fpath.to_string dir] in
-  let proc = Lwt_process.open_process_out ("", Array.of_list cmd) in
+  let log_fd = Current_cache.Job.fd job in
+  let stdout = `FD_copy log_fd in
+  let stderr = `FD_copy log_fd in
+  let proc = Lwt_process.open_process_out ~stdout ~stderr ("", Array.of_list cmd) in
   Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling build of %a" Current_git.Commit.pp commit);

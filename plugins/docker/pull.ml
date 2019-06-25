@@ -5,9 +5,12 @@ type t = No_context
 module Key = String
 module Value = Image
 
-let build ~switch No_context image =
+let build ~switch No_context job image =
   let cmd = Array.of_list @@ ["docker"; "pull"; image] in
-  let proc = Lwt_process.open_process_none ("", cmd) in
+  let log_fd = Current_cache.Job.fd job in
+  let stdout = `FD_copy log_fd in
+  let stderr = `FD_copy log_fd in
+  let proc = Lwt_process.open_process_none ~stdout ~stderr ("", cmd) in
   Lwt_switch.add_hook_or_exec (Some switch) (fun () ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling pull of %a" Image.pp image);
