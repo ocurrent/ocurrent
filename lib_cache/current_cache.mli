@@ -19,6 +19,10 @@ module type BUILDER = sig
   (** Extra build context or configuration information (e.g. credentials to
       access a remote service). *)
 
+  val id : string
+  (** A short and unique name for this builder, used as a filename component and database key.
+      e.g. "docker-build" *)
+
   module Key : sig
     (** A key is an input that needs to be built. *)
 

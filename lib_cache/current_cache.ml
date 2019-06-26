@@ -11,7 +11,7 @@ let open_temp_file ~dir ~prefix ~suffix =
 module Job = struct
   type t = Fpath.t * out_channel
 
-  let create ~switch () =
+  let create ~switch ~id () =
     let jobs_dir = Current.state_dir "job" in
     let time = Unix.gettimeofday () |> Unix.gmtime in
     let date =
@@ -22,11 +22,11 @@ module Job = struct
     match Bos.OS.Dir.create date_dir with
     | Error (`Msg m) -> failwith m
     | Ok (_ : bool) ->
-      let time_prefix =
+      let prefix =
         let { Unix.tm_hour; tm_min; tm_sec; _ } = time in
-        Fmt.strf "%02d%02d%02d_" tm_hour tm_min tm_sec
+        Fmt.strf "%02d%02d%02d-%s-" tm_hour tm_min tm_sec id
       in
-      let path, ch = open_temp_file ~dir:date_dir ~prefix:time_prefix ~suffix:".log" in
+      let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
       Log.info (fun f -> f "Created new log file at %a" Fpath.pp path);
       Lwt_switch.add_hook (Some switch) (fun () -> close_out ch; Lwt.return_unit);
       path, ch
@@ -49,6 +49,8 @@ end
 
 module type BUILDER = sig
   type t
+
+  val id : string
 
   module Key : sig
     type t
@@ -104,7 +106,7 @@ module Make(B : BUILDER) = struct
       end
     in
     Lwt.async (fun () ->
-        let job = Job.create ~switch () in
+        let job = Job.create ~switch ~id:B.id () in
         Job.log job "Starting build for %a" B.pp key;
         Lwt.finalize
           (fun () ->

@@ -50,6 +50,8 @@ module Run = struct
   module Key = Key
   module Value = struct type t = unit end
 
+  let id = "docker-run"
+
   let pp = Key.pp
 
   let build ~switch No_context _job (key : Key.t) =
@@ -86,6 +88,8 @@ module Push = struct
   type t = No_context
   module Key = Image
   module Value = struct type t = unit end
+
+  let id = "docker-push"
 
   let pp = Key.pp
 

@@ -34,6 +34,8 @@ module Clone = struct
   module Key = Commit
   module Value = Fpath
 
+  let id = "git-clone"
+
   let pp f key = Fmt.pf f "git clone %S" key.Commit.repo
 
   let build ~switch:_ No_context _job (key : Key.t) =

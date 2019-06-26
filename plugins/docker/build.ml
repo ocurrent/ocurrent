@@ -4,6 +4,8 @@ type t = {
   pull : bool;
 }
 
+let id = "docker-build"
+
 module Key = struct
   type t = {
     commit : Current_git.Commit.t;

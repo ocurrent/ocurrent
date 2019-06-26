@@ -5,6 +5,8 @@ type t = No_context
 module Key = Current.String
 module Value = Image
 
+let id = "docker-pull"
+
 let build ~switch No_context job image =
   let cmd = Array.of_list @@ ["docker"; "pull"; image] in
   let log_fd = Current_cache.Job.fd job in

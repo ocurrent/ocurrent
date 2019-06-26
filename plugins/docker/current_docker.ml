@@ -32,6 +32,9 @@ let build ?label ?dockerfile ~pull src =
 
 module Run = struct
   type t = No_context
+
+  let id = "docker-run"
+
   module Key = struct
     type t = Image.t * string list
 

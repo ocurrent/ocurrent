@@ -97,6 +97,8 @@ module Fetch = struct
   module Key = Commit_id
   module Value = Commit
 
+  let id = "git-fetch"
+
   let build ~switch:_ No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
     let local_repo = local_copy remote_repo in
