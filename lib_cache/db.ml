@@ -12,15 +12,18 @@ let or_fail label x =
 let db = lazy (
   let db = Lazy.force Current.db in
   Sqlite3.exec db "CREATE TABLE IF NOT EXISTS build_cache ( \
-                   builder TEXT, \
-                   key     BLOB, \
-                   ok      BOOL NOT NULL, \
-                   value   BLOB, \
-                   log     BLOB NOT NULL, \
-                   date    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, \
+                   builder   TEXT NOT NULL, \
+                   key       BLOB, \
+                   ok        BOOL NOT NULL, \
+                   value     BLOB, \
+                   log       TEXT NOT NULL, \
+                   ready     DATETIME NOT NULL, \
+                   running   DATETIME, \
+                   finished  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, \
                    PRIMARY KEY (builder, key))" |> or_fail "create table";
-  let record = Sqlite3.prepare db "INSERT OR REPLACE INTO build_cache (builder, key, ok, value, log) \
-                                   VALUES (?, ?, ?, ?, ?)" in
+  let record = Sqlite3.prepare db "INSERT OR REPLACE INTO build_cache \
+                                   (builder, key, ok, value, log, ready, running) \
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)" in
   let lookup = Sqlite3.prepare db "SELECT ok, value FROM build_cache WHERE builder = ? AND key = ?" in
   { db; record; lookup }
 )
@@ -39,7 +42,11 @@ let exec ?(cb=no_callback) stmt =
   in
   loop ()
 
-let record ~builder ~key ~log value =
+let format_timestamp time =
+  let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } = time in
+  Fmt.strf "%04d-%02d-%02d %02d:%02d:%02d" (tm_year + 1900) (tm_mon + 1) tm_mday tm_hour tm_min tm_sec
+
+let record ~builder ~key ~log ~ready ~running value =
   let t = Lazy.force db in
   Sqlite3.reset t.record |> or_fail "reset";
   let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
@@ -55,6 +62,12 @@ let record ~builder ~key ~log value =
       bind 4 (Sqlite3.Data.BLOB v);
   end;
   bind 5 (Sqlite3.Data.BLOB log);
+  bind 6 (Sqlite3.Data.TEXT (format_timestamp ready));
+  bind 7
+    (match running with
+      | Some time -> Sqlite3.Data.TEXT (format_timestamp time);
+      | None -> Sqlite3.Data.NULL
+    );
   exec t.record
 
 let lookup ~builder key =

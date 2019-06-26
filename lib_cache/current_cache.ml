@@ -126,28 +126,34 @@ module Make(B : BUILDER) = struct
         Lwt.async (fun () ->
             let job = Job.create ~switch ~id:B.id () in
             let log = Job.log_id job in
+            let ready = Unix.gettimeofday () |> Unix.gmtime in
+            let running = ref None in
             Job.log job "Starting build for %a" B.pp key;
+            let record result =
+              Db.record ~builder:B.id ~key:key_digest ~log ~ready ~running:!running result
+            in
             Lwt.finalize
               (fun () ->
                  Lwt.try_bind
                    (fun () ->
                       confirm confirmed >>= fun () ->
+                      running := Some Unix.(gettimeofday () |> gmtime);
                       B.build ~switch ctx job key
                    )
                    (fun x ->
                       begin match x with
                         | Ok v ->
                           Job.log job "Success";
-                          Db.record ~builder:B.id ~key:(B.Key.digest key) ~log (Ok (B.Value.marshal v))
+                          record @@ Ok (B.Value.marshal v)
                         | Error (`Msg m) as e ->
                           Job.log job "Failed: %s" m;
-                          Db.record ~builder:B.id ~key:(B.Key.digest key) ~log e
+                          record e
                       end;
                       Lwt.wakeup set_ready x;
                       Lwt.return_unit)
                    (fun ex ->
                       Job.log job "Error: %a" Fmt.exn ex;
-                      Db.record ~builder:B.id ~key:(B.Key.digest key) ~log (Error (`Msg (Printexc.to_string ex)));
+                      record @@ Error (`Msg (Printexc.to_string ex));
                       Lwt.wakeup_exn set_ready ex;
                       Lwt.return_unit)
               )
