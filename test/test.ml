@@ -18,13 +18,13 @@ let test_commit = Driver.test_commit
 let v1 commit =
   commit |> fetch |> build |> test
 
-let test_v1 () =
+let test_v1 _switch () =
   Driver.test ~name:"v1" v1 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_v1_cancel () =
+let test_v1_cancel _switch () =
   Driver.test ~name:"v1c" v1 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\""
@@ -38,7 +38,7 @@ let v2 commit =
   let bin = build src in
   bin |> Current.gate ~on:(test bin) |> push ~tag:"foo/bar"
 
-let test_v2 () =
+let test_v2 _switch () =
   let config = Current.Config.v ~confirm:Current.Level.Dangerous () in
   Driver.test ~config ~name:"v2" v2 @@ function
   | 1 -> Git.complete_clone test_commit
@@ -60,7 +60,7 @@ let v3 commit =
   in
   Current.all @@ List.map gated_deploy binaries
 
-let test_v3 () =
+let test_v3 _switch () =
   Driver.test ~name:"v3" v3 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 ->
@@ -80,7 +80,7 @@ let v4 commit =
   if Fpath.to_string src = "src-123" then build (Current.return src) |> test
   else Current.fail "Wrong hash!"
 
-let test_v4 () =
+let test_v4 _switch () =
   Driver.test ~name:"v4" v4 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Error (`Msg "Failed")
@@ -99,7 +99,7 @@ let v5 commit =
   |> Current.gate ~on:ok
   |> Current.list_iter (fun s -> s |> fetch |> build |> test)
 
-let test_v5 () =
+let test_v5 _switch () =
   Driver.test ~name:"v5" v5 @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
@@ -108,11 +108,11 @@ let test_v5 () =
 let () =
   Alcotest.run "test" [
     "pipelines", [
-      Alcotest.test_case "v1"        `Quick test_v1;
-      Alcotest.test_case "v1-cancel" `Quick test_v1_cancel;
-      Alcotest.test_case "v2"        `Quick test_v2;
-      Alcotest.test_case "v3"        `Quick test_v3;
-      Alcotest.test_case "v4"        `Quick test_v4;
-      Alcotest.test_case "v5"        `Quick test_v5;
+      Alcotest_lwt.test_case "v1"        `Quick test_v1;
+      Alcotest_lwt.test_case "v1-cancel" `Quick test_v1_cancel;
+      Alcotest_lwt.test_case "v2"        `Quick test_v2;
+      Alcotest_lwt.test_case "v3"        `Quick test_v3;
+      Alcotest_lwt.test_case "v4"        `Quick test_v4;
+      Alcotest_lwt.test_case "v5"        `Quick test_v5;
     ]
   ]

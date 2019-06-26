@@ -73,8 +73,12 @@ let test ?config ~name v actions =
     incr i;
     if not (List.exists ready watches) then raise Exit
   in
-  try
-    Lwt_main.run @@ Current.Engine.run ?config ~trace @@ fun () ->
-    with_analysis ~name ~i @@ v (Commit_var.get head)
-  with Exit ->
-    Docker.assert_finished ()
+  Lwt.catch
+    (fun () ->
+       Current.Engine.run ?config ~trace @@ fun () ->
+       with_analysis ~name ~i @@ v (Commit_var.get head)
+    )
+    (function
+      | Exit -> Docker.assert_finished (); Lwt.return_unit
+      | ex -> Lwt.fail ex
+    )

@@ -19,5 +19,5 @@ depends: [
   "cmdliner"
   "dockerfile"
   "dune" {build}
-  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
 ]
