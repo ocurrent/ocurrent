@@ -146,7 +146,9 @@ let state_dir name =
 
 let db = lazy (
   let db_dir = state_dir "db" in
-  Sqlite3.db_open Fpath.(to_string (db_dir / "sqlite.db"))
+  let db = Sqlite3.db_open Fpath.(to_string (db_dir / "sqlite.db")) in
+  Sqlite3.busy_timeout db 1000;
+  db
 )
 
 module Monitor : sig
