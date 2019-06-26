@@ -21,6 +21,8 @@ let db = lazy (
                    running   DATETIME, \
                    finished  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, \
                    PRIMARY KEY (builder, key))" |> or_fail "create table";
+  Sqlite3.exec db "PRAGMA journal_mode=WAL" |> or_fail "set write-ahead-log mode";
+  Sqlite3.exec db "PRAGMA synchronous=NORMAL" |> or_fail "set synchronous=NORMAL";
   let record = Sqlite3.prepare db "INSERT OR REPLACE INTO build_cache \
                                    (builder, key, ok, value, log, ready, running) \
                                    VALUES (?, ?, ?, ?, ?, ?, ?)" in
