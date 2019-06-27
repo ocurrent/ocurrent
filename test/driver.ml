@@ -19,11 +19,6 @@ let init_logging () =
 module Git = Current_git_test
 module Docker = Current_docker_test
 
-let test_commit =
-  Git.Commit.v ~repo:"my/project" ~hash:"123"
-
-module Commit_var = Current.Var(Git.Commit)
-
 let with_analysis ~name ~i (t : unit Current.t) =
   let data =
     let+ a = Current.Analysis.get t in
@@ -53,7 +48,6 @@ let test ?config ~name v actions =
   Git.reset ();
   Docker.reset ();
   (* Perform an initial analysis: *)
-  let head = Commit_var.create ~name:"head" (Ok test_commit) in
   let i = ref 1 in
   let trace x watches =
     current_watches := watches;
@@ -76,7 +70,7 @@ let test ?config ~name v actions =
   Lwt.catch
     (fun () ->
        Current.Engine.run ?config ~trace @@ fun () ->
-       with_analysis ~name ~i @@ v (Commit_var.get head)
+       with_analysis ~name ~i @@ v ()
     )
     (function
       | Exit -> Docker.assert_finished (); Lwt.return_unit

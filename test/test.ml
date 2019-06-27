@@ -11,7 +11,15 @@ let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
 let push = Docker.push
 
-let test_commit = Driver.test_commit
+module Commit_var = Current.Var(Git.Commit)
+
+let test_commit =
+  Git.Commit.v ~repo:"my/project" ~hash:"123"
+
+let head = Commit_var.create ~name:"head" (Ok test_commit)
+
+let with_commit v () =
+  v (Commit_var.get head)
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
    a PR on GitHub), this returns success if the tests pass on it. *)
@@ -19,13 +27,13 @@ let v1 commit =
   commit |> fetch |> build |> test
 
 let test_v1 _switch () =
-  Driver.test ~name:"v1" v1 @@ function
+  Driver.test ~name:"v1" (with_commit v1) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
 let test_v1_cancel _switch () =
-  Driver.test ~name:"v1c" v1 @@ function
+  Driver.test ~name:"v1c" (with_commit v1) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\""
   | _ -> raise Exit
@@ -40,7 +48,7 @@ let v2 commit =
 
 let test_v2 _switch () =
   let config = Current.Config.v ~confirm:Current.Level.Dangerous () in
-  Driver.test ~config ~name:"v2" v2 @@ function
+  Driver.test ~config ~name:"v2" (with_commit v2) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | 3 -> Current.Config.set_confirm config None
@@ -61,7 +69,7 @@ let v3 commit =
   Current.all @@ List.map gated_deploy binaries
 
 let test_v3 _switch () =
-  Driver.test ~name:"v3" v3 @@ function
+  Driver.test ~name:"v3" (with_commit v3) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 ->
     Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] @@ Ok ();
@@ -81,7 +89,7 @@ let v4 commit =
   else Current.fail "Wrong hash!"
 
 let test_v4 _switch () =
-  Driver.test ~name:"v4" v4 @@ function
+  Driver.test ~name:"v4" (with_commit v4) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Error (`Msg "Failed")
   | _ -> raise Exit
@@ -100,7 +108,7 @@ let v5 commit =
   |> Current.list_iter (fun s -> s |> fetch |> build |> test)
 
 let test_v5 _switch () =
-  Driver.test ~name:"v5" v5 @@ function
+  Driver.test ~name:"v5" (with_commit v5) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit

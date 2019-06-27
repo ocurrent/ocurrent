@@ -1,11 +1,9 @@
 val init_logging : unit -> unit
 
-val test_commit : Current_git_test.Commit.t
-
 val test :
   ?config:Current.Config.t ->
   name:string ->
-  (Current_git_test.Commit.t Current.t -> unit Current.t) ->
+  (unit -> unit Current.t) ->
   (int -> unit) ->
   unit Lwt.t
 (** [test ~name pipeline actions] runs [pipeline]. After each interation,
