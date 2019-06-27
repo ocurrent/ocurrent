@@ -16,10 +16,12 @@ let dockerfile ~base ~ocaml_version =
   copy ~src:["*.opam"] ~dst:"/src" () @@
   run "opam install -tv ."
 
+let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
+
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let base = Docker.pull "ocaml/opam2" in
+  let base = Docker.pull ~schedule:weekly "ocaml/opam2" in
   let build ocaml_version =
     let dockerfile =
       let+ base = base in

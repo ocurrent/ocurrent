@@ -63,8 +63,17 @@ module type BUILDER = sig
       This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end
 
+module Schedule : sig
+  type t
+
+  val v : ?valid_for:Duration.t -> unit -> t
+  (** Create a new configuration.
+      @param valid_for Consider a cached entry invalid after this long
+   *)
+end
+
 module Make (B : BUILDER) : sig
-  val get : B.t -> B.Key.t -> B.Value.t Current.t
+  val get : ?schedule:Schedule.t -> B.t -> B.Key.t -> B.Value.t Current.t
   (** [get b k] is a term for the result of building [k]. *)
 
   val invalidate : B.Key.t -> unit
@@ -83,3 +92,10 @@ module Process : sig
       (recursively).
       @param prefix Allows giving the directory a more meaningful name (for debugging). *)
 end
+
+(**/**)
+
+(* For unit tests we need our own test clock: *)
+
+val timestamp : (unit -> float) ref
+val sleep : (float -> unit Lwt.t) ref

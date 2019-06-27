@@ -6,10 +6,10 @@ module Image = Image
 
 module PC = Current_cache.Make(Pull)
 
-let pull tag =
+let pull ~schedule tag =
   Fmt.strf "pull %s" tag |>
   let** () = Current.return () in
-  PC.get Pull.No_context tag
+  PC.get ~schedule Pull.No_context tag
 
 module BC = Current_cache.Make(Build)
 

@@ -1,5 +1,5 @@
 (executables
-  (names test test_monitor)
+  (names test test_monitor test_cache)
   (libraries current fmt fmt.tty logs.fmt bos lwt.unix alcotest-lwt
              current_fs
              current_docker_test
@@ -29,7 +29,3 @@
    (diff expected/v4.1.dot v4.1.dot) (diff expected/v4.2.dot v4.2.dot) (diff expected/v4.3.dot v4.3.dot)
    (diff expected/v5.1.dot v5.1.dot) (diff expected/v5.2.dot v5.2.dot) (diff expected/v5.3.dot v5.3.dot)
  )))
-
-(alias
- (name runtest)
- (action (run ./test_monitor.exe)))

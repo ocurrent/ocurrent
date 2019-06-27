@@ -7,8 +7,10 @@ module Image : sig
   val tag : t -> string
 end
 
-val pull : string -> Image.t Current.t
-(** [pull tag] ensures that the latest version of [tag] is cached locally, downloading it if not. *)
+val pull : schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
+(** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
+    @param schedule Controls how often we check for updates. If the schedule
+                    has no [valid_for] limit then we will only ever pull once. *)
 
 val build : ?label:string -> ?dockerfile:Dockerfile.t Current.t -> pull:bool -> source Current.t -> Image.t Current.t
 (** [build ~pull src] builds a Docker image from source.

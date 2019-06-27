@@ -135,9 +135,7 @@ let basic () =
   try Lwt_main.run @@ Current.Engine.run test_pipeline ~trace:(trace step)
   with Exit -> ()
 
-let () =
-  Alcotest.run "test_monitor" [
-    "monitor", [
-      Alcotest.test_case "basic" `Quick basic;
-    ]
+let tests =
+  [
+    Alcotest.test_case "basic" `Quick basic;
   ]

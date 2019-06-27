@@ -1,5 +1,7 @@
 open Current.Syntax
 
+exception Expect_skip
+
 let reporter =
   let report src level ~over k msgf =
     let k _ = over (); k () in
@@ -54,18 +56,20 @@ let test ?config ~name v actions =
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
     Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Input.pp_watch) watches);
     begin
-      match List.find_opt ready watches with
-      | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i
-      | None -> ()
-    end;
-    begin
-      try actions !i
-      with Exit ->
+      let ready_watch = List.find_opt ready watches in
+      try
+        actions !i;
+        match ready_watch with
+        | Some i -> Fmt.failwith "Input already ready! %a" Current.Input.pp_watch i
+        | None -> ()
+      with
+      | Expect_skip -> assert (ready_watch <> None)
+      | Exit ->
         List.iter (fun w -> w#release) watches;
         raise Exit
     end;
     incr i;
-    if not (List.exists ready watches) then raise Exit
+    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!"
   in
   Lwt.catch
     (fun () ->

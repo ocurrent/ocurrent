@@ -20,6 +20,7 @@ depends: [
   "dockerfile"
   "ppx_deriving_yojson"
   "sqlite3"
+  "duration"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

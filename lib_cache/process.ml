@@ -1,5 +1,8 @@
 open Lwt.Infix
 
+let () =
+  Random.self_init ()
+
 let failf fmt = fmt |> Fmt.kstrf @@ fun msg -> Error (`Msg msg)
 
 let pp_args =
@@ -27,13 +30,15 @@ let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
     | 0 -> Fmt.failwith "Failed to generate temporary directroy name!"
     | n -> (
+      let tmppath =
+        Printf.sprintf "%s/%s%x" parent prefix (Random.int 0x3fffffff)
+      in
       try
-        let tmppath =
-          Printf.sprintf "%s/%s%x" parent prefix (Random.int 0x3fffffff)
-        in
         Unix.mkdir tmppath mode;
         tmppath
-      with Unix.Unix_error (Unix.EEXIST, _, _) -> mktmp (n - 1) )
+      with Unix.Unix_error (Unix.EEXIST, _, _) ->
+        Log.warn (fun f -> f "Temporary directory %s already exists!" tmppath);
+        mktmp (n - 1) )
   in
   mktmp 10
 

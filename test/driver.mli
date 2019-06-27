@@ -12,3 +12,7 @@ val test :
 
 val cancel : string -> unit
 (** [cancel msg] cancels the watch named [msg]. *)
+
+exception Expect_skip
+(** The [actions] callback can raise this if it's OK if the next step's inputs
+    are ready immediately. Needed for the case of cache invalidation. *)

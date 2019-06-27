@@ -122,5 +122,7 @@ let () =
       Alcotest_lwt.test_case "v3"        `Quick test_v3;
       Alcotest_lwt.test_case "v4"        `Quick test_v4;
       Alcotest_lwt.test_case "v5"        `Quick test_v5;
-    ]
+    ];
+    "cache", Test_cache.tests;
+    "monitor", Test_monitor.tests;
   ]
