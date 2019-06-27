@@ -5,7 +5,7 @@ let git ~job ?cwd args =
     | Some cwd -> "-C" :: Fpath.to_string cwd :: args
   in
   let cmd = Array.of_list ("git" :: args) in
-  Process.exec ~job ("", cmd)
+  Current_cache.Process.exec ~job ("", cmd)
 
 let git_clone ~job ~src dst =
   git ~job ["clone"; src; Fpath.to_string dst]

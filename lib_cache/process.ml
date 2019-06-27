@@ -52,8 +52,8 @@ let rm_f_tree root =
   in
   rmtree root
 
-let with_tmpdir ?prefix ?mode fn =
-  let tmpdir = make_tmp_dir ?prefix ?mode (Filename.get_temp_dir_name ()) in
+let with_tmpdir ?prefix fn =
+  let tmpdir = make_tmp_dir ?prefix ~mode:0o700 (Filename.get_temp_dir_name ()) in
   Lwt.finalize
     (fun () -> fn (Fpath.v tmpdir))
     (fun () ->
@@ -61,7 +61,7 @@ let with_tmpdir ?prefix ?mode fn =
       Lwt.return () )
 
 let exec ~job cmd =
-  let log_fd = Current_cache.Job.fd job in
+  let log_fd = Job.fd job in
   let stdout = `FD_copy log_fd in
   let stderr = `FD_copy log_fd in
   Lwt_process.exec ~stdout ~stderr cmd >|= check_status cmd

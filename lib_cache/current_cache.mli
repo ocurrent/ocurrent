@@ -39,7 +39,11 @@ module type BUILDER = sig
     type t
 
     val marshal : t -> string
+    (** Convert [t] to a form suitable for storage in the database. *)
+
     val unmarshal : string -> t
+    (** Restore a [t] from a string previously produced by [marshal].
+        Raise an exception if the value cannot be read (e.g. the format has changed). *)
   end
 
   val pp : Key.t Fmt.t
@@ -68,4 +72,14 @@ module Make (B : BUILDER) : sig
 
   val reset : unit -> unit
   (** [reset ()] clears the cache. Useful for unit-tests. *)
+end
+
+module Process : sig
+  val exec : job:Job.t -> Lwt_process.command -> unit Current.or_error Lwt.t
+  (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log. *)
+
+  val with_tmpdir : ?prefix:string -> (Fpath.t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
+      (recursively).
+      @param prefix Allows giving the directory a more meaningful name (for debugging). *)
 end

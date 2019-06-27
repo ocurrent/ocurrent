@@ -71,7 +71,7 @@ let fetch cid =
 
 let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in
-  Process.with_tmpdir ~prefix:"git-checkout" ~mode:0o700 @@ fun tmpdir ->
+  Current_cache.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
   Cmd.git_clone ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
   | Ok () -> fn tmpdir
