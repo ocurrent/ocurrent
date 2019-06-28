@@ -101,6 +101,14 @@ module Make(B : BUILDER) = struct
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     Job.log job "Starting build for %a" B.pp build.key;
+    Lwt_switch.add_hook (Some build.switch) (fun () ->
+        if build.auto_cancelled then (
+          Job.log job "Auto-cancelling job because it is no longer needed";
+        ) else if is_running build then (
+          Job.log job "Cancelling job"
+        );
+        Lwt.return_unit
+      );
     confirm confirmed >>= fun () ->
     running := Some (!timestamp () |> Unix.gmtime);
     Lwt.catch
