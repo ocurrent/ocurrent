@@ -184,8 +184,8 @@ let frob key =
 ```
 
 The `frob` function is the one exposed to users.
-These functions always start by getting the actual value from the (`Current.t`) argument(s) using
-`let**` (use `and*`, for additional arguments).
+These functions always start by getting the actual values
+from their `Current.t` arguments using `let**` (and `and*`, for additional arguments).
 The label is used for the dot diagrams.
 
 The `build` function does the real work.
