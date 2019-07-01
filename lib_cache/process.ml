@@ -65,8 +65,29 @@ let with_tmpdir ?prefix fn =
       rm_f_tree tmpdir;
       Lwt.return () )
 
-let exec ~job cmd =
+let send_to ch contents =
+  Lwt.try_bind
+    (fun () ->
+       Lwt_io.write ch contents >>= fun () ->
+       Lwt_io.close ch
+    )
+    (fun () -> Lwt.return (Ok ()))
+    (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
+
+let exec ?switch ?(stdin="") ~job cmd =
   let log_fd = Job.fd job in
   let stdout = `FD_copy log_fd in
   let stderr = `FD_copy log_fd in
-  Lwt_process.exec ~stdout ~stderr cmd >|= check_status cmd
+  let proc = Lwt_process.open_process_out ~stdout ~stderr cmd in
+  Lwt_switch.add_hook_or_exec switch (fun () ->
+      if proc#state = Lwt_process.Running then (
+        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
+        proc#terminate;
+      );
+      Lwt.return_unit
+    ) >>= fun () ->
+  send_to proc#stdin stdin >>= fun stdin_result ->
+  proc#status >|= fun status ->
+  match check_status cmd status with
+  | Ok () -> stdin_result
+  | Error _ as e -> e

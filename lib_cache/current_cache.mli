@@ -84,8 +84,12 @@ module Make (B : BUILDER) : sig
 end
 
 module Process : sig
-  val exec : job:Job.t -> Lwt_process.command -> unit Current.or_error Lwt.t
-  (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log. *)
+  val exec :
+    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    unit Current.or_error Lwt.t
+  (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
+      @param switch If this is turned off, the process is terminated.
+      @param stdin Data to write to stdin before closing it. *)
 
   val with_tmpdir : ?prefix:string -> (Fpath.t -> 'a Lwt.t) -> 'a Lwt.t
   (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
