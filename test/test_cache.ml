@@ -194,9 +194,134 @@ let autocancel _switch () =
   | _ ->
     assert false
 
+module Publish = struct
+  module Key = Current.String
+  module Value = Current.String
+
+  type t = {
+    mutable state : string;
+    mutable next : string;
+    mutable set_finished : unit Current.or_error Lwt.u option;
+  }
+
+  let id = "publish"
+
+  let complete t v =
+    match t.set_finished with
+    | None -> failwith "Publish.complete: nothing in progress!"
+    | Some set_finished ->
+      t.set_finished <- None;
+      if v = Ok () then t.state <- t.next;
+      t.next <- "unset";
+      Lwt.wakeup set_finished v
+
+  let publish ~switch t _job key value =
+    Logs.info (fun f -> f "test_cache.publish");
+    assert (key = "foo");
+    assert (t.set_finished = None);
+    let finished, set_finished = Lwt.wait () in
+    t.set_finished <- Some set_finished;
+    t.state <- t.state ^ "-changing";
+    t.next <- value;
+    Lwt_switch.add_hook (Some switch) (fun () ->
+        Logs.info (fun f -> f "Cancelled");
+        t.state <- "cancelled";
+        complete t @@ Error (`Msg "Cancelled");
+        Lwt.return_unit
+      );
+    finished
+
+  let pp f (k, v) =
+    Fmt.pf f "Set %s to %s" k v
+
+  let level _ _ = Current.Level.Average
+
+  let auto_cancel = false
+
+  let create () =
+    { state = "init"; set_finished = None; next = "unset" }
+end
+
+module V = Current.Var(Current.String)
+
+let input = V.create ~name:"input" @@ Ok "bar"
+
+module OC = Current_cache.Output(Publish)
+
+let set p k v =
+  "set" |>
+  let** v = v in
+  OC.set p k v
+
+let output _switch () =
+  V.set input @@ Ok "bar";
+  OC.reset ();
+  let p = Publish.create () in
+  let pipeline () = V.get input |> set p "foo" in
+  Driver.test ~name:"cache.output" pipeline @@ function
+  | 1 ->
+    Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
+    Publish.complete p @@ Ok ();
+  | 2 ->
+    Alcotest.(check string) "Publish has completed" "bar" p.Publish.state;
+    V.set input @@ Ok "baz";
+  | 3 ->
+    Alcotest.(check string) "Changing to baz" "bar-changing" p.Publish.state;
+    V.set input @@ Ok "new";
+  | 4 ->
+    Alcotest.(check string) "Changed during publish" "bar-changing" p.Publish.state;
+    Publish.complete p @@ Error (`Msg "baz failed");
+  | 5 ->
+    Alcotest.(check string) "First change failed" "bar-changing-changing" p.Publish.state;
+    Publish.complete p @@ Ok ();
+  | 6 ->
+    Alcotest.(check string) "Success" "new" p.Publish.state;
+    raise Exit
+  | _ ->
+    assert false
+
+module Publish2 = struct
+  include Publish
+  let id = "publish2"
+  let auto_cancel = true
+end
+
+module OC2 = Current_cache.Output(Publish2)
+
+let set2 p k v =
+  "set2" |>
+  let** v = v in
+  OC2.set p k v
+
+let output_autocancel _switch () =
+  V.set input @@ Ok "bar";
+  OC2.reset ();
+  let p = Publish2.create () in
+  let pipeline () = V.get input |> set2 p "foo" in
+  Driver.test ~name:"cache.output_autocancel" pipeline @@ function
+  | 1 ->
+    Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
+    Publish.complete p @@ Ok ();
+  | 2 ->
+    Alcotest.(check string) "Publish has completed" "bar" p.Publish.state;
+    V.set input @@ Ok "baz";
+  | 3 ->
+    Alcotest.(check string) "Changing to baz" "bar-changing" p.Publish.state;
+    V.set input @@ Ok "new";
+  | 4 ->
+    Alcotest.(check string) "Changed during publish" "cancelled-changing" p.Publish.state;
+    Publish.complete p @@ Ok ();
+  | 5 ->
+    Alcotest.(check string) "Success" "new" p.Publish.state;
+    raise Exit
+  | _ ->
+    assert false
+
 let tests =
   [
     Alcotest_lwt.test_case "basic" `Quick basic;
     Alcotest_lwt.test_case "expires" `Quick expires;
     Alcotest_lwt.test_case "autocancel" `Quick autocancel;
+    Alcotest_lwt.test_case "output" `Quick output;
+    Alcotest_lwt.test_case "output_autocancel" `Quick output_autocancel;
   ]

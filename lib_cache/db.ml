@@ -118,3 +118,75 @@ module Build = struct
     bind 1 (Sqlite3.Data.TEXT builder);
     exec t.drop
 end
+
+module Publish = struct
+  type t = {
+    db : Sqlite3.db;
+    record : Sqlite3.stmt;
+    invalidate : Sqlite3.stmt;
+    drop : Sqlite3.stmt;
+    lookup : Sqlite3.stmt;
+  }
+
+  type entry = {
+    value : string;
+  }
+
+  let db = lazy (
+    let db = Lazy.force Current.db in
+    Sqlite3.exec db "CREATE TABLE IF NOT EXISTS publish_cache ( \
+                     op        TEXT NOT NULL, \
+                     key       BLOB, \
+                     value     BLOB, \
+                     PRIMARY KEY (op, key))" |> or_fail "create table";
+    let record = Sqlite3.prepare db "INSERT OR REPLACE INTO publish_cache \
+                                     (op, key, value) \
+                                     VALUES (?, ?, ?)" in
+    let lookup = Sqlite3.prepare db "SELECT value FROM publish_cache WHERE op = ? AND key = ?" in
+    let invalidate = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ? AND key = ?" in
+    let drop = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ?" in
+    { db; record; invalidate; drop; lookup }
+  )
+
+  let record ~op ~key value =
+    let t = Lazy.force db in
+    Sqlite3.reset t.record |> or_fail "reset";
+    let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
+    bind 1 (Sqlite3.Data.TEXT op);
+    bind 2 (Sqlite3.Data.BLOB key);
+    bind 3 (Sqlite3.Data.BLOB value);
+    exec t.record
+
+  let invalidate ~op key =
+    let t = Lazy.force db in
+    Sqlite3.reset t.invalidate |> or_fail "reset";
+    let bind i v = Sqlite3.bind t.invalidate i v |> or_fail "bind" in
+    bind 1 (Sqlite3.Data.TEXT op);
+    bind 2 (Sqlite3.Data.BLOB key);
+    exec t.invalidate
+
+  let lookup ~op key =
+    let t = Lazy.force db in
+    Sqlite3.reset t.lookup |> or_fail "reset";
+    let bind i v = Sqlite3.bind t.lookup i v |> or_fail "bind" in
+    bind 1 (Sqlite3.Data.TEXT op);
+    bind 2 (Sqlite3.Data.BLOB key);
+    let result = ref None in
+    let cb row =
+      match !result with
+      | Some _ -> Fmt.failwith "Multiple rows from lookup!"
+      | None ->
+        match row with
+        | [Sqlite3.Data.BLOB value] -> result := Some { value }
+        | _ -> Fmt.failwith "Invalid row from lookup!"
+    in
+    exec ~cb t.lookup;
+    !result
+
+  let drop_all op =
+    let t = Lazy.force db in
+    Sqlite3.reset t.drop |> or_fail "reset";
+    let bind i v = Sqlite3.bind t.drop i v |> or_fail "bind" in
+    bind 1 (Sqlite3.Data.TEXT op);
+    exec t.drop
+end

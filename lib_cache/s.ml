@@ -49,9 +49,35 @@ module type BUILDER = sig
       Log messages can be written to [j]. *)
 
   val pp : Key.t Fmt.t
-  (** Describe the operation. e.g. ["docker-build $path"]. *)
+  (** Describe the operation. e.g. ["docker build $src"]. *)
 
   val auto_cancel : bool
   (** [true] if an operation should be cancelled if it is no longer needed, or
       [false] to cancel only when the user explicitly requests it. *)
+end
+
+module type PUBLISHER = sig
+  (** A publisher sets a key to a value. *)
+
+  include OPERATION
+
+  type job
+
+  module Value : WITH_DIGEST
+  (** The value to publish. *)
+
+  val publish :
+    switch:Lwt_switch.t -> t -> job -> Key.t -> Value.t -> (unit, [`Msg of string]) result Lwt.t
+  (** [publish ~switch t j k v] sets output [k] to value [v].
+      If the switch is turned off, the operation should be cancelled.
+      Log messages can be written to [j]. *)
+
+  val pp : (Key.t * Value.t) Fmt.t
+  (** Describe the operation. e.g. ["docker push $tag"]. *)
+
+  val auto_cancel : bool
+  (** This affects what happens if we're in the process of outputting a value and
+      then we decide to output a different value instead.
+      If [true], the old operation will be cancelled immediately.
+      If [false], the old operation will run to completion first. *)
 end

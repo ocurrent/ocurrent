@@ -36,6 +36,14 @@ module Make (B : S.BUILDER with type job := Job.t) : sig
   (** [reset ()] clears the cache. Useful for unit-tests. *)
 end
 
+module Output (P : S.PUBLISHER with type job := Job.t) : sig
+  val set : P.t -> P.Key.t -> P.Value.t -> unit Current.t
+  (** [set p k v] is a term for the result of setting [k] to [v]. *)
+
+  val reset : unit -> unit
+  (** [reset ()] clears the cache. Useful for unit-tests. *)
+end
+
 module Process : sig
   val exec :
     ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->

@@ -30,3 +30,27 @@ module Build : sig
   val invalidate : builder:string -> string -> unit
   (** [invalidate ~builder key] removes any existing entry for [builder, key]. *)
 end
+
+module Publish : sig
+  type entry = {
+    value : string;
+  }
+
+  val record :
+    op:string ->
+    key:string ->
+    string ->
+    unit
+  (** [record ~op ~key value] records that [key] is now set to [value].
+      This replaces any previous entry. *)
+
+  val lookup : op:string -> string -> entry option
+  (** [lookup ~op key] returns the previously stored result for [op] and [key], if any. *)
+
+  val drop_all : string -> unit
+  (** [drop_all op] drops all cached entries for [op]. *)
+
+  val invalidate : op:string -> string -> unit
+  (** [invalidate ~op key] removes any existing entry for [op, key]. *)
+end
+
