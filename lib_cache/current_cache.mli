@@ -14,54 +14,7 @@ module Job : sig
   val fd : t -> Unix.file_descr
 end
 
-module type BUILDER = sig
-  type t
-  (** Extra build context or configuration information (e.g. credentials to
-      access a remote service). *)
-
-  val id : string
-  (** A short and unique name for this builder, used as a filename component and database key.
-      e.g. "docker-build" *)
-
-  module Key : sig
-    (** A key is an input that needs to be built. *)
-
-    type t
-
-    val digest : t -> string
-    (** [digest t] is a unique string for [t] that can be used as a primary key in a database.
-        Two [t]s are considered equal if they have the same digest. *)
-  end
-
-  module Value : sig
-    (** The result of a successful build. *)
-
-    type t
-
-    val marshal : t -> string
-    (** Convert [t] to a form suitable for storage in the database. *)
-
-    val unmarshal : string -> t
-    (** Restore a [t] from a string previously produced by [marshal].
-        Raise an exception if the value cannot be read (e.g. the format has changed). *)
-  end
-
-  val pp : Key.t Fmt.t
-  (** Describe the operation that builds a [Value.t] from the given [key]. *)
-
-  val build : switch:Lwt_switch.t -> t -> Job.t -> Key.t -> (Value.t, [`Msg of string]) result Lwt.t
-  (** [build ~switch t j k] builds [k].
-      If the switch is turned off, the build should be cancelled.
-      Log messages can be written to [j]. *)
-
-  val auto_cancel : bool
-  (** [true] if a build should be cancelled if it is no longer needed, or
-      [false] to cancel only when the user explicitly requests it. *)
-
-  val level : t -> Key.t -> Current.Level.t
-  (** [level t k] provides an estimate of how risky / expensive this operation is.
-      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
-end
+module S = S
 
 module Schedule : sig
   type t
@@ -72,7 +25,7 @@ module Schedule : sig
    *)
 end
 
-module Make (B : BUILDER) : sig
+module Make (B : S.BUILDER with type job := Job.t) : sig
   val get : ?schedule:Schedule.t -> B.t -> B.Key.t -> B.Value.t Current.t
   (** [get b k] is a term for the result of building [k]. *)
 

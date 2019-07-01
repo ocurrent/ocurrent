@@ -4,31 +4,6 @@ open Current.Syntax
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
 
-module type BUILDER = sig
-  type t
-
-  val id : string
-
-  module Key : sig
-    type t
-    val digest : t -> string
-  end
-
-  module Value : sig
-    type t
-    val marshal : t -> string
-    val unmarshal : string -> t
-  end
-
-  val pp : Key.t Fmt.t
-
-  val build : switch:Lwt_switch.t -> t -> Job.t -> Key.t -> (Value.t, [`Msg of string]) result Lwt.t
-
-  val auto_cancel : bool
-
-  val level : t -> Key.t -> Current.Level.t
-end
-
 let confirm (confirmed, level) =
   match Lwt.state confirmed with
   | Lwt.Return () -> Lwt.return_unit
@@ -65,7 +40,7 @@ let pp_duration_rough f d =
   in
   aux durations
 
-module Make(B : BUILDER) = struct
+module Make(B : S.BUILDER with type job := Job.t) = struct
   module Builds = Map.Make(String)
 
   type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
@@ -252,3 +227,4 @@ end
 
 module Job = Job
 module Process = Process
+module S = S
