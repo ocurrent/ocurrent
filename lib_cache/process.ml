@@ -78,6 +78,8 @@ let exec ?switch ?(stdin="") ~job cmd =
   let log_fd = Job.fd job in
   let stdout = `FD_copy log_fd in
   let stderr = `FD_copy log_fd in
+  Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
+  Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_out ~stdout ~stderr cmd in
   Lwt_switch.add_hook_or_exec switch (fun () ->
       if proc#state = Lwt_process.Running then (

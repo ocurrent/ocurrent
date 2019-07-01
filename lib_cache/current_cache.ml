@@ -100,11 +100,12 @@ module Make(B : BUILDER) = struct
     let log = Job.log_id job in
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
+    let is_finished = ref false in
     Job.log job "Starting build for %a" B.pp build.key;
     Lwt_switch.add_hook (Some build.switch) (fun () ->
         if build.auto_cancelled then (
           Job.log job "Auto-cancelling job because it is no longer needed";
-        ) else if is_running build then (
+        ) else if not !is_finished then (
           Job.log job "Cancelling job"
         );
         Lwt.return_unit
@@ -115,6 +116,7 @@ module Make(B : BUILDER) = struct
       (fun () -> B.build ~switch:build.switch ctx job build.key)
       (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
     >|= fun x ->
+    is_finished := true;
     let finished = !timestamp () in
     if build.auto_cancelled then (
       force_invalidate (B.Key.digest build.key);

@@ -38,7 +38,9 @@ let build ~switch { pull } job key =
   let f =
     match dockerfile with
     | None -> "Dockerfile"
-    | Some _ -> "-"
+    | Some contents ->
+      Current_cache.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
+      "-"
   in
   let opts = if pull then ["--pull"] else [] in
   let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "-t"; tag; "--"; Fpath.to_string dir] in
