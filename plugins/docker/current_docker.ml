@@ -15,19 +15,15 @@ module BC = Current_cache.Make(Build)
 
 let pp_sp_label = Fmt.(option (prefix sp string))
 
+let option_map f = function
+  | None -> None
+  | Some x -> Some (f x)
+
 let build ?label ?dockerfile ~pull src =
   Fmt.strf "build%a" pp_sp_label label |>
   let** commit = src
-  and* dockerfile =
-    match dockerfile with
-    | None -> Current.return None
-    | Some x -> let+ y = x in Some y
-  in
-  let dockerfile =
-    match dockerfile with
-    | None -> None
-    | Some df -> Some (Dockerfile.string_of_t df)
-  in
+  and* dockerfile = Current.option_seq dockerfile in
+  let dockerfile = option_map Dockerfile.string_of_t dockerfile in
   BC.get { Build.pull } { Build.Key.commit; dockerfile }
 
 module Run = struct

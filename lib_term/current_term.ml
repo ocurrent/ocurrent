@@ -144,6 +144,10 @@ module Make (Input : S.INPUT) = struct
     let+ (_ : unit list) = list_map f xs in
     ()
 
+  let option_seq : 'a t option -> 'a option t = function
+    | None -> return None
+    | Some x -> let+ y = x in Some y
+
   let gate ~on t =
     cache @@ fun ~env ctx ->
     let t = t ctx in

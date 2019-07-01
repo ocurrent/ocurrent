@@ -76,6 +76,11 @@ module type TERM = sig
   val list_iter : ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
+  val option_seq : 'a t option -> 'a option t
+  (** [option_seq None] is [Current.return None] and
+      [option_seq (Some x)] is [Current.map some x].
+      This is useful for handling optional arguments that are currents. *)
+
   val all : unit t list -> unit t
   (** [all xs] is a term that succeeds if every term in [xs] succeeds. *)
 
