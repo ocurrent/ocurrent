@@ -10,10 +10,10 @@ let dockerfile ~base ~ocaml_version =
   from (Docker.Image.tag base) @@
   run "opam switch %s" ocaml_version @@
   workdir "/src" @@
-  add ~src:["*.opam"] ~dst:"/src" () @@
+  add ~src:["*.opam"] ~dst:"/src/" () @@
   env ["OPAMERRLOGLEN", "0"] @@
   run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
-  copy ~src:["*.opam"] ~dst:"/src" () @@
+  copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
