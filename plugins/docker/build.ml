@@ -25,15 +25,12 @@ end
 
 module Value = Image
 
-let docker_tag t = Fmt.strf "build-of-%s" (Key.digest t)
-
 let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg ->
   Error (`Msg msg)
 
 let build ~switch { pull } job key =
   let { Key.commit; dockerfile } = key in
-  let tag = docker_tag key in
   Current_git.with_checkout ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
@@ -43,12 +40,16 @@ let build ~switch { pull } job key =
       "-"
   in
   let opts = if pull then ["--pull"] else [] in
-  let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "-t"; tag; "--"; Fpath.to_string dir] in
+  let iidfile = Fpath.add_seg dir "docker-iid" in
+  let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "--iidfile"; Fpath.to_string iidfile; "--"; Fpath.to_string dir] in
   Current_cache.Process.exec ~switch ?stdin:dockerfile ~job ("", Array.of_list cmd) >|= function
-  | Ok () ->
-    Log.info (fun f -> f "Build of docker image %S succeeded" tag);
-    Ok tag
   | Error _ as e -> e
+  | Ok () ->
+    match Bos.OS.File.read iidfile with
+    | Ok hash ->
+      Log.info (fun f -> f "Built docker image %s" hash);
+      Ok (Image.of_hash hash)
+    | Error _ as e -> e
 
 let pp f key = Fmt.pf f "docker build %a" Key.pp key
 

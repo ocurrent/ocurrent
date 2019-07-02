@@ -15,7 +15,7 @@ let build ~switch No_context job tag =
     let cmd = [| "docker"; "image"; "inspect"; tag; "-f"; "{{.Id}}" |] in
     Lwt_process.pread_line ("", cmd) >|= fun id ->
     Current_cache.Job.log job "Pulled %S -> %S" tag id;
-    Ok id
+    Ok (Image.of_hash id)
 
 let pp f x = Fmt.pf f "docker pull %s" x
 

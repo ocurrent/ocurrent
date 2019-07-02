@@ -1,2 +1,3 @@
 include Current.String
-let tag t = t
+let of_hash t = t
+let hash t = t

@@ -7,7 +7,7 @@ let () = Logging.init ()
 
 let dockerfile ~base ~ocaml_version =
   let open Dockerfile in
-  from (Docker.Image.tag base) @@
+  from (Docker.Image.hash base) @@
   run "opam switch %s" ocaml_version @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@

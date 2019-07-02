@@ -4,7 +4,7 @@ type source = Current_git.Commit.t
 
 module Image : sig
   type t
-  val tag : t -> string
+  val hash : t -> string
 end
 
 val pull : schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
