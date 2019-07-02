@@ -31,3 +31,10 @@ let run image ~args =
   "run" |>
   let** image = image in
   RC.get Run.No_context (image, args)
+
+module TC = Current_cache.Output(Tag)
+
+let tag ~tag image =
+  Fmt.strf "docker-tag %s" tag |>
+  let** image = image in
+  TC.set Tag.No_context tag image

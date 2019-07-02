@@ -128,7 +128,8 @@ let pipeline ~repo () =
       let+ base = base in
       dockerfile ~base ~ocaml_version
     in
-    Docker.build ~label:ocaml_version ~pull:false ~dockerfile src |> Current.ignore_value
+    Docker.build ~label:ocaml_version ~pull:false ~dockerfile src |>
+    Docker.tag ~tag:(Fmt.strf "example-%s" ocaml_version)
   in
   Current.all [
     build "4.07";
@@ -144,8 +145,7 @@ It uses `Current.all` to build against different versions of OCaml, generating
 a suitable Dockerfile for each version (the `ocaml/opam2` image contains multiple
 versions of the compiler and the Dockerfile just selects one of them).
 
-We don't actually care about the final image (just that something built), so we
-use `Current.ignore_value` to ignore it.
+The generated images are then tagged with the compiler version used to build them.
 
 ### Writing your own plugins
 

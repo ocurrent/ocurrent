@@ -19,3 +19,6 @@ val build : ?label:string -> ?dockerfile:Dockerfile.t Current.t -> pull:bool -> 
 
 val run : Image.t Current.t -> args:string list -> unit Current.t
 (** [run image ~args] runs [image args] with Docker. *)
+
+val tag : tag:string -> Image.t Current.t -> unit Current.t
+(** [tag image ~tag] does "docker tag image tag" *)
