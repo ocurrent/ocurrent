@@ -113,6 +113,7 @@ module String : sig
   type t = string
   val digest : t -> string
   val pp : t Fmt.t
+  val equal : t -> t -> bool
   val marshal : t -> string
   val unmarshal : string -> t
 end

@@ -253,6 +253,7 @@ module String = struct
   let pp = Fmt.string
   let marshal t = t
   let unmarshal t = t
+  let equal = String.equal
 end
 
 module Unit = struct
