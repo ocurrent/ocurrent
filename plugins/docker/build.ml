@@ -34,7 +34,7 @@ let errorf fmt =
 let build ~switch { pull } job key =
   let { Key.commit; dockerfile } = key in
   let tag = docker_tag key in
-  Current_git.with_checkout ~job commit @@ fun dir ->
+  Current_git.with_checkout ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
     | None -> "Dockerfile"

@@ -26,11 +26,12 @@ end
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
+  switch:Lwt_switch.t ->
   job:Current_cache.Job.t ->
   Commit.t ->
   (Fpath.t -> 'a Current.or_error Lwt.t) ->
   'a Current.or_error Lwt.t
-(** [with_checkout ~job c fn] clones [c] to a temporary directory and runs [fn tmpdir].
+(** [with_checkout ~switch ~job c fn] clones [c] to a temporary directory and runs [fn tmpdir].
     When it returns, the directory is deleted. *)
 
 module Local : sig
