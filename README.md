@@ -217,6 +217,9 @@ whether it would be better to continue with the old build (while also building t
 `level` gives a rough estimate of the cost or risk of the operation.
 You can use the `--confirm` option to decide which operations OCurrent will perform automatically.
 
+As well as caching build operations (which take a key and produce a value), you can also cache outputs
+(which take a key and a value as input). For example, the `Docker.tag` operation above uses the output cache.
+
 See the [Current_cache][] API for more information.
 
 ### The build cache
