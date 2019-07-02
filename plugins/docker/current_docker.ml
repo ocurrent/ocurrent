@@ -37,4 +37,9 @@ module TC = Current_cache.Output(Tag)
 let tag ~tag image =
   Fmt.strf "docker-tag %s" tag |>
   let** image = image in
-  TC.set Tag.No_context tag image
+  TC.set Tag.No_context tag (image, `Local)
+
+let push ~tag image =
+  Fmt.strf "docker-push %s" tag |>
+  let** image = image in
+  TC.set Tag.No_context tag (image, `Push)

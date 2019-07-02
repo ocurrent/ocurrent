@@ -22,3 +22,6 @@ val run : Image.t Current.t -> args:string list -> unit Current.t
 
 val tag : tag:string -> Image.t Current.t -> unit Current.t
 (** [tag image ~tag] does "docker tag image tag" *)
+
+val push : tag:string -> Image.t Current.t -> unit Current.t
+(** [push image ~tag] does "docker tag image tag && docker push tag" *)

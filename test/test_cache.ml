@@ -234,7 +234,7 @@ module Publish = struct
   let pp f (k, v) =
     Fmt.pf f "Set %s to %s" k v
 
-  let level _ _ = Current.Level.Average
+  let level _ _ _ = Current.Level.Average
 
   let auto_cancel = false
 

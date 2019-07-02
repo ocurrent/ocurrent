@@ -338,6 +338,7 @@ module Output(Op : S.PUBLISHER with type job := Job.t) = struct
            Job.log job "Publish(%t) : succeeded" pp_op;
            output.current <- Some (Value.digest op.value);
            output.op <- `Finished;
+           Db.Publish.record ~op:Op.id ~key:(Op.Key.digest output.key) (Value.digest op.value);
            (* While we were pushing, we might have decided we wanted something else.
               If so, start pushing that now. *)
            maybe_start ~confirmed output;
@@ -369,7 +370,7 @@ module Output(Op : S.PUBLISHER with type job := Job.t) = struct
     { key; current; desired; ctx; op = `Finished }
 
   let set ctx key value =
-    let level = Op.level ctx key in
+    let level = Op.level ctx key value in
     let* confirmed = Current.confirmed level in
     Log.debug (fun f -> f "set: %a" Op.pp (key, value));
     let key_digest = Op.Key.digest key in
