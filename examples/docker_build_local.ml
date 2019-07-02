@@ -1,4 +1,4 @@
-open Current.Syntax
+open! Current.Syntax    (* (not actually needed for this example) *)
 
 module Git = Current_git
 module Docker = Current_docker
@@ -15,19 +15,9 @@ let pipeline ~repo () =
   let image = Docker.build ~pull src in
   Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
 
-(* Render pipeline as dot file *)
-let pipeline ~repo () =
-  let result = pipeline ~repo () in
-  let dot_data =
-    let+ a = Current.Analysis.get result in
-    Fmt.strf "%a" Current.Analysis.pp_dot a
-  in
-  let* () = Current_fs.save (Current.return dotfile) dot_data in
-  result
-
 let main config repo =
   let repo = Git.Local.v (Fpath.v repo) in
-  Lwt_main.run (Current.Engine.run ~config (pipeline ~repo))
+  Lwt_main.run (Current.Engine.run ~config (Logging.with_dot ~dotfile (pipeline ~repo)))
 
 (* Command-line parsing *)
 

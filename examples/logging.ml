@@ -1,4 +1,4 @@
-(* Configure logging *)
+open Current.Syntax
 
 let reporter =
   let report src level ~over k msgf =
@@ -15,3 +15,12 @@ let init () =
   Fmt_tty.setup_std_outputs ();
   Logs.(set_level (Some Info));
   Logs.set_reporter reporter
+
+let with_dot ~dotfile f () =
+  let result = f () in
+  let dot_data =
+    let+ a = Current.Analysis.get result in
+    Fmt.strf "%a" Current.Analysis.pp_dot a
+  in
+  let* () = Current_fs.save (Current.return dotfile) dot_data in
+  result

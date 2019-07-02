@@ -36,18 +36,10 @@ let pipeline ~repo () =
 
 (* Render pipeline as dot file *)
 let dotfile = Fpath.v "pipeline.dot"
-let pipeline ~repo () =
-  let result = pipeline ~repo () in
-  let dot_data =
-    let+ a = Current.Analysis.get result in
-    Fmt.strf "%a" Current.Analysis.pp_dot a
-  in
-  let* () = Current_fs.save (Current.return dotfile) dot_data in
-  result
 
 let main config repo =
   let repo = Git.Local.v (Fpath.v repo) in
-  Lwt_main.run (Current.Engine.run ~config (pipeline ~repo))
+  Lwt_main.run (Current.Engine.run ~config (Logging.with_dot ~dotfile (pipeline ~repo)))
 
 (* Command-line parsing *)
 
