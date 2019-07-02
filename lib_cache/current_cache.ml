@@ -59,7 +59,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
 
   let force_invalidate key =
     builds := Builds.remove key !builds;
-    Db.invalidate ~builder:B.id key
+    Db.Build.invalidate ~builder:B.id key
 
   (* Mark this build as invalid. The caller is responsible for triggering a re-evaluation. *)
   let invalidate key =
@@ -101,7 +101,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
       Error (`Msg "Auto-cancelled"), finished
     ) else (
       let record result =
-        Db.record
+        Db.Build.record
           ~builder:B.id
           ~key:(B.Key.digest build.key)
           ~log
@@ -125,15 +125,15 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
     let switch = Lwt_switch.create () in
     let finished, set_finished = Lwt.wait () in
     let build = { switch; key; finished; ref_count = 0; auto_cancelled = false } in
-    match Db.lookup ~builder:B.id key_digest with
+    match Db.Build.lookup ~builder:B.id key_digest with
     | Some entry ->
       Log.info (fun f -> f "Loaded cached result for %a" B.pp key);
       let v =
-        match entry.Db.value with
+        match entry.Db.Build.value with
         | Ok v -> Ok (B.Value.unmarshal v)
         | Error _ as e -> e
       in
-      Lwt.wakeup set_finished (v, entry.Db.finished);
+      Lwt.wakeup set_finished (v, entry.Db.Build.finished);
       build
     | None ->
       Lwt.async (fun () ->
@@ -222,7 +222,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
 
   let reset () =
     builds := Builds.empty;
-    Db.drop_all B.id
+    Db.Build.drop_all B.id
 end
 
 module Job = Job
