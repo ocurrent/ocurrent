@@ -21,6 +21,8 @@ depends: [
   "ppx_deriving_yojson"
   "sqlite3"
   "duration"
+  "cohttp-lwt-unix"
+  "yojson"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

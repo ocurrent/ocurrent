@@ -1,0 +1,6 @@
+(library
+  (name current_slack)
+  (libraries current current.cache lwt.unix cohttp-lwt-unix yojson)
+  (preprocess (per_module
+                (future_syntax current_slack)
+              )))
