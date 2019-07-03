@@ -4,6 +4,12 @@ let return x = Ok x
 let fail msg = Error (`Msg msg)
 let of_output x = x
 
+let state x = Ok x
+
+let catch = function
+  | Ok _ | Error (`Msg _) as x -> Ok x
+  | Error `Pending as x -> x
+
 let bind x f =
   match x with
   | Error _ as e -> e

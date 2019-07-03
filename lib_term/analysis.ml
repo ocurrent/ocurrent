@@ -34,6 +34,8 @@ type t = {
 }
 and metadata_ty =
   | Constant
+  | State of t
+  | Catch of t
   | Prim of string
   | Bind of t * string
   | Pair of t * t
@@ -59,6 +61,13 @@ let return ~env () =
 
 let fail ~env () =
   make ~env Constant Fail
+
+let state ~env t =
+  make ~env (State t) Pass
+
+let catch ~env t =
+  let state = if t.state = Fail then Pass else t.state in
+  make ~env (Catch t) state
 
 let pending ~env () =
   make ~env Constant Active
@@ -145,6 +154,8 @@ let pp f x =
       | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
       | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
       | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
+      | State x -> Fmt.pf f "state(@[%a@])" aux x
+      | Catch x -> Fmt.pf f "catch(@[%a@])" aux x
     )
   in
   aux f x
@@ -198,6 +209,16 @@ let pp_dot f x =
           ctrls |> List.iter (fun input -> edge input i ~style:"dashed");
           values |> List.iter (fun input -> input ==> i);
           ctx |> List.iter (fun input -> input ==> i);
+          [i]
+        | State x ->
+          let inputs = aux x in
+          node i "state";
+          inputs |> List.iter (fun input -> input ==> i);
+          [i]
+        | Catch x ->
+          let inputs = aux x in
+          node i "catch";
+          inputs |> List.iter (fun input -> input ==> i);
           [i]
         | List_map { items; fn } ->
           let items = aux items in

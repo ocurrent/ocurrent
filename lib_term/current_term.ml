@@ -55,6 +55,16 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (Analysis.fail ~env ()) (Dyn.fail msg)
 
+  let state t =
+    cache @@ fun ~env ctx ->
+    let t = t ctx in
+    make (Analysis.state ~env t.md) (Dyn.state t.fn)
+
+  let catch t =
+    cache @@ fun ~env ctx ->
+    let t = t ctx in
+    make (Analysis.catch ~env t.md) (Dyn.catch t.fn)
+
   let of_output x =
     cache @@ fun ~env _ctx ->
     make (Analysis.of_output ~env x) (Dyn.of_output x)

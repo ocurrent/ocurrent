@@ -21,6 +21,8 @@ val with_bind : t -> env -> env
 
 val return    : env:env -> unit -> t
 val fail      : env:env -> unit -> t
+val state     : env:env -> t -> t
+val catch     : env:env -> t -> t
 val pending   : env:env -> unit -> t
 val of_output : env:env -> _ Output.t -> t
 val pair      : env:env -> t -> t -> t
