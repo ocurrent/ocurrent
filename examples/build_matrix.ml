@@ -57,6 +57,6 @@ let repo =
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
   Term.(const main $ Current.Config.cmdliner $ repo),
-  Term.info "docker_build_local" ~doc
+  Term.info "build_matrix" ~doc
 
 let () = Term.(exit @@ eval cmd)
