@@ -142,7 +142,7 @@ module Frob = struct
   let id = "frob"
 
   let build ~switch No_context job key =
-    Lwt.return @@ Ok "done"
+    Lwt.return @@ Ok "frobbed"
 
   let pp f key = Fmt.pf f "frob %a" Key.pp key
 
@@ -219,7 +219,7 @@ and `value` is the resulting Docker image (or the error message, if `ok` is fals
 
 ### TODO
 
-OCurrent is very incomplete at the moment (but is being actively developed, as of June 2019).
+OCurrent is very incomplete at the moment (but is being actively developed, as of July 2019).
 Planned/missing features include:
 
 - Integration with GitHub, not just local repositories.
