@@ -157,6 +157,8 @@ module Engine = struct
       aux ()
     in
     let thread =
+      (* The pause lets us start the web-server before the first evaluation,
+         and also frees us from handling an initial exception specially. *)
       Lwt.pause () >>= aux
     in
     { thread; last_result }

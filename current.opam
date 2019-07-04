@@ -23,6 +23,7 @@ depends: [
   "duration"
   "cohttp-lwt-unix"
   "yojson"
+  "tyxml"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

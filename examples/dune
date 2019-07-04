@@ -1,6 +1,7 @@
 (executables
   (names docker_build_local build_matrix)
   (libraries current
+             current_web
              current_docker
              current_git
              current_fs

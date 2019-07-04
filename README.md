@@ -69,33 +69,13 @@ However, using `bind` limits OCurrent's ability to analyse the pipeline,
 because it must wait for the input to be ready before knowing what happens
 next.
 
-### Generating a dot graph of the pipeline
+OCurrent has a small core language (in `lib` and `lib_term`), but most
+functionality is added by external libraries. See the [plugins][] directory for
+some examples.
 
-OCurrent can generate a graph showing the current state of the pipeline.
-The example code wraps the previous `pipeline` like this:
-
-```ocaml
-let dotfile = Fpath.v "pipeline.dot"
-
-(* Render pipeline as dot file *)
-let pipeline ~repo () =
-  let result = pipeline ~repo () in
-  let dot_data =
-    let+ a = Current.Analysis.get result in
-    Fmt.strf "%a" Current.Analysis.pp_dot a
-  in
-  let* () = Current_fs.save (Current.return dotfile) dot_data in
-  result
-```
-
-This causes it to maintain also a `pipeline.dot` file showing the current state
-of the pipeline.
-
-Note the use of `let+` to convert an `Analysis.t Current.t` to a `string Current.t`,
-and `let*` to allow us to return the pipeline `result` (which might be pending or failed,
-rather than a concrete value).
-
-You can turn the dot file into e.g. SVG with `dot -Tsvg pipeline.dot  -o pipeline.svg`:
+The example also runs a minimal web UI on port 8080 (use `--port=...` to change it),
+showing the state of the system. You will need to have [graphviz][] installed in order
+to see the diagrams.
 
 <p align='center'>
   <img src="./doc/example1.svg"/>
@@ -103,10 +83,6 @@ You can turn the dot file into e.g. SVG with `dot -Tsvg pipeline.dot  -o pipelin
 
 A green box indicates a pipeline stage that succeeded, orange means
 in-progress, grey means cannot be started yet, and red means failed.
-
-OCurrent has a small core language (in `lib` and `lib_term`), but most
-functionality is added by external libraries. See the [plugins][] directory for
-some examples.
 
 ### Example 2 : `build_matrix.ml`
 
@@ -247,10 +223,11 @@ OCurrent is very incomplete at the moment (but is being actively developed, as o
 Planned/missing features include:
 
 - Integration with GitHub, not just local repositories.
-- A web-based UI.
+- A proper web-based UI.
 - Cap'n Proto RPC, to allow remote control.
 
 [Current_cache]: https://github.com/talex5/ocurrent/blob/master/lib_cache/current_cache.mli
 [build_matrix.ml]: https://github.com/talex5/ocurrent/blob/master/examples/build_matrix.ml
 [docker_build_local.ml]: https://github.com/talex5/ocurrent/blob/master/examples/docker_build_local.ml
 [plugins]: https://github.com/talex5/ocurrent/blob/master/plugins
+[graphviz]: https://graphviz.org/
