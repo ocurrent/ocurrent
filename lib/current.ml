@@ -157,8 +157,7 @@ module Engine = struct
       aux ()
     in
     let thread =
-      try aux ()
-      with ex -> Lwt.fail ex
+      Lwt.pause () >>= aux
     in
     { thread; last_result }
 

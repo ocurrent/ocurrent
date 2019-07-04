@@ -1,3 +1,4 @@
+open Lwt.Infix
 open Current.Syntax
 
 exception Expect_skip
@@ -70,8 +71,8 @@ let test ?config ~name v actions =
         raise Exit
     end;
     incr i;
-    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!";
-    Lwt.return_unit
+    Lwt.pause () >|= fun () ->
+    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!"
   in
   let engine =
     Current.Engine.create ?config ~trace @@ fun () ->

@@ -82,8 +82,11 @@ let trace step out inputs =
     Alcotest.check result "Read complete" (Error (`Msg "init")) out;
     let w = get_watch () in
     w.update ();  (* Calls read immediately *)
+    Lwt.pause () >>= fun () ->
     w.update ();  (* Marks as out-of-date *)
+    Lwt.pause () >>= fun () ->
     w.update ();
+    Lwt.pause () >>= fun () ->
     data := Some (Ok "foo");
     Lwt_condition.broadcast data_cond ();  (* First read completes *)
     Lwt.return_unit
@@ -100,6 +103,7 @@ let trace step out inputs =
     Alcotest.check result "Not wanted" (Ok ()) out;
     assert (List.length inputs = 1);
     assert (!w <> None);
+    Lwt.pause () >>= fun () ->
     (* Wanted again, before we've finished shutting down. *)
     Bool_var.set wanted (Ok true);
     Lwt.return_unit
@@ -107,8 +111,10 @@ let trace step out inputs =
     Alcotest.check result "Shutdown cancelled" (Error (`Msg "bar")) out;
     assert (!w <> None);
     Lwt_condition.broadcast unwatch ();   (* Allow first shutdown to finish *)
+    Lwt.pause () >>= fun () ->
     data := Some (Ok "restart");
     Lwt_condition.broadcast data_cond (); (* Will re-read after shutdown *)
+    Lwt.pause () >>= fun () ->
     assert (!w <> None);
     let w = get_watch () in
     Lwt.wakeup w.set_ready ();
@@ -116,12 +122,15 @@ let trace step out inputs =
   | 7 ->
     Alcotest.check result "Read restart" (Error (`Msg "restart")) out;
     Bool_var.set wanted (Ok false);
+    Lwt.pause () >>= fun () ->
     Lwt.return_unit
   | 8 ->
     Alcotest.check result "Not wanted" (Ok ()) out;
     assert (List.length inputs = 1);
+    Lwt.pause () >>= fun () ->
     assert (!w <> None);
     Lwt_condition.broadcast unwatch ();   (* Allow shutdown to finish *)
+    Lwt.pause () >>= fun () ->
     assert (!w = None);
     Bool_var.set wanted (Ok true);
     Lwt.return_unit
