@@ -174,11 +174,16 @@ module Make (Input : S.INPUT) = struct
     make (Analysis.return ~env ()) (Dyn.return ctx.user_env)
 
   module Executor = struct
-    let run ~env:user_env x =
+    let run ~env:user_env f =
       let default_env = Analysis.make_env () in
       let ctx = { default_env; user_env; inputs = [] } in
-      let x = x ctx in
-      Dyn.run x.fn, ctx.inputs
+      try
+        let x = f () ctx in
+        Dyn.run x.fn, x.md, ctx.inputs
+      with ex ->
+        let fn = Dyn.fail (Printexc.to_string ex) |> Dyn.run in
+        let md = Analysis.fail ~env:default_env () in
+        fn, md, []
   end
 
   module Analysis = struct

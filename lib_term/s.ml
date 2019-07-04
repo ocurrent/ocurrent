@@ -25,6 +25,9 @@ module type ANALYSIS = sig
   (** Information about the dependency graph of a term.
       This is useful to display the term's state as a diagram. *)
 
+  val booting : t
+  (** [booting] is a dummy analysis; useful while booting. *)
+
   val get : _ term -> t term
 
   val pp : t Fmt.t
@@ -131,8 +134,11 @@ module type EXECUTOR = sig
   type env
   (** See [INPUT]. *)
 
-  val run : env:env -> 'a term -> 'a Output.t * watch list
-  (** [run ~env t] evaluates term [t], returning the current output and the set
-      of inputs that were used during the evaluation. If any of the inputs
-      change, you should call [run] again to get the new results. *)
+  type analysis
+  (** See [ANALYSIS]. *)
+
+  val run : env:env -> (unit -> 'a term) -> 'a Output.t * analysis * watch list
+  (** [run ~env f] evaluates term [f ()], returning the current output, its analysis,
+      and the set of inputs that were used during the evaluation. If any of the
+      inputs change, you should call [run] again to get the new results. *)
 end

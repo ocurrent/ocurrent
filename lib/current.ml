@@ -121,17 +121,49 @@ let default_trace r inputs =
     )
 
 module Engine = struct
-  let run ?(config=Config.default) ?(trace=default_trace) f =
-    let rec aux ~old_watches =
+  type results = {
+    value : unit Current_term.Output.t;
+    analysis : Analysis.t;
+    watches : Input.watch list;
+  }
+
+  type t = {
+    thread : 'a. 'a Lwt.t;
+    last_result : results ref;
+  }
+
+  let booting = {
+    value = Error (`Pending);
+    analysis = Analysis.booting;
+    watches = [];
+  }
+
+  let create ?(config=Config.default) ?(trace=default_trace) f =
+    let last_result = ref booting in
+    let rec aux () =
+      let old = !last_result in
       Log.info (fun f -> f "Evaluating...");
-      let r, watches = Executor.run ~env:config (f ()) in
-      List.iter (fun w -> w#release) old_watches;
+      let r, an, watches = Executor.run ~env:config f in
+      List.iter (fun w -> w#release) old.watches;
+      last_result := {
+        value = r;
+        analysis = an;
+        watches;
+      };
       trace r watches;
       Log.info (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
-      aux ~old_watches:watches
+      aux ()
     in
-    aux ~old_watches:[]
+    let thread =
+      try aux ()
+      with ex -> Lwt.fail ex
+    in
+    { thread; last_result }
+
+  let state t = !(t.last_result)
+
+  let thread t = t.thread
 end
 
 let state_dir_root = Fpath.v @@ Filename.concat (Sys.getcwd ()) "var"

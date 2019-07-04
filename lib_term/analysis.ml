@@ -238,3 +238,7 @@ let pp_dot f x =
               rankdir=LR@,";
   let _ = aux x in
   Fmt.pf f "}@]@."
+
+let booting =
+  let env = make_env () in
+  pending ~env ()

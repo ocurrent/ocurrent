@@ -129,10 +129,10 @@ let trace step out inputs =
   | _ ->
     assert false
 
-
 let basic () =
   let step = ref 0 in
-  try Lwt_main.run @@ Current.Engine.run test_pipeline ~trace:(trace step)
+  let engine = Current.Engine.create test_pipeline ~trace:(trace step) in
+  try Lwt_main.run @@ Current.Engine.thread engine
   with Exit -> ()
 
 let tests =

@@ -91,7 +91,7 @@ module Push = struct
 
   let id = "docker-push"
 
-  let pp = Key.pp
+  let pp f k = Fmt.pf f "docker push %a" Key.pp k
 
   let build ~switch:_ No_context _job _key = Lwt.return (Ok ())
 

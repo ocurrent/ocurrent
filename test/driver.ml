@@ -28,7 +28,8 @@ let with_analysis ~name ~i (t : unit Current.t) =
     Fmt.strf "%a" Current.Analysis.pp_dot a
   in
   let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
-  Current_fs.save path data
+  let* () = Current_fs.save path data in
+  t
 
 let current_watches = ref []
 
@@ -71,11 +72,12 @@ let test ?config ~name v actions =
     incr i;
     if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!"
   in
+  let engine =
+    Current.Engine.create ?config ~trace @@ fun () ->
+    with_analysis ~name ~i @@ v ()
+  in
   Lwt.catch
-    (fun () ->
-       Current.Engine.run ?config ~trace @@ fun () ->
-       with_analysis ~name ~i @@ v ()
-    )
+    (fun () -> Current.Engine.thread engine)
     (function
       | Exit -> Docker.assert_finished (); Lwt.return_unit
       | ex -> Lwt.fail ex

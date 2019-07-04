@@ -15,5 +15,6 @@ module Make (Input : S.INPUT) : sig
   module Executor : S.EXECUTOR with
     type 'a term := 'a t and
     type env := Input.env and
+    type analysis := Analysis.t and
     type watch := Input.watch
 end

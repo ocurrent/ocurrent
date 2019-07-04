@@ -82,13 +82,29 @@ val confirmed : Level.t -> unit Lwt.t term
     an action at level [l] or higher. *)
 
 module Engine : sig
-  val run :
+  type t
+
+  type results = {
+    value : unit Current_term.Output.t;
+    analysis : Analysis.t;
+    watches : Input.watch list;
+  }
+
+  val create :
     ?config:Config.t ->
     ?trace:(unit Current_term.Output.t -> Input.watch list -> unit) ->
-    (unit -> unit t) ->
-    'a Lwt.t
-  (** [run f] evaluates [f ()] immediately, and again whenever one of its
-      input changes. It doesn't return. *)
+    (unit -> unit term) ->
+    t
+  (** [create pipeline] is a new engine running [pipeline].
+      The engine will evaluate [t]'s pipeline immediately, and again whenever
+      one of its inputs changes. *)
+
+  val state : t -> results
+  (** The most recent results from evaluating the pipeline. *)
+
+  val thread : t -> 'a Lwt.t
+  (** [thread t] is the engine's thread.
+      Use this to monitor the engine (in case it crashes). *)
 end
 
 module Var (T : Current_term.S.T) : sig

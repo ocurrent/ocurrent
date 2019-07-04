@@ -17,7 +17,10 @@ let pipeline ~repo () =
 
 let main config repo =
   let repo = Git.Local.v (Fpath.v repo) in
-  Lwt_main.run (Current.Engine.run ~config (Logging.with_dot ~dotfile (pipeline ~repo)))
+  let engine = Current.Engine.create ~config (Logging.with_dot ~dotfile (pipeline ~repo)) in
+  Lwt_main.run begin
+    Current.Engine.thread engine
+  end
 
 (* Command-line parsing *)
 

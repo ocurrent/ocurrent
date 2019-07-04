@@ -30,6 +30,8 @@ val bind      : env:env -> name:string -> t -> state -> t
 val list_map  : env:env -> f:t -> t -> t
 val gate      : env:env -> on:t -> t -> t
 
+val booting : t
+
 val set_state : t -> state -> unit
 
 val pp : t Fmt.t
