@@ -70,7 +70,8 @@ let test ?config ~name v actions =
         raise Exit
     end;
     incr i;
-    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!"
+    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!";
+    Lwt.return_unit
   in
   let engine =
     Current.Engine.create ?config ~trace @@ fun () ->

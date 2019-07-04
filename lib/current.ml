@@ -118,7 +118,8 @@ let default_trace r inputs =
          Watching: %a@]"
         Current_term.(Output.pp Fmt.(unit "()")) r
         Fmt.(Dump.list Input.pp_watch) inputs
-    )
+    );
+  Lwt.return_unit
 
 module Engine = struct
   type results = {
@@ -150,7 +151,7 @@ module Engine = struct
         analysis = an;
         watches;
       };
-      trace r watches;
+      trace r watches >>= fun () ->
       Log.info (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
       aux ()

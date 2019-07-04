@@ -92,7 +92,7 @@ module Engine : sig
 
   val create :
     ?config:Config.t ->
-    ?trace:(unit Current_term.Output.t -> Input.watch list -> unit) ->
+    ?trace:(unit Current_term.Output.t -> Input.watch list -> unit Lwt.t) ->
     (unit -> unit term) ->
     t
   (** [create pipeline] is a new engine running [pipeline].
