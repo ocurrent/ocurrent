@@ -12,7 +12,7 @@ module Make (Host : S.HOST) = struct
   let docker_host = Host.docker_host
 
   let pull ~schedule tag =
-    Fmt.strf "pull %s" tag |>
+    Current.component "pull %s" tag |>
     let** () = Current.return () in
     PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
 
@@ -25,7 +25,7 @@ module Make (Host : S.HOST) = struct
     | Some x -> Some (f x)
 
   let build ?label ?dockerfile ~pull src =
-    Fmt.strf "build%a" pp_sp_label label |>
+    Current.component "build%a" pp_sp_label label |>
     let** commit = src
     and* dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
@@ -34,19 +34,19 @@ module Make (Host : S.HOST) = struct
   module RC = Current_cache.Make(Run)
 
   let run image ~args =
-    "run" |>
+    Current.component "run" |>
     let** image = image in
     RC.get Run.No_context { Run.Key.image; args; docker_host }
 
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
-    Fmt.strf "docker-tag %s" tag |>
+    Current.component "docker-tag %s" tag |>
     let** image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
 
   let push ~tag image =
-    Fmt.strf "docker-push %s" tag |>
+    Current.component "docker-push %s" tag |>
     let** image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
 end

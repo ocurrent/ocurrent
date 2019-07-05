@@ -5,7 +5,7 @@ module Git = Current_git_test
 type source = Fpath.t
 
 let revdeps src =
-  "get-revdeps" |>
+  Current.component "get-revdeps" |>
   let** _src = src in
   Current.return [
     Git.Commit.v ~repo:"example.org/foo" ~hash:"111";

@@ -4,7 +4,7 @@ OCurrent allows you to specify a workflow / pipeline for keeping things up-to-da
   <img src="./doc/gated-deploy.svg"/>
 </p>
 
-Status: **experimental / prototyping**
+Status: **experimental**
 
 For example, the pipeline shown about fetches the head of a GitHub repository's
 `master` branch, builds it, runs the tests, and deploys the binary if the tests
@@ -154,7 +154,7 @@ end
 module FC = Current_cache.Make(Frob)
 
 let frob key =
-  "Frob" |>
+  Current.component "Frob" |>
   let** key = key in
   FC.get Frob.No_context key
 ```
@@ -162,7 +162,7 @@ let frob key =
 The `frob` function is the one exposed to users.
 These functions always start by getting the actual values
 from their `Current.t` arguments using `let**` (and `and*`, for additional arguments).
-The label is used for the dot diagrams.
+The `Current.component` line provides the label for the dot diagrams.
 
 The `build` function does the real work.
 It should try to build the output value from the key and return it.

@@ -44,6 +44,9 @@ module type TERM = sig
   type +'a t
   (** An ['a t] is a term that produces a value of type ['a]. *)
 
+  type description
+  (** Information about operations hidden behind a bind. *)
+
   val pending : unit -> 'a t
   (** [pending ()] is a term that never produces a result. *)
 
@@ -74,11 +77,17 @@ module type TERM = sig
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
 
-  val bind : ?name:string -> ('a -> 'b t) -> 'a t -> 'b t
+  val component : ('a, Format.formatter, unit, description) format4 -> 'a
+  (** [component name] is used to annotate binds, so that the system can show a
+      name for the operations hidden inside the bind's function. [name] is used
+      as the label for the bind in the generated dot diagrams.
+      For convenience, [name] can also be a format string. *)
+
+  val bind : ?info:description -> ('a -> 'b t) -> 'a t -> 'b t
   (** [bind f x] is a term that first runs [x] to get [y] and then behaves as
       the term [f y]. Static analysis cannot look inside the [f] function until
       [x] is ready, so using [bind] makes static analysis less useful. You can
-      use the [name] argument to name the box, at least. *)
+      use the [info] argument to provide some information here. *)
 
   val list_map : ('a t -> 'b t) -> 'a list t -> 'b list t
   (** [list_map f xs] adds [f] to the end of each input term
@@ -114,9 +123,9 @@ module type TERM = sig
         be determined at runtime by looking at the concrete value. Static
         analysis cannot predict what this will do until the input is ready. *)
 
-    val (let**) : 'a t -> ('a -> 'b t) -> string -> 'b t
+    val (let**) : 'a t -> ('a -> 'b t) -> description -> 'b t
     (** Like [let*], but allows you to name the operation.
-        e.g. ["my-op" |> let** x = fetch uri in ...] *)
+        e.g. [component "my-op" |> let** x = fetch uri in ...] *)
 
     val (and*) : 'a t -> 'b t -> ('a * 'b) t
     (** Syntax for [pair]. Use this to depend on multiple terms.

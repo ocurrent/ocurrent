@@ -15,6 +15,8 @@ module Make (Input : S.INPUT) = struct
 
   type 'a t = context -> 'a node
 
+  type description = string
+
   let make md fn =
     { md; fn }
 
@@ -69,10 +71,12 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (Analysis.of_output ~env x) (Dyn.of_output x)
 
-  let bind ?(name="") (f:'a -> 'b t) (x:'a t) =
+  let component = Fmt.strf
+
+  let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
-    let md = Analysis.bind ~env ~name x.md in
+    let md = Analysis.bind ~env ~name:info x.md in
     match Dyn.run x.fn with
     | Error (`Msg e) -> make (md Analysis.Fail) (Dyn.fail e)
     | Error (`Pending) -> make (md Analysis.Active) Dyn.pending
@@ -111,7 +115,7 @@ module Make (Input : S.INPUT) = struct
     make (Analysis.of_output ~env v) (Dyn.of_output v)
 
   module Syntax = struct
-    let (let**) x f name = bind ~name f x
+    let (let**) x f info = bind ~info f x
     let (let*) x f = bind f x
     let (and*) = pair
 

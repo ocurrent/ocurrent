@@ -33,7 +33,7 @@ end
 module BC = Current_cache.Make(Build)
 
 let get ?schedule builds x =
-  Fmt.strf "get %s" x |>
+  Current.component "get %s" x |>
   let** () = Current.return () in
   BC.get ?schedule builds x
 
@@ -249,7 +249,7 @@ let input = V.create ~name:"input" @@ Ok "bar"
 module OC = Current_cache.Output(Publish)
 
 let set p k v =
-  "set" |>
+  Current.component "set" |>
   let** v = v in
   OC.set p k v
 
@@ -289,7 +289,7 @@ end
 module OC2 = Current_cache.Output(Publish2)
 
 let set2 p k v =
-  "set2" |>
+  Current.component "set2" |>
   let** v = v in
   OC2.set p k v
 

@@ -65,7 +65,7 @@ end
 module Fetch_cache = Current_cache.Make(Fetch)
 
 let fetch cid =
-  "fetch" |>
+  Current.component "fetch" |>
   let** cid = cid in
   Fetch_cache.get Fetch.No_context cid
 
@@ -151,7 +151,7 @@ module Local = struct
   let head t = Current.track t.head
 
   let head_commit t =
-    "head commit" |>
+    Current.component "head commit" |>
     let** h = head t in
     match h with
     | `Commit id -> Current.return { Commit.repo = t.repo; id }

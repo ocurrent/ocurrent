@@ -6,6 +6,6 @@ type channel = Post.t
 let channel uri = uri
 
 let post channel ~key message =
-  "post" |>
+  Current.component "post" |>
   let** message = message in
   PC.set channel key message

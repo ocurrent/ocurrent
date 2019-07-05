@@ -55,7 +55,7 @@ end
 module C = Current_cache.Make(Clone)
 
 let fetch c =
-  "fetch" |>
+  Current.component "fetch" |>
   let** c = c in
   C.get Clone.No_context c
 

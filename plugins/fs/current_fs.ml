@@ -4,7 +4,7 @@ let src = Logs.Src.create "current.fs" ~doc:"OCurrent filesystem plugin"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let save path value =
-  "save" |>
+  Current.component "save" |>
   let** path = path
   and* value = value in
   match Bos.OS.File.read path with

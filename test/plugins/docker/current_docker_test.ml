@@ -26,12 +26,12 @@ module Key = struct
 end
 
 let build_on platform ~src =
-  "build-" ^ platform |>
+  Current.component "build-%s" platform |>
   let** c = src in
   Current.return @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
 
 let build c =
-  "build" |>
+  Current.component "build" |>
   let** c = c in
   Current.return @@ "image-" ^ Fpath.to_string c
 
@@ -73,7 +73,7 @@ end
 module Run_cache = Current_cache.Make(Run)
 
 let run image ~cmd =
-  Fmt.strf "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
+  Current.component "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let** image = image in
   let key = { Key.image; cmd } in
   Run_cache.get No_context key
@@ -103,7 +103,7 @@ end
 module Push_cache = Current_cache.Make(Push)
 
 let push image ~tag =
-  Fmt.strf "docker push %s" tag |>
+  Current.component "docker push %s" tag |>
   let** image = image in
   Push_cache.get No_context image
 
