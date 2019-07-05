@@ -1,7 +1,7 @@
 open! Current.Syntax    (* (not actually needed for this example) *)
 
 module Git = Current_git
-module Docker = Current_docker
+module Docker = Current_docker.Default
 
 let pull = false    (* Whether to check for updates using "docker build --pull" *)
 

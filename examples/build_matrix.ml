@@ -1,7 +1,7 @@
 open Current.Syntax
 
 module Git = Current_git
-module Docker = Current_docker
+module Docker = Current_docker.Default
 
 let () = Logging.init ()
 

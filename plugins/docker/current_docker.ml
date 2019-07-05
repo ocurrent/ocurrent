@@ -1,45 +1,56 @@
 open Current.Syntax
 
 type source = Current_git.Commit.t
-module Image = Image
 
-module PC = Current_cache.Make(Pull)
+module S = S
 
-let pull ~schedule tag =
-  Fmt.strf "pull %s" tag |>
-  let** () = Current.return () in
-  PC.get ~schedule Pull.No_context tag
+module Make (Host : S.HOST) = struct
+  module Image = Image
 
-module BC = Current_cache.Make(Build)
+  module PC = Current_cache.Make(Pull)
 
-let pp_sp_label = Fmt.(option (prefix sp string))
+  let docker_host = Host.docker_host
 
-let option_map f = function
-  | None -> None
-  | Some x -> Some (f x)
+  let pull ~schedule tag =
+    Fmt.strf "pull %s" tag |>
+    let** () = Current.return () in
+    PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
 
-let build ?label ?dockerfile ~pull src =
-  Fmt.strf "build%a" pp_sp_label label |>
-  let** commit = src
-  and* dockerfile = Current.option_seq dockerfile in
-  let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-  BC.get { Build.pull } { Build.Key.commit; dockerfile }
+  module BC = Current_cache.Make(Build)
 
-module RC = Current_cache.Make(Run)
+  let pp_sp_label = Fmt.(option (prefix sp string))
 
-let run image ~args =
-  "run" |>
-  let** image = image in
-  RC.get Run.No_context (image, args)
+  let option_map f = function
+    | None -> None
+    | Some x -> Some (f x)
 
-module TC = Current_cache.Output(Tag)
+  let build ?label ?dockerfile ~pull src =
+    Fmt.strf "build%a" pp_sp_label label |>
+    let** commit = src
+    and* dockerfile = Current.option_seq dockerfile in
+    let dockerfile = option_map Dockerfile.string_of_t dockerfile in
+    BC.get { Build.pull } { Build.Key.commit; dockerfile; docker_host }
 
-let tag ~tag image =
-  Fmt.strf "docker-tag %s" tag |>
-  let** image = image in
-  TC.set Tag.No_context tag (image, `Local)
+  module RC = Current_cache.Make(Run)
 
-let push ~tag image =
-  Fmt.strf "docker-push %s" tag |>
-  let** image = image in
-  TC.set Tag.No_context tag (image, `Push)
+  let run image ~args =
+    "run" |>
+    let** image = image in
+    RC.get Run.No_context { Run.Key.image; args; docker_host }
+
+  module TC = Current_cache.Output(Tag)
+
+  let tag ~tag image =
+    Fmt.strf "docker-tag %s" tag |>
+    let** image = image in
+    TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
+
+  let push ~tag image =
+    Fmt.strf "docker-push %s" tag |>
+    let** image = image in
+    TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
+end
+
+module Default = Make(struct
+    let docker_host = Sys.getenv_opt "DOCKER_HOST"
+  end)

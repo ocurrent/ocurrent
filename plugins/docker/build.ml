@@ -10,15 +10,19 @@ module Key = struct
   type t = {
     commit : Current_git.Commit.t;
     dockerfile : string option;
-  } [@@deriving ord]
+    docker_host : string option;
+  }
 
-  let digest { commit; dockerfile } =
-    let dockerfile =
-      match dockerfile with
-      | None -> ""
-      | Some contents -> "-" ^ (Digest.string contents |> Digest.to_hex)
-    in
-    Current_git.Commit.id commit ^ dockerfile
+  let digest_dockerfile = function
+    | None -> None
+    | Some contents -> Some (Digest.string contents |> Digest.to_hex)
+
+  let digest { commit; dockerfile; docker_host } =
+    Yojson.Safe.to_string @@ `Assoc [
+      "commit", `String (Current_git.Commit.id commit);
+      "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
+      "docker_host", [%derive.to_yojson:string option] docker_host;
+    ]
 
   let pp f t = Fmt.string f (digest t)
 end
@@ -30,7 +34,7 @@ let errorf fmt =
   Error (`Msg msg)
 
 let build ~switch { pull } job key =
-  let { Key.commit; dockerfile } = key in
+  let { Key.commit; docker_host; dockerfile } = key in
   Current_git.with_checkout ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
@@ -41,8 +45,12 @@ let build ~switch { pull } job key =
   in
   let opts = if pull then ["--pull"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
-  let cmd = ["docker"; "build"] @ opts @ ["-f"; f; "--iidfile"; Fpath.to_string iidfile; "--"; Fpath.to_string dir] in
-  Current_cache.Process.exec ~switch ?stdin:dockerfile ~job ("", Array.of_list cmd) >|= function
+  let cmd = Cmd.docker ~docker_host @@ ["build"] @
+                                       opts @
+                                       ["-f"; f; "--iidfile";
+                                        Fpath.to_string iidfile; "--";
+                                        Fpath.to_string dir] in
+  Current_cache.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
     match Bos.OS.File.read iidfile with

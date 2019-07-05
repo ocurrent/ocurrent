@@ -3,20 +3,31 @@ type t = No_context
 let id = "docker-run"
 
 module Key = struct
-  type t = Image.t * string list
+  type t = {
+    image : Image.t;
+    args : string list;
+    docker_host : string option;
+  }
 
   let pp_args = Fmt.(list ~sep:sp (quote string))
-  let pp f (image, args) = Fmt.pf f "docker run @[%a %a@]" Image.pp image pp_args args
-  let digest (image, args) =
-    Fmt.strf "%S %a" (Image.hash image) pp_args args
+
+  let cmd { image; args; docker_host } =
+    Cmd.docker ~docker_host @@ ["run"; "-i"; Image.hash image] @ args
+
+  let pp f t = Cmd.pp f (cmd t)
+
+  let digest { image; args; docker_host } =
+    Yojson.Safe.to_string @@ `Assoc [
+      "image", `String (Image.hash image);
+      "args", [%derive.to_yojson:string list] args;
+      "docker_host", [%derive.to_yojson:string option] docker_host;
+    ]
 end
 
 module Value = Current.Unit
 
 let build ~switch No_context job key =
-  let (image, args) = key in
-  let cmd = Array.of_list @@ ["docker"; "run"; "-i"; Image.hash image] @ args in
-  Current_cache.Process.exec ~switch ~job ("", cmd)
+  Current_cache.Process.exec ~switch ~job (Key.cmd key)
 
 let pp = Key.pp
 
