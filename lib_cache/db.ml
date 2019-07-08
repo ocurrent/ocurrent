@@ -31,8 +31,10 @@ module Build = struct
   }
 
   type entry = {
+    build : int64;
     value : string Current.or_error;
-    finished : float;   (* When the entry was created. *)
+    rebuild : bool;
+    finished : float;
   }
 
   let db = lazy (
@@ -40,45 +42,52 @@ module Build = struct
     Sqlite3.exec db "CREATE TABLE IF NOT EXISTS build_cache ( \
                      builder   TEXT NOT NULL, \
                      key       BLOB, \
+                     build     INTEGER NOT NULL, \
                      ok        BOOL NOT NULL, \
+                     rebuild   BOOL NOT NULL DEFAULT 0, \
                      value     BLOB, \
                      log       TEXT NOT NULL, \
                      ready     DATETIME NOT NULL, \
                      running   DATETIME, \
                      finished  DATETIME NOT NULL, \
-                     PRIMARY KEY (builder, key))" |> or_fail "create table";
-    let record = Sqlite3.prepare db "INSERT OR REPLACE INTO build_cache \
-                                     (builder, key, ok, value, log, ready, running, finished) \
-                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)" in
-    let lookup = Sqlite3.prepare db "SELECT ok, value, strftime('%s', finished) FROM build_cache WHERE builder = ? AND key = ?" in
-    let invalidate = Sqlite3.prepare db "DELETE FROM build_cache WHERE builder = ? AND key = ?" in
+                     PRIMARY KEY (builder, key, build))" |> or_fail "create table";
+    let record = Sqlite3.prepare db "INSERT INTO build_cache \
+                                     (builder, key, build, ok, value, log, ready, running, finished) \
+                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)" in
+    let lookup = Sqlite3.prepare db "SELECT build, ok, rebuild, value, strftime('%s', finished) \
+                                     FROM build_cache \
+                                     WHERE builder = ? AND key = ? \
+                                     ORDER BY build DESC \
+                                     LIMIT 1" in
+    let invalidate = Sqlite3.prepare db "UPDATE build_cache SET rebuild = 1 WHERE builder = ? AND key = ?" in
     let drop = Sqlite3.prepare db "DELETE FROM build_cache WHERE builder = ?" in
     { db; record; invalidate; drop; lookup }
   )
 
-  let record ~builder ~key ~log ~ready ~running ~finished value =
+  let record ~builder ~build ~key ~log ~ready ~running ~finished value =
     let t = Lazy.force db in
     Sqlite3.reset t.record |> or_fail "reset";
     let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
     bind 1 (Sqlite3.Data.TEXT builder);
     bind 2 (Sqlite3.Data.BLOB key);
+    bind 3 (Sqlite3.Data.INT build);
     begin
       match value with
       | Ok v ->
-        bind 3 (Sqlite3.Data.INT 1L);
-        bind 4 (Sqlite3.Data.BLOB v);
+        bind 4 (Sqlite3.Data.INT 1L);
+        bind 5 (Sqlite3.Data.BLOB v);
       | Error (`Msg v) ->
-        bind 3 (Sqlite3.Data.INT 0L);
-        bind 4 (Sqlite3.Data.BLOB v);
+        bind 4 (Sqlite3.Data.INT 0L);
+        bind 5 (Sqlite3.Data.BLOB v);
     end;
-    bind 5 (Sqlite3.Data.BLOB log);
-    bind 6 (Sqlite3.Data.TEXT (format_timestamp ready));
-    bind 7
+    bind 6 (Sqlite3.Data.TEXT log);
+    bind 7 (Sqlite3.Data.TEXT (format_timestamp ready));
+    bind 8
       (match running with
        | Some time -> Sqlite3.Data.TEXT (format_timestamp time);
        | None -> Sqlite3.Data.NULL
       );
-    bind 8 (Sqlite3.Data.TEXT (format_timestamp finished));
+    bind 9 (Sqlite3.Data.TEXT (format_timestamp finished));
     exec t.record
 
   let invalidate ~builder key =
@@ -100,13 +109,17 @@ module Build = struct
       match !result with
       | Some _ -> Fmt.failwith "Multiple rows from lookup!"
       | None ->
-        let ok, value, finished =
-          match row with
-          | [Sqlite3.Data.INT ok; Sqlite3.Data.BLOB value; Sqlite3.Data.TEXT finished] -> ok, value, float_of_string finished
-          | _ -> Fmt.failwith "Invalid row from lookup!"
-        in
-        let value = if ok = 1L then Ok value else Error (`Msg value) in
-        result := Some { value; finished }
+        match row with
+        | [ Sqlite3.Data.INT build;
+            Sqlite3.Data.INT ok;
+            Sqlite3.Data.INT rebuild;
+            Sqlite3.Data.BLOB value;
+            Sqlite3.Data.TEXT finished] ->
+          let value = if ok = 1L then Ok value else Error (`Msg value) in
+          let rebuild = rebuild <> 0L in
+          let finished = float_of_string finished in
+          result := Some { build; value; rebuild; finished }
+        | _ -> Fmt.failwith "Invalid row from lookup!"
     in
     exec ~cb t.lookup;
     !result

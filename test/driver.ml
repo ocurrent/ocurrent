@@ -3,6 +3,9 @@ open Current.Syntax
 
 exception Expect_skip
 
+let () =
+  Printexc.record_backtrace true
+
 let reporter =
   let report src level ~over k msgf =
     let k _ = over (); k () in

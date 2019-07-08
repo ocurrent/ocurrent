@@ -47,6 +47,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
 
   type build = {
     key : B.Key.t;
+    build_number : int64;           (* Increments on rebuild *)
     switch : Lwt_switch.t;          (* Turning this off aborts the build. *)
     finished : build_result Lwt.t;  (* Unresolved if the build is still in progress. *)
     mutable auto_cancelled : bool;  (* Don't record the result (because the build was auto-cancelled). *)
@@ -103,6 +104,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
       let record result =
         Db.Build.record
           ~builder:B.id
+          ~build:build.build_number
           ~key:(B.Key.digest build.key)
           ~log
           ~ready ~running:!running ~finished:(Unix.gmtime finished)
@@ -124,18 +126,25 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
     let key_digest = B.Key.digest key in
     let switch = Lwt_switch.create () in
     let finished, set_finished = Lwt.wait () in
-    let build = { switch; key; finished; ref_count = 0; auto_cancelled = false } in
-    match Db.Build.lookup ~builder:B.id key_digest with
-    | Some entry ->
+    let previous = Db.Build.lookup ~builder:B.id key_digest in
+    match previous with
+    | Some previous when not previous.Db.Build.rebuild ->
       Log.info (fun f -> f "Loaded cached result for %a" B.pp key);
       let v =
-        match entry.Db.Build.value with
+        match previous.Db.Build.value with
         | Ok v -> Ok (B.Value.unmarshal v)
         | Error _ as e -> e
       in
-      Lwt.wakeup set_finished (v, entry.Db.Build.finished);
-      build
-    | None ->
+      Lwt.wakeup set_finished (v, previous.Db.Build.finished);
+      let build_number = previous.Db.Build.build in
+      { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
+    | _ ->
+      let build_number =
+        match previous with
+        | None -> 0L
+        | Some x -> Int64.succ x.Db.Build.build       (* A rebuild was requested *)
+      in
+      let build = { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->

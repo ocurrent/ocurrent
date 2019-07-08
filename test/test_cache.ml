@@ -58,9 +58,9 @@ let disk_cache () =
     | _ -> assert false
   in
   match Sqlite3.exec ~cb db "SELECT key, ok, value, strftime('%s', ready), strftime('%s', running), strftime('%s', finished)
-                             FROM build_cache WHERE builder='test-build'" with
+                             FROM build_cache WHERE builder='test-build' AND rebuild = 0" with
   | Sqlite3.Rc.OK -> List.sort compare !results
-  | x -> failwith (Sqlite3.Rc.to_string x)
+  | x -> Fmt.failwith "disk_cache: %s" (Sqlite3.Rc.to_string x)
 
 let entry =
   let pp f (key, value, a, b, c) =

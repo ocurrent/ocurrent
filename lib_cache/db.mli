@@ -1,11 +1,14 @@
 module Build : sig
   type entry = {
+    build : int64;      (* Build number (increases for rebuilds). *)
     value : string Current.or_error;
+    rebuild : bool;     (* If [true], then a rebuild was requested. *)
     finished : float;   (* When the entry was created. *)
   }
 
   val record :
     builder:string ->
+    build:int64 ->
     key:string ->
     log:string ->
     ready:Unix.tm ->
@@ -13,7 +16,7 @@ module Build : sig
     finished:Unix.tm ->
     string Current.or_error ->
     unit
-  (** [record ~builder ~key ~log ~created ~ready ~finished value] stores [value] as the result of building [key] with [builder].
+  (** [record ~builder ~build ~key ~log ~created ~ready ~finished value] stores [value] as the result of building [key] with [builder].
       This replaces any previous entry.
       @param log The ID for the log.
       @param ready When the job was ready to start (i.e. enqueued).
@@ -22,7 +25,7 @@ module Build : sig
   *)
 
   val lookup : builder:string -> string -> entry option
-  (** [lookup ~builder key] returns the previously stored result for [builder] and [key], if any. *)
+  (** [lookup ~builder key] returns the stored result for [builder] and [key], with the highest build number, if any. *)
 
   val drop_all : string -> unit
   (** [drop_all builder] drops all cached entries for [builder]. *)
