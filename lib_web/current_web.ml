@@ -61,7 +61,15 @@ let default_mode = `TCP (`Port 8080)
 let run ?(mode=default_mode) engine =
   let config = Server.make ~callback:(handle_request ~engine) () in
   Log.info (fun f -> f "Starting web server: %a" pp_mode mode);
-  Server.create ~mode config
+  Lwt.try_bind
+    (fun () -> Server.create ~mode config)
+    (fun () -> Lwt.return @@ Error (`Msg "Web-server stopped!"))
+    (function
+      | Unix.Unix_error(Unix.EADDRINUSE, "bind", _) ->
+        let msg = Fmt.strf "Web-server failed.@ Another program is already using this port %a." pp_mode mode in
+        Lwt.return @@ Error (`Msg msg)
+      | ex -> Lwt.fail ex
+    )
 
 open Cmdliner
 

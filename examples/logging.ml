@@ -25,3 +25,10 @@ let with_dot ~dotfile f () =
   in
   let* () = Current_fs.save (Current.return dotfile) dot_data in
   result
+
+let run x =
+  match Lwt_main.run x with
+  | Ok _ as r -> r
+  | Error (`Msg m) as e ->
+    Logs.err (fun f -> f "%a" Fmt.lines m);
+    e
