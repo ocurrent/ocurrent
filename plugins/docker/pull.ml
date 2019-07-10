@@ -23,10 +23,9 @@ let build ~switch No_context job key =
   | Ok () ->
     let { Key.docker_host; tag } = key in
     let cmd = Cmd.docker ~docker_host ["image"; "inspect"; tag; "-f"; "{{.Id}}"] in
-    Lwt_process.pread_line cmd >|= function
-    | "" -> (* [Lwt_process] is bad at reporting errors *)
-      Error (`Msg (Fmt.strf "docker inspect of built image failed!"))
-    | id ->
+    Current_cache.Process.check_output ~job cmd >|= function
+    | Error _ as e -> e
+    | Ok id ->
       Current_cache.Job.log job "Pulled %S -> %S" tag id;
       Ok (Image.of_hash id)
 

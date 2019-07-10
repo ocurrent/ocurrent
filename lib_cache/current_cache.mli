@@ -52,6 +52,11 @@ module Process : sig
       @param switch If this is turned off, the process is terminated.
       @param stdin Data to write to stdin before closing it. *)
 
+  val check_output :
+    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    string Current.or_error Lwt.t
+  (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
+
   val with_tmpdir : ?prefix:string -> (Fpath.t -> 'a Lwt.t) -> 'a Lwt.t
   (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
       (recursively).

@@ -93,3 +93,28 @@ let exec ?switch ?(stdin="") ~job cmd =
   match check_status cmd status with
   | Ok () -> stdin_result
   | Error _ as e -> e
+
+let check_output ?switch ?(stdin="") ~job cmd =
+  let log_fd = Job.fd job in
+  let stderr = `FD_copy log_fd in
+  Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
+  Job.log job "Exec: @[%a@]" pp_cmd cmd;
+  let proc = Lwt_process.open_process ~stderr cmd in
+  Lwt_switch.add_hook_or_exec switch (fun () ->
+      if proc#state = Lwt_process.Running then (
+        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
+        proc#terminate;
+      );
+      Lwt.return_unit
+    ) >>= fun () ->
+  let reader = Lwt_io.read proc#stdout in
+  send_to proc#stdin stdin >>= fun stdin_result ->
+  reader >>= fun stdout ->
+  proc#status >|= fun status ->
+  match check_status cmd status with
+  | Error _ as e -> e
+  | Ok () ->
+    match stdin_result with
+    | Error _ as e -> e
+    | Ok () ->
+      Ok stdout
