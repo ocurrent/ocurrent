@@ -38,16 +38,16 @@ let build ~switch { pull } job key =
   Current_git.with_checkout ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
-    | None -> "Dockerfile"
+    | None -> []
     | Some contents ->
       Current_cache.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
-      "-"
+      ["-f"; "-"]
   in
-  let opts = if pull then ["--pull"] else [] in
+  let pull = if pull then ["--pull"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
   let cmd = Cmd.docker ~docker_host @@ ["build"] @
-                                       opts @
-                                       ["-f"; f; "--iidfile";
+                                       pull @ f @
+                                       ["--iidfile";
                                         Fpath.to_string iidfile; "--";
                                         Fpath.to_string dir] in
   Current_cache.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function

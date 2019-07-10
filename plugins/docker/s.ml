@@ -2,8 +2,11 @@ type source = Current_git.Commit.t
 
 module type DOCKER = sig
   module Image : sig
-    type t
+    include Current_cache.S.WITH_DIGEST
+    include Current_cache.S.WITH_MARSHAL with type t := t
+
     val hash : t -> string
+    val pp : t Fmt.t
   end
 
   val pull : schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
@@ -11,7 +14,13 @@ module type DOCKER = sig
       @param schedule Controls how often we check for updates. If the schedule
                       has no [valid_for] limit then we will only ever pull once. *)
 
-  val build : ?label:string -> ?dockerfile:Dockerfile.t Current.t -> pull:bool -> source Current.t -> Image.t Current.t
+  val build :
+    ?schedule:Current_cache.Schedule.t ->
+    ?label:string ->
+    ?dockerfile:Dockerfile.t Current.t ->
+    pull:bool ->
+    source Current.t ->
+    Image.t Current.t
   (** [build ~pull src] builds a Docker image from source.
       @param dockerfile If present, this is used as the contents of the Dockerfile.
       @param pull If [true], always check for updates and pull the latest version. *)
@@ -24,6 +33,9 @@ module type DOCKER = sig
 
   val push : tag:string -> Image.t Current.t -> unit Current.t
   (** [push image ~tag] does "docker tag image tag && docker push tag" *)
+
+  val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
+  (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
 end
 
 module type HOST = sig

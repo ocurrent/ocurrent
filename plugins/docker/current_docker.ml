@@ -24,12 +24,12 @@ module Make (Host : S.HOST) = struct
     | None -> None
     | Some x -> Some (f x)
 
-  let build ?label ?dockerfile ~pull src =
+  let build ?schedule ?label ?dockerfile ~pull src =
     Current.component "build%a" pp_sp_label label |>
     let** commit = src
     and* dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-    BC.get { Build.pull } { Build.Key.commit; dockerfile; docker_host }
+    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host }
 
   module RC = Current_cache.Make(Run)
 
@@ -49,6 +49,13 @@ module Make (Host : S.HOST) = struct
     Current.component "docker-push %s" tag |>
     let** image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
+
+  module SC = Current_cache.Output(Service)
+
+  let service ~name ~image () =
+    Current.component "docker-service %s" name |>
+    let** image = image in
+    SC.set Service.No_context { Service.Key.name; docker_host } { Service.Value.image }
 end
 
 module Default = Make(struct

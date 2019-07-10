@@ -1,5 +1,5 @@
 (executables
-  (names docker_build_local build_matrix)
+  (names docker_build_local build_matrix docker_service)
   (libraries current
              current_web
              current_docker
