@@ -116,7 +116,7 @@ module Local = struct
     let read () = read_reference t gref in
     let watch refresh =
       let watch_dir = Fpath.append dot_git (Fpath.v @@ Filename.dirname gref) in
-      Log.info (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
+      Log.debug (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
       Irmin_watcher.hook (next_id ()) (Fpath.to_string watch_dir) (fun path ->
           if path = Filename.basename gref then (
             Log.info (fun f -> f "Detected change in %S" path);
@@ -127,9 +127,9 @@ module Local = struct
           Lwt.return_unit
         )
       >|= fun unwatch ->
-      Log.info (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
+      Log.debug (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
       fun () ->
-        Log.info (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
+        Log.debug (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
         unwatch ()
     in
     let pp f =
@@ -173,7 +173,7 @@ module Local = struct
     let read () = Lwt.return (read_head repo) in
     let watch refresh =
       let watch_dir = dot_git in
-      Log.info (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
+      Log.debug (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
       Irmin_watcher.hook (next_id ()) (Fpath.to_string watch_dir) (fun path ->
           if path = "HEAD" then (
             Log.info (fun f -> f "Detected change in %S" path);
@@ -184,9 +184,9 @@ module Local = struct
           Lwt.return_unit
         )
       >|= fun unwatch ->
-      Log.info (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
+      Log.debug (fun f -> f "Watch installed for %a" Fpath.pp watch_dir);
       fun () ->
-        Log.info (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
+        Log.debug (fun f -> f "Unwatching %a" Fpath.pp watch_dir);
         unwatch ()
     in
     let pp f =

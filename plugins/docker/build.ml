@@ -17,14 +17,16 @@ module Key = struct
     | None -> None
     | Some contents -> Some (Digest.string contents |> Digest.to_hex)
 
-  let digest { commit; dockerfile; docker_host } =
-    Yojson.Safe.to_string @@ `Assoc [
+  let to_json { commit; dockerfile; docker_host } =
+    `Assoc [
       "commit", `String (Current_git.Commit.id commit);
       "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
       "docker_host", [%derive.to_yojson:string option] docker_host;
     ]
 
-  let pp f t = Fmt.string f (digest t)
+  let digest t = Yojson.Safe.to_string (to_json t)
+
+  let pp f t = Yojson.Safe.pretty_print f (to_json t)
 end
 
 module Value = Image
@@ -59,7 +61,7 @@ let build ~switch { pull } job key =
       Ok (Image.of_hash hash)
     | Error _ as e -> e
 
-let pp f key = Fmt.pf f "docker build %a" Key.pp key
+let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key
 
 let auto_cancel = true
 

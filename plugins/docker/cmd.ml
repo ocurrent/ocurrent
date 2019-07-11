@@ -7,4 +7,4 @@ let docker ~docker_host args =
 
 let pp f (prog, args) =
   if prog <> "" then Fmt.pf f "[%S] " prog;
-  Fmt.(Dump.list (quote string)) f (Array.to_list args)
+  Fmt.(list ~sep:sp (quote string)) f (Array.to_list args)

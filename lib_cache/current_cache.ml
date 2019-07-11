@@ -130,7 +130,7 @@ module Make(B : S.BUILDER) = struct
     let previous = Db.Build.lookup ~builder:B.id key_digest in
     match previous with
     | Some previous when not previous.Db.Build.rebuild ->
-      Log.info (fun f -> f "Loaded cached result for %a" B.pp key);
+      Log.info (fun f -> f "@[<hov2>Loaded cached result for@ %a@]" B.pp key);
       let v =
         match previous.Db.Build.value with
         | Ok v -> Ok (B.Value.unmarshal v)

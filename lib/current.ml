@@ -108,14 +108,8 @@ module Var (T : Current_term.S.T) = struct
     Lwt_condition.broadcast t.cond ()
 end
 
-let default_trace r inputs =
-  Log.info (fun f ->
-      f "@[<v2>Evaluation complete:@,\
-         Result: %a@,\
-         Watching: %a@]"
-        Current_term.(Output.pp Fmt.(unit "()")) r
-        Fmt.(Dump.list Input.pp_watch) inputs
-    );
+let default_trace r _inputs =
+  Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r);
   Lwt.return_unit
 
 module Engine = struct
@@ -140,7 +134,7 @@ module Engine = struct
     let last_result = ref booting in
     let rec aux () =
       let old = !last_result in
-      Log.info (fun f -> f "Evaluating...");
+      Log.debug (fun f -> f "Evaluating...");
       let r, an, watches = Executor.run ~env:config f in
       List.iter (fun w -> w#release) old.watches;
       last_result := {
@@ -149,7 +143,7 @@ module Engine = struct
         watches;
       };
       trace r watches >>= fun () ->
-      Log.info (fun f -> f "Waiting for inputs to change...");
+      Log.debug (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
       aux ()
     in

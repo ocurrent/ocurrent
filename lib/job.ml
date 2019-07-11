@@ -20,7 +20,7 @@ let create ~switch ~label () =
       Fmt.strf "%02d%02d%02d-%s-" tm_hour tm_min tm_sec label
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
-    Log.info (fun f -> f "Created new log file at %a" Fpath.pp path);
+    Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
     Lwt_switch.add_hook (Some switch) (fun () -> close_out ch; Lwt.return_unit);
     path, ch
 
