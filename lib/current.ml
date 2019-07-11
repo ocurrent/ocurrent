@@ -1,8 +1,5 @@
 open Lwt.Infix
 
-let src = Logs.Src.create "current" ~doc:"OCurrent engine"
-module Log = (val Logs.src_log src : Logs.LOG)
-
 type 'a or_error = ('a, [`Msg of string]) result
 
 module Config = struct
@@ -168,31 +165,6 @@ module Engine = struct
   let thread t = t.thread
 end
 
-let state_dir_root = Fpath.v @@ Filename.concat (Sys.getcwd ()) "var"
-
-let state_dir name =
-  let name = Fpath.v name in
-  assert (Fpath.is_rel name);
-  let path = Fpath.append state_dir_root name in
-  match Bos.OS.Dir.create path with
-  | Ok (_ : bool) -> path
-  | Error (`Msg m) -> failwith m
-
-let db =
-  let or_fail label x =
-    match x with
-    | Sqlite3.Rc.OK -> ()
-    | err -> Fmt.failwith "Sqlite3 %s error: %s" label (Sqlite3.Rc.to_string err)
-  in
-  lazy (
-    let db_dir = state_dir "db" in
-    let db = Sqlite3.db_open Fpath.(to_string (db_dir / "sqlite.db")) in
-    Sqlite3.busy_timeout db 1000;
-    Sqlite3.exec db "PRAGMA journal_mode=WAL" |> or_fail "set write-ahead-log mode";
-    Sqlite3.exec db "PRAGMA synchronous=NORMAL" |> or_fail "set synchronous=NORMAL";
-    db
-  )
-
 module Monitor : sig
   val create :
     read:(unit -> 'a or_error Lwt.t) ->
@@ -301,3 +273,9 @@ module Unit = struct
     | "()" -> ()
     | x -> Fmt.failwith "Unit.unmarshal(%S)" x
 end
+
+let db = Disk_store.db
+let state_dir = Disk_store.state_dir
+
+module Job = Job
+module Process = Process

@@ -1,6 +1,8 @@
 open Lwt.Infix
 open Current.Syntax
 
+module Job = Current.Job
+
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
 
@@ -40,7 +42,7 @@ let pp_duration_rough f d =
   in
   aux durations
 
-module Make(B : S.BUILDER with type job := Job.t) = struct
+module Make(B : S.BUILDER) = struct
   module Builds = Map.Make(String)
 
   type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
@@ -72,8 +74,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
   let do_build ~confirmed ctx build =
-    let job = Job.create ~switch:build.switch ~id:B.id () in
-    let log = Job.log_id job in
+    let job = Job.create ~switch:build.switch ~label:B.id () in
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     let is_finished = ref false in
@@ -106,7 +107,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
           ~builder:B.id
           ~build:build.build_number
           ~key:(B.Key.digest build.key)
-          ~log
+          ~job:(Job.id job)
           ~ready ~running:!running ~finished:(Unix.gmtime finished)
           result;
         x, finished
@@ -234,7 +235,7 @@ module Make(B : S.BUILDER with type job := Job.t) = struct
     Db.Build.drop_all B.id
 end
 
-module Output(Op : S.PUBLISHER with type job := Job.t) = struct
+module Output(Op : S.PUBLISHER) = struct
   module Outputs = Map.Make(String)
 
   module Value : sig
@@ -334,7 +335,7 @@ module Output(Op : S.PUBLISHER with type job := Job.t) = struct
     Lwt.async
       (fun () ->
          let pp_op f = pp_op f (output.key, op.value) in
-         let job = Job.create ~switch ~id:Op.id () in
+         let job = Job.create ~switch ~label:Op.id () in
          Job.log job "Publish: %t" pp_op;
          Lwt.catch
            (fun () ->
@@ -423,6 +424,4 @@ module Output(Op : S.PUBLISHER with type job := Job.t) = struct
     Db.Publish.drop_all Op.id
 end
 
-module Job = Job
-module Process = Process
 module S = S

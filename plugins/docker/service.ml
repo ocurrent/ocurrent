@@ -26,7 +26,7 @@ let cmd { Key.name; docker_host } { Value.image } =
   Cmd.docker ~docker_host ["service"; "update"; "--image"; Image.hash image; name]
 
 let publish ~switch No_context job key value =
-  Current_cache.Process.exec ~switch ~job (cmd key value)
+  Current.Process.exec ~switch ~job (cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (cmd key value)

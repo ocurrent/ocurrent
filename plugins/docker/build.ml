@@ -40,7 +40,7 @@ let build ~switch { pull } job key =
     match dockerfile with
     | None -> []
     | Some contents ->
-      Current_cache.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
+      Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
       ["-f"; "-"]
   in
   let pull = if pull then ["--pull"] else [] in
@@ -50,7 +50,7 @@ let build ~switch { pull } job key =
                                        ["--iidfile";
                                         Fpath.to_string iidfile; "--";
                                         Fpath.to_string dir] in
-  Current_cache.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
+  Current.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
     match Bos.OS.File.read iidfile with

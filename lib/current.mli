@@ -145,3 +145,42 @@ module Unit : sig
   val marshal : t -> string
   val unmarshal : string -> t
 end
+
+module Job : sig
+  type t
+
+  val create : switch:Lwt_switch.t -> label:string -> unit -> t
+  (** [create ~switch ~label ()] is a new job.
+      @param switch Turning this off will cancel the job.
+      @param label A label to use in the job's filename (for debugging).*)
+
+  val write : t -> string -> unit
+  (** [write t data] appends [data] to the log. *)
+
+  val log : t -> ('a, Format.formatter, unit, unit) format4 -> 'a
+  (** [log t fmt] appends a formatted message to the log, with a newline added at the end. *)
+
+  val id : t -> string
+  (** [id t] is the unique identifier for this job. *)
+
+  val fd : t -> Unix.file_descr
+end
+
+module Process : sig
+  val exec :
+    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    unit or_error Lwt.t
+  (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
+      @param switch If this is turned off, the process is terminated.
+      @param stdin Data to write to stdin before closing it. *)
+
+  val check_output :
+    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    string or_error Lwt.t
+  (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
+
+  val with_tmpdir : ?prefix:string -> (Fpath.t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
+      (recursively).
+      @param prefix Allows giving the directory a more meaningful name (for debugging). *)
+end

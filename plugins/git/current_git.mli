@@ -27,7 +27,7 @@ val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
   switch:Lwt_switch.t ->
-  job:Current_cache.Job.t ->
+  job:Current.Job.t ->
   Commit.t ->
   (Fpath.t -> 'a Current.or_error Lwt.t) ->
   'a Current.or_error Lwt.t

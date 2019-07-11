@@ -18,15 +18,15 @@ module Value = Image
 let id = "docker-pull"
 
 let build ~switch No_context job key =
-  Current_cache.Process.exec ~switch ~job (Key.cmd key) >>= function
+  Current.Process.exec ~switch ~job (Key.cmd key) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     let { Key.docker_host; tag } = key in
     let cmd = Cmd.docker ~docker_host ["image"; "inspect"; tag; "-f"; "{{.Id}}"] in
-    Current_cache.Process.check_output ~job cmd >|= function
+    Current.Process.check_output ~job cmd >|= function
     | Error _ as e -> e
     | Ok id ->
-      Current_cache.Job.log job "Pulled %S -> %S" tag id;
+      Current.Job.log job "Pulled %S -> %S" tag id;
       Ok (Image.of_hash id)
 
 let pp f key = Cmd.pp f (Key.cmd key)

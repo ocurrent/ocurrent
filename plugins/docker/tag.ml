@@ -34,7 +34,7 @@ let tag_cmd { Key.tag; docker_host } { Value.image; op = _ } =
   Cmd.docker ~docker_host ["tag"; Image.hash image; tag]
 
 let publish ~switch No_context job key value =
-  Current_cache.Process.exec ~switch ~job (tag_cmd key value) >>= function
+  Current.Process.exec ~switch ~job (tag_cmd key value) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     match value.Value.op with
@@ -42,7 +42,7 @@ let publish ~switch No_context job key value =
     | `Push ->
       let { Key.tag; docker_host } = key in
       let cmd = Cmd.docker ~docker_host ["push"; tag] in
-      Current_cache.Process.exec ~switch ~job cmd
+      Current.Process.exec ~switch ~job cmd
 
 let pp f (key, value) =
   Cmd.pp f (tag_cmd key value);

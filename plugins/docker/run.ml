@@ -27,7 +27,7 @@ end
 module Value = Current.Unit
 
 let build ~switch No_context job key =
-  Current_cache.Process.exec ~switch ~job (Key.cmd key)
+  Current.Process.exec ~switch ~job (Key.cmd key)
 
 let pp = Key.pp
 

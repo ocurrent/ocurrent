@@ -10,7 +10,7 @@ module Build : sig
     builder:string ->
     build:int64 ->
     key:string ->
-    log:string ->
+    job:string ->
     ready:Unix.tm ->
     running:Unix.tm option ->
     finished:Unix.tm ->

@@ -46,13 +46,13 @@ module Build = struct
                      ok        BOOL NOT NULL, \
                      rebuild   BOOL NOT NULL DEFAULT 0, \
                      value     BLOB, \
-                     log       TEXT NOT NULL, \
+                     job       TEXT NOT NULL, \
                      ready     DATETIME NOT NULL, \
                      running   DATETIME, \
                      finished  DATETIME NOT NULL, \
                      PRIMARY KEY (builder, key, build))" |> or_fail "create table";
     let record = Sqlite3.prepare db "INSERT INTO build_cache \
-                                     (builder, key, build, ok, value, log, ready, running, finished) \
+                                     (builder, key, build, ok, value, job, ready, running, finished) \
                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)" in
     let lookup = Sqlite3.prepare db "SELECT build, ok, rebuild, value, strftime('%s', finished) \
                                      FROM build_cache \
@@ -64,7 +64,7 @@ module Build = struct
     { db; record; invalidate; drop; lookup }
   )
 
-  let record ~builder ~build ~key ~log ~ready ~running ~finished value =
+  let record ~builder ~build ~key ~job ~ready ~running ~finished value =
     let t = Lazy.force db in
     Sqlite3.reset t.record |> or_fail "reset";
     let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
@@ -80,7 +80,7 @@ module Build = struct
         bind 4 (Sqlite3.Data.INT 0L);
         bind 5 (Sqlite3.Data.BLOB v);
     end;
-    bind 6 (Sqlite3.Data.TEXT log);
+    bind 6 (Sqlite3.Data.TEXT job);
     bind 7 (Sqlite3.Data.TEXT (format_timestamp ready));
     bind 8
       (match running with

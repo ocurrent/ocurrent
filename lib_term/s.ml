@@ -1,3 +1,5 @@
+type 'a or_error = ('a, [`Msg of string]) result
+
 module type T = sig
   type t
   val equal : t -> t -> bool
@@ -59,7 +61,7 @@ module type TERM = sig
   val state : 'a t -> ('a, [`Pending | `Msg of string]) result t
   (** [state t] always immediately returns a successful result giving the current state of [t]. *)
 
-  val catch : 'a t -> ('a, [`Msg of string]) result t
+  val catch : 'a t -> 'a or_error t
   (** [catch t] successfully returns [Ok x] if [t] evaluates successfully to [x],
       or successfully returns [Error e] if [t] fails with error [e].
       If [t] is pending then [catch t] will be pending too. *)

@@ -4,8 +4,8 @@ let open_temp_file ~dir ~prefix ~suffix =
   let path, ch = Filename.open_temp_file ~temp_dir:(Fpath.to_string dir) prefix suffix in
   Fpath.v path, ch
 
-let create ~switch ~id () =
-  let jobs_dir = Current.state_dir "job" in
+let create ~switch ~label () =
+  let jobs_dir = Disk_store.state_dir "job" in
   let time = Unix.gettimeofday () |> Unix.gmtime in
   let date =
     let { Unix.tm_year; tm_mon; tm_mday; _ } = time in
@@ -17,7 +17,7 @@ let create ~switch ~id () =
   | Ok (_ : bool) ->
     let prefix =
       let { Unix.tm_hour; tm_min; tm_sec; _ } = time in
-      Fmt.strf "%02d%02d%02d-%s-" tm_hour tm_min tm_sec id
+      Fmt.strf "%02d%02d%02d-%s-" tm_hour tm_min tm_sec label
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at %a" Fpath.pp path);
@@ -36,7 +36,7 @@ let log t fmt =
     (tm_year + 1900) (tm_mon + 1) tm_mday
     tm_hour tm_min tm_sec
 
-let log_id (path, _) =
+let id (path, _) =
   match Fpath.split_base path with
   | parent_dir, leaf ->
     Fpath.(base parent_dir // leaf) |> Fpath.to_string
