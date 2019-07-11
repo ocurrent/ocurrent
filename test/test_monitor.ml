@@ -147,13 +147,17 @@ let trace step out inputs =
   | _ ->
     assert false
 
-let basic () =
+let basic _switch () =
   let step = ref 0 in
   let engine = Current.Engine.create test_pipeline ~trace:(trace step) in
-  try Lwt_main.run @@ Current.Engine.thread engine
-  with Exit -> ()
+  Lwt.catch
+    (fun () ->Current.Engine.thread engine)
+    (function
+      | Exit -> Lwt.return_unit
+      | ex -> Lwt.fail ex
+    )
 
 let tests =
   [
-    Alcotest.test_case "basic" `Quick basic;
+    Driver.test_case_gc "basic" basic;
   ]

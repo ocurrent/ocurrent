@@ -47,7 +47,7 @@ module Clone = struct
     state := RepoMap.add key.Commit.repo set_ready !state;
     ready
 
-  let auto_cancel = false
+  let auto_cancel = true
 
   let level _ _ = Current.Level.Average
 end

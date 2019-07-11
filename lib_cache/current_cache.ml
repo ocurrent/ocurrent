@@ -50,7 +50,7 @@ module Make(B : S.BUILDER) = struct
   type build = {
     key : B.Key.t;
     build_number : int64;           (* Increments on rebuild *)
-    switch : Lwt_switch.t;          (* Turning this off aborts the build. *)
+    switch : Current.Switch.t;      (* Turning this off aborts the build. *)
     finished : build_result Lwt.t;  (* Unresolved if the build is still in progress. *)
     mutable auto_cancelled : bool;  (* Don't record the result (because the build was auto-cancelled). *)
     mutable ref_count : int;        (* The number of watchers waiting for the result (for auto-cancel). *)
@@ -74,19 +74,11 @@ module Make(B : S.BUILDER) = struct
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
   let do_build ~confirmed ctx build =
-    let job = Job.create ~switch:build.switch ~label:B.id () in
+    Job.create ~switch:build.switch ~label:B.id () >>= fun job ->
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     let is_finished = ref false in
     Job.log job "Starting build for %a" B.pp build.key;
-    Lwt_switch.add_hook (Some build.switch) (fun () ->
-        if build.auto_cancelled then (
-          Job.log job "Auto-cancelling job because it is no longer needed";
-        ) else if not !is_finished then (
-          Job.log job "Cancelling job"
-        );
-        Lwt.return_unit
-      );
     confirm confirmed >>= fun () ->
     running := Some (!timestamp () |> Unix.gmtime);
     Lwt.catch
@@ -125,7 +117,6 @@ module Make(B : S.BUILDER) = struct
      If there isn't one, start a new build in a background thread. *)
   let get_build ~confirmed ctx key =
     let key_digest = B.Key.digest key in
-    let switch = Lwt_switch.create () in
     let finished, set_finished = Lwt.wait () in
     let previous = Db.Build.lookup ~builder:B.id key_digest in
     match previous with
@@ -138,6 +129,7 @@ module Make(B : S.BUILDER) = struct
       in
       Lwt.wakeup set_finished (v, previous.Db.Build.finished);
       let build_number = previous.Db.Build.build in
+      let switch = Current.Switch.create_off @@ Error (`Msg "Loaded from cache") in
       { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
     | _ ->
       let build_number =
@@ -145,13 +137,14 @@ module Make(B : S.BUILDER) = struct
         | None -> 0L
         | Some x -> Int64.succ x.Db.Build.build       (* A rebuild was requested *)
       in
+      let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
       let build = { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->
                Lwt.finalize
                  (fun () -> do_build ~confirmed ctx build)
-                 (fun () -> Lwt_switch.turn_off build.switch)
+                 (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
             (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
             (fun ex -> Lwt.wakeup_exn set_finished ex; Lwt.return_unit)
@@ -161,17 +154,19 @@ module Make(B : S.BUILDER) = struct
   (* The build must be currently running when calling this. *)
   let input_running build =
     build.ref_count <- build.ref_count + 1;
-    let cancel () = Lwt.async (fun () -> Lwt_switch.turn_off build.switch) in
+    let cancel ~msg () =
+      Lwt.async (fun () -> Current.Switch.turn_off build.switch @@ Error (`Msg msg))
+    in
     let watch =
       object
         method pp f = B.pp f build.key
         method changed = Lwt.map ignore build.finished
-        method cancel = Some cancel
+        method cancel = Some (cancel ~msg:"Cancelled by user")
         method release =
           build.ref_count <- build.ref_count - 1;
           if build.ref_count = 0 && B.auto_cancel && is_running build then (
             build.auto_cancelled <- true;
-            cancel ()
+            cancel ~msg:"Auto-cancelling job because it is no longer needed" ()
           )
       end
     in
@@ -263,7 +258,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   type op = {
     value : Value.t;                (* The value currently being set. *)
-    switch : Lwt_switch.t;          (* Turning this off aborts the operation. *)
+    switch : Current.Switch.t;      (* Turning this off aborts the operation. *)
     finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
   }
@@ -316,7 +311,10 @@ module Output(Op : S.PUBLISHER) = struct
       Log.info (fun f -> f "Auto-cancelling %a" pp_op (output.key, op.value));
       op.autocancelled <- true;
       (* Cancel existing job. When that finishes, we'll get called again. *)
-      Lwt.async (fun () -> Lwt_switch.turn_off op.switch)
+      Lwt.async (fun () ->
+          Current.Switch.turn_off op.switch @@
+          Error (`Msg "Auto-cancelling job because it is no longer needed")
+        );
     | `Finished ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -328,45 +326,51 @@ module Output(Op : S.PUBLISHER) = struct
         Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key);
         output.op <- `Running (publish ~confirmed output)
   and publish ~confirmed output =
-    let switch = Lwt_switch.create () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
+    let switch = Current.Switch.create ~label:Op.id () in
     let op = { value = output.desired; switch; finished; autocancelled = false } in
     Lwt.async
       (fun () ->
-         let pp_op f = pp_op f (output.key, op.value) in
-         let job = Job.create ~switch ~label:Op.id () in
-         Job.log job "Publish: %t" pp_op;
-         Lwt.catch
+         Lwt.finalize
            (fun () ->
-              confirm confirmed >>= fun () ->
-              Op.publish ~switch ctx job output.key (Value.value op.value)
+              let pp_op f = pp_op f (output.key, op.value) in
+              Job.create ~switch ~label:Op.id () >>= fun job ->
+              Job.log job "Publish: %t" pp_op;
+              Lwt.catch
+                (fun () ->
+                   confirm confirmed >>= fun () ->
+                   Op.publish ~switch ctx job output.key (Value.value op.value)
+                )
+                (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
+              >|= function
+              | Ok () ->
+                Job.log job "Publish(%t) : succeeded" pp_op;
+                output.current <- Some (Value.digest op.value);
+                output.op <- `Finished;
+                Db.Publish.record ~op:Op.id ~key:(Op.Key.digest output.key) (Value.digest op.value);
+                (* While we were pushing, we might have decided we wanted something else.
+                   If so, start pushing that now. *)
+                maybe_start ~confirmed output;
+                Lwt.wakeup set_finished ()
+              | Error (`Msg m as e) ->
+                if op.autocancelled then
+                  Job.log job "Auto-cancel(%t) complete (%s)" pp_op m
+                else
+                  Job.log job "Publish(%t) failed: %s" pp_op m;
+                let retry =
+                  (* If it failed because we cancelled it, don't count that as an error. *)
+                  op.autocancelled ||
+                  (* If it failed but we have a new value to set, ignore the stale error. *)
+                  not (Value.equal op.value output.desired)
+                in
+                output.op <- if retry then `Finished else `Error e;
+                maybe_start ~confirmed output;
+                Lwt.wakeup set_finished ()
            )
-           (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
-         >|= function
-         | Ok () ->
-           Job.log job "Publish(%t) : succeeded" pp_op;
-           output.current <- Some (Value.digest op.value);
-           output.op <- `Finished;
-           Db.Publish.record ~op:Op.id ~key:(Op.Key.digest output.key) (Value.digest op.value);
-           (* While we were pushing, we might have decided we wanted something else.
-              If so, start pushing that now. *)
-           maybe_start ~confirmed output;
-           Lwt.wakeup set_finished ()
-         | Error (`Msg m as e) ->
-           if op.autocancelled then
-             Job.log job "Auto-cancel(%t) complete (%s)" pp_op m
-           else
-             Job.log job "Publish(%t) failed: %s" pp_op m;
-           let retry =
-             (* If it failed because we cancelled it, don't count that as an error. *)
-             op.autocancelled ||
-             (* If it failed but we have a new value to set, ignore the stale error. *)
-             not (Value.equal op.value output.desired)
-           in
-           output.op <- if retry then `Finished else `Error e;
-           maybe_start ~confirmed output;
-           Lwt.wakeup set_finished ()
+           (fun () ->
+              Current.Switch.turn_off switch @@ Ok ()
+           )
       );
     op
 

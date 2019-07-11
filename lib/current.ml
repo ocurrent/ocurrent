@@ -273,3 +273,4 @@ let state_dir = Disk_store.state_dir
 
 module Job = Job
 module Process = Process
+module Switch = Switch

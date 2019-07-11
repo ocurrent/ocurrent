@@ -81,7 +81,7 @@ let exec ?switch ?(stdin="") ~job cmd =
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_out ~stdout ~stderr cmd in
-  Lwt_switch.add_hook_or_exec switch (fun () ->
+  Switch.add_hook_or_exec_opt switch (fun _reason ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
         proc#terminate;
@@ -100,7 +100,7 @@ let check_output ?switch ?(stdin="") ~job cmd =
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process ~stderr cmd in
-  Lwt_switch.add_hook_or_exec switch (fun () ->
+  Switch.add_hook_or_exec_opt switch (fun _reason ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
         proc#terminate;

@@ -38,7 +38,7 @@ module type BUILDER = sig
   (** The result of a build. *)
 
   val build :
-    switch:Lwt_switch.t -> t -> Current.Job.t -> Key.t ->
+    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t ->
     Value.t Current.or_error Lwt.t
   (** [build ~switch t j k] builds [k].
       If the switch is turned off, the build should be cancelled.
@@ -65,7 +65,7 @@ module type PUBLISHER = sig
   (** The value to publish. *)
 
   val publish :
-    switch:Lwt_switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
+    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
     unit Current.or_error Lwt.t
   (** [publish ~switch t j k v] sets output [k] to value [v].
       If the switch is turned off, the operation should be cancelled.

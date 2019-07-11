@@ -1,3 +1,4 @@
+open Lwt.Infix
 open Current.Syntax
 
 let src = Logs.Src.create "test.docker" ~doc:"OCurrent test docker plugin"
@@ -57,12 +58,15 @@ module Run = struct
   let build ~switch No_context _job (key : Key.t) =
     let ready, set_ready = Lwt.wait () in
     containers := Containers.add key set_ready !containers;
-    Lwt_switch.add_hook (Some switch) (fun () ->
-        if Lwt.state ready = Lwt.Sleep then (
-          Lwt.wakeup set_ready @@ Error (`Msg "Cancelled");
-        );
-        Lwt.return_unit
-      );
+    Current.Switch.add_hook_or_exec switch (function
+        | Ok () -> Lwt.return_unit
+        | Error (`Msg m) ->
+          if Lwt.state ready = Lwt.Sleep then (
+            Lwt.wakeup set_ready @@ Error (`Msg m);
+          );
+          Lwt.return_unit
+      )
+    >>= fun () ->
     ready
 
   let auto_cancel = true

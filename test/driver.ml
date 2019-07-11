@@ -87,3 +87,11 @@ let test ?config ~name v actions =
       | Exit -> Docker.assert_finished (); Lwt.return_unit
       | ex -> Lwt.fail ex
     )
+
+let test_case_gc name fn =
+  Alcotest_lwt.test_case name `Quick (fun switch () ->
+      let old_errors = Logs.err_count () in
+      fn switch () >|= fun () ->
+      Gc.full_major ();
+      Alcotest.(check int) "No errors logged" 0 @@ Logs.err_count () - old_errors
+    )

@@ -223,12 +223,15 @@ module Publish = struct
     t.set_finished <- Some set_finished;
     t.state <- t.state ^ "-changing";
     t.next <- value;
-    Lwt_switch.add_hook (Some switch) (fun () ->
-        Logs.info (fun f -> f "Cancelled");
-        t.state <- "cancelled";
-        complete t @@ Error (`Msg "Cancelled");
-        Lwt.return_unit
-      );
+    Current.Switch.add_hook_or_exec switch (function
+        | Ok () -> Lwt.return_unit
+        | Error (`Msg reason) as e ->
+          Logs.info (fun f -> f "Cancelling: %s" reason);
+          t.state <- "cancelled";
+          complete t e;
+          Lwt.return_unit
+      )
+    >>= fun () ->
     finished
 
   let pp f (k, v) =
@@ -319,9 +322,9 @@ let output_autocancel _switch () =
 
 let tests =
   [
-    Alcotest_lwt.test_case "basic" `Quick basic;
-    Alcotest_lwt.test_case "expires" `Quick expires;
-    Alcotest_lwt.test_case "autocancel" `Quick autocancel;
-    Alcotest_lwt.test_case "output" `Quick output;
-    Alcotest_lwt.test_case "output_autocancel" `Quick output_autocancel;
+    Driver.test_case_gc "basic"             basic;
+    Driver.test_case_gc "expires"           expires;
+    Driver.test_case_gc "autocancel"        autocancel;
+    Driver.test_case_gc "output"            output;
+    Driver.test_case_gc "output_autocancel" output_autocancel;
   ]

@@ -146,10 +146,51 @@ module Unit : sig
   val unmarshal : string -> t
 end
 
+module Switch : sig
+  (** Like [Lwt_switch], but the cleanup functions are called in sequence, not
+      in parallel, and a reason for the shutdown may be given. *)
+
+  type t
+  (** A switch limits the lifetime of an operation.
+      Cleanup operations can be registered against the switch and will
+      be called (in reverse order) when the switch is turned off. *)
+
+  val create : label:string -> unit -> t
+  (** [create ~label ()] is a fresh switch, initially on.
+      @param label If the switch is GC'd while on, this is logged in the error message. *)
+
+  val create_off : unit or_error -> t
+  (** [create_off reason] is a fresh switch, initially (and always) off. *)
+
+  val add_hook_or_exec : t -> (unit or_error -> unit Lwt.t) -> unit Lwt.t
+  (** [add_hook_or_exec switch fn] pushes [fn] on to the stack of functions to call
+      when [t] is turned off. If [t] is already off, calls [fn] immediately.
+      If [t] is in the process of being turned off, waits for that to complete
+      and then runs [fn]. *)
+
+  val add_hook_or_exec_opt : t option -> (unit or_error -> unit Lwt.t) -> unit Lwt.t
+  (** [add_hook_or_exec_opt] is like [add_hook_or_exec], but does nothing if the switch
+      is [None]. *)
+
+  val turn_off : t -> unit or_error -> unit Lwt.t
+  (** [turn_off t reason] marks the switch as being turned off, then pops and
+      calls clean-up functions in order. When the last one finishes, the switch
+      is marked as off and cannot be used again. [reason] is passed to the
+      cleanup functions, which may be useful for logging. If the switch is
+      already off, this does nothing. If the switch is already being turned
+      off, it just waits for that to complete. *)
+
+  val is_on : t -> bool
+  (** [is_on t] is [true] if [turn_off t] hasn't yet been called. *)
+
+  val pp : t Fmt.t
+  (** Prints the state of the switch (for debugging). *)
+end
+
 module Job : sig
   type t
 
-  val create : switch:Lwt_switch.t -> label:string -> unit -> t
+  val create : switch:Switch.t -> label:string -> unit -> t Lwt.t
   (** [create ~switch ~label ()] is a new job.
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging).*)
@@ -168,14 +209,14 @@ end
 
 module Process : sig
   val exec :
-    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    ?switch:Switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
     unit or_error Lwt.t
   (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
       @param switch If this is turned off, the process is terminated.
       @param stdin Data to write to stdin before closing it. *)
 
   val check_output :
-    ?switch:Lwt_switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    ?switch:Switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
     string or_error Lwt.t
   (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
 

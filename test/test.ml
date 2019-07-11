@@ -116,12 +116,12 @@ let test_v5 _switch () =
 let () =
   Alcotest.run "test" [
     "pipelines", [
-      Alcotest_lwt.test_case "v1"        `Quick test_v1;
-      Alcotest_lwt.test_case "v1-cancel" `Quick test_v1_cancel;
-      Alcotest_lwt.test_case "v2"        `Quick test_v2;
-      Alcotest_lwt.test_case "v3"        `Quick test_v3;
-      Alcotest_lwt.test_case "v4"        `Quick test_v4;
-      Alcotest_lwt.test_case "v5"        `Quick test_v5;
+      Driver.test_case_gc "v1"        test_v1;
+      Driver.test_case_gc "v1-cancel" test_v1_cancel;
+      Driver.test_case_gc "v2"        test_v2;
+      Driver.test_case_gc "v3"        test_v3;
+      Driver.test_case_gc "v4"        test_v4;
+      Driver.test_case_gc "v5"        test_v5;
     ];
     "cache", Test_cache.tests;
     "monitor", Test_monitor.tests;
