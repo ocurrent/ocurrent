@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Current.Syntax
 
 module Job = Current.Job
 
@@ -73,13 +72,14 @@ module Make(B : S.BUILDER) = struct
 
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
-  let do_build ~confirmed ctx build =
+  let do_build ~config ctx build =
     Job.create ~switch:build.switch ~label:B.id () >>= fun job ->
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     let is_finished = ref false in
     Job.log job "Starting build for %a" B.pp build.key;
-    confirm confirmed >>= fun () ->
+    let level = B.level ctx build.key in
+    confirm (Current.Config.confirmed level config, level) >>= fun () ->
     running := Some (!timestamp () |> Unix.gmtime);
     Lwt.catch
       (fun () -> B.build ~switch:build.switch ctx job build.key)
@@ -115,7 +115,7 @@ module Make(B : S.BUILDER) = struct
 
   (* Create a new in-memory build object. Try to initialise it with the value from the disk-cache.
      If there isn't one, start a new build in a background thread. *)
-  let get_build ~confirmed ctx key =
+  let get_build ~config ctx key =
     let key_digest = B.Key.digest key in
     let finished, set_finished = Lwt.wait () in
     let previous = Db.Build.lookup ~builder:B.id key_digest in
@@ -143,7 +143,7 @@ module Make(B : S.BUILDER) = struct
           Lwt.try_bind
             (fun () ->
                Lwt.finalize
-                 (fun () -> do_build ~confirmed ctx build)
+                 (fun () -> do_build ~config ctx build)
                  (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
             (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
@@ -204,26 +204,25 @@ module Make(B : S.BUILDER) = struct
       in
       (value :> B.Value.t Current_term.Output.t), [watch]
 
-  let input build ~schedule () =
+  let input build ~schedule =
     match Lwt.state build.finished with
     | Lwt.Sleep -> input_running build
     | Lwt.Return v -> input_finished build ~schedule v
     | Lwt.Fail ex -> raise ex
 
   let get ?(schedule=Schedule.default) ctx key =
-    let level = B.level ctx key in
-    let* confirmed = Current.confirmed level in
     Current.track @@
+    Current.Input.of_fn @@ fun config ->
     let key_digest = B.Key.digest key in
     let b =
       match Builds.find_opt key_digest !builds with
       | Some b -> b
       | None ->
-        let b = get_build ~confirmed:(confirmed, level) ctx key in
+        let b = get_build ~config ctx key in
         builds := Builds.add key_digest b !builds;
         b
     in
-    Current.Input.of_fn (input b ~schedule)
+    input b ~schedule
 
   let reset () =
     builds := Builds.empty;
@@ -296,7 +295,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. *)
-  let rec maybe_start ~confirmed output =
+  let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
     | `Running _ when not Op.auto_cancel ->
@@ -324,8 +323,8 @@ module Output(Op : S.PUBLISHER) = struct
         (* Once we start publishing, we don't know the state: *)
         output.current <- None;
         Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key);
-        output.op <- `Running (publish ~confirmed output)
-  and publish ~confirmed output =
+        output.op <- `Running (publish ~config output)
+  and publish ~config output =
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
@@ -339,7 +338,8 @@ module Output(Op : S.PUBLISHER) = struct
               Job.log job "Publish: %t" pp_op;
               Lwt.catch
                 (fun () ->
-                   confirm confirmed >>= fun () ->
+                   let level = Op.level ctx output.key (Value.value op.value) in
+                   confirm (Current.Config.confirmed level config, level) >>= fun () ->
                    Op.publish ~switch ctx job output.key (Value.value op.value)
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
@@ -351,7 +351,7 @@ module Output(Op : S.PUBLISHER) = struct
                 Db.Publish.record ~op:Op.id ~key:(Op.Key.digest output.key) (Value.digest op.value);
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                maybe_start ~confirmed output;
+                maybe_start ~config output;
                 Lwt.wakeup set_finished ()
               | Error (`Msg m as e) ->
                 if op.autocancelled then
@@ -365,7 +365,7 @@ module Output(Op : S.PUBLISHER) = struct
                   not (Value.equal op.value output.desired)
                 in
                 output.op <- if retry then `Finished else `Error e;
-                maybe_start ~confirmed output;
+                maybe_start ~config output;
                 Lwt.wakeup set_finished ()
            )
            (fun () ->
@@ -384,8 +384,8 @@ module Output(Op : S.PUBLISHER) = struct
     { key; current; desired; ctx; op = `Finished }
 
   let set ctx key value =
-    let level = Op.level ctx key value in
-    let* confirmed = Current.confirmed level in
+    Current.track @@
+    Current.Input.of_fn @@ fun config ->
     Log.debug (fun f -> f "set: %a" Op.pp (key, value));
     let key_digest = Op.Key.digest key in
     let value = Value.v value in
@@ -406,9 +406,7 @@ module Output(Op : S.PUBLISHER) = struct
         outputs := Outputs.add key_digest o !outputs;
         o
     in
-    maybe_start ~confirmed:(confirmed, level) o;
-    Current.track @@
-    Current.Input.of_fn @@ fun () ->
+    maybe_start ~config o;
     match o.op with
     | `Finished -> Ok (), []
     | `Error e -> (Error e :> unit Current_term.Output.t), []

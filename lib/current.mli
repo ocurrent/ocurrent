@@ -2,6 +2,24 @@ type 'a or_error = ('a, [`Msg of string]) result
 
 module Level = Level
 
+module Config : sig
+  type t
+
+  val v : ?confirm:Level.t -> unit -> t
+  (** A new configuration.
+      @param confirm : confirm before performing operations at or above this level. *)
+
+  val set_confirm : t -> Level.t option -> unit
+  (** Change the [confirm] setting. Existing jobs waiting for confirmation
+      will now start if permitted by the new configuration. *)
+
+  val confirmed : Level.t -> t -> unit Lwt.t
+  (** [confirmed l t] is a promise that resolves once we are ready to run
+      an action at level [l] or higher. *)
+
+  val cmdliner : t Cmdliner.Term.t
+end
+
 module Input : sig
   class type watch = object
     method pp : Format.formatter -> unit
@@ -24,8 +42,8 @@ module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
 
-  val of_fn : (unit -> 'a Current_term.Output.t * watch list) -> 'a t
-  (** [of_fn f] is an input that calls [f ()] when it is evalutated.
+  val of_fn : (Config.t -> 'a Current_term.Output.t * watch list) -> 'a t
+  (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will
       call [release] exactly once when each watch is no longer needed.
 
@@ -62,24 +80,6 @@ type 'a term = 'a t
 (** An alias of [t] to make it easy to refer to later in this file. *)
 
 module Analysis : Current_term.S.ANALYSIS with type 'a term := 'a t
-
-module Config : sig
-  type t
-
-  val v : ?confirm:Level.t -> unit -> t
-  (** A new configuration.
-      @param confirm : confirm before performing operations at or above this level. *)
-
-  val set_confirm : t -> Level.t option -> unit
-  (** Change the [confirm] setting. Existing jobs waiting for confirmation
-      will now start if permitted by the new configuration. *)
-
-  val cmdliner : t Cmdliner.Term.t
-end
-
-val confirmed : Level.t -> unit Lwt.t term
-(** [confirmed l] evaluates to a promise that resolves once we are ready to run
-    an action at level [l] or higher. *)
 
 module Engine : sig
   type t

@@ -16,7 +16,7 @@ module type INPUT = sig
   type env
   (** A context which the caller can associate with an execution. *)
 
-  val get : 'a t -> 'a Output.t * watch list
+  val get : env -> 'a t -> 'a Output.t * watch list
 end
 
 module type ANALYSIS = sig

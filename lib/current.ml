@@ -48,23 +48,18 @@ module Input = struct
     method release : unit
   end
 
-  type 'a t = unit -> 'a Current_term.Output.t * watch list
+  type 'a t = Config.t -> 'a Current_term.Output.t * watch list
 
   type env = Config.t
 
   let of_fn t = t
 
-  let get (t : 'a t) = t ()
+  let get env (t : 'a t) = t env
 
   let pp_watch f t = t#pp f
 end
 
 include Current_term.Make(Input)
-
-let confirmed l =
-  let open Syntax in
-  let+ config = env in
-  Config.confirmed l config
 
 type 'a term = 'a t
 
@@ -97,7 +92,7 @@ module Var (T : Current_term.S.T) = struct
     end
 
   let get t =
-    track (fun () -> t.current, [watch t] )
+    track (fun _env -> t.current, [watch t] )
 
   let set t v =
     t.current <- v;
@@ -209,7 +204,7 @@ end = struct
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
   let run t =
-    Input.of_fn @@ fun () ->
+    Input.of_fn @@ fun _env ->
     t.ref_count <- t.ref_count + 1;
     if not t.active then (
       t.active <- true;
