@@ -86,7 +86,9 @@ include Current_term.S.TERM with type 'a input := 'a Input.t
 type 'a term = 'a t
 (** An alias of [t] to make it easy to refer to later in this file. *)
 
-module Analysis : Current_term.S.ANALYSIS with type 'a term := 'a t
+module Analysis : Current_term.S.ANALYSIS with
+  type 'a term := 'a t and
+  type job_id := Input.job_id
 
 module Engine : sig
   type t

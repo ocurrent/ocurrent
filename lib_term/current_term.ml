@@ -2,7 +2,7 @@ module S = S
 module Output = Output
 
 module Make (Input : S.INPUT) = struct
-  module An = Analysis
+  module An = Analysis.Make(struct type id = Input.job_id end)
 
   type 'a node = {
     md : An.t;
@@ -75,10 +75,10 @@ module Make (Input : S.INPUT) = struct
 
   let component = Fmt.strf
 
-  let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
+  let bind ?info (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
-    let md = An.bind ~env ~name:info x.md in
+    let md = An.bind ~env ?info x.md in
     match Dyn.run x.fn with
     | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
     | Error (`Pending) -> make (md An.Active) Dyn.pending
@@ -113,16 +113,16 @@ module Make (Input : S.INPUT) = struct
   let bind_input ~info (f:'a -> 'b Input.t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
-    let md = An.bind ~env ~name:info x.md in
+    let md = An.bind_input ~env ~info x.md in
     match Dyn.run x.fn with
     | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
     | Error (`Pending) -> make (md An.Active) Dyn.pending
     | Ok y ->
       let md = md An.Pass in
       let input = f y in
-      let v, _job, watch = Input.get ctx.user_env input in
+      let v, id, watch = Input.get ctx.user_env input in
       ctx.inputs <- watch @ ctx.inputs;
-      An.set_state md (
+      An.set_state md ?id (
         match v with
         | Error (`Msg _) -> An.Fail
         | Error (`Pending) -> An.Active

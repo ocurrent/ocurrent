@@ -29,6 +29,8 @@ module type ANALYSIS = sig
   (** Information about the dependency graph of a term.
       This is useful to display the term's state as a diagram. *)
 
+  type job_id
+
   val booting : t
   (** [booting] is a dummy analysis; useful while booting. *)
 

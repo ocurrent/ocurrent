@@ -10,7 +10,9 @@ module Make (Input : S.INPUT) : sig
   val env : Input.env t
   (** [env] evaluates to the user-provided environment. *)
 
-  module Analysis : S.ANALYSIS with type 'a term := 'a t
+  module Analysis : S.ANALYSIS with
+    type 'a term := 'a t and
+    type job_id := Input.job_id
 
   module Executor : S.EXECUTOR with
     type 'a term := 'a t and
