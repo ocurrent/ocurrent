@@ -36,7 +36,6 @@ and metadata_ty =
   | Constant
   | State of t
   | Catch of t
-  | Prim of string
   | Bind of t * string
   | Pair of t * t
   | Gate_on of { ctrl : t; value : t }
@@ -113,11 +112,7 @@ let bind ~env:parent ~name x state =
   | "", { bind = Some bind; _ } -> bind
   | _ ->
     let x = simplify x in
-    let ty =
-      match x.ty with
-      | Constant -> Prim name
-      | _ -> Bind (x, name)
-    in
+    let ty = Bind (x, name) in
     let state =
       match x.state with
       | Blocked | Active | Fail -> Blocked
@@ -149,7 +144,6 @@ let pp f x =
           | Some ctx -> aux f ctx
           | None -> Fmt.string f "(const)"
         end
-      | Prim name -> Fmt.string f name
       | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
       | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
       | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
@@ -193,9 +187,12 @@ let pp_dot f x =
         match md.ty with
         | Constant when ctx = [] -> node i "(const)"; [i]
         | Constant -> ctx
-        | Prim name -> node i name; i :: ctx
         | Bind (x, name) ->
-          let inputs = aux x in
+          let inputs =
+            match x.ty with
+            | Constant -> []
+            | _ -> aux x
+          in
           node i name;
           inputs |> List.iter (fun input -> input ==> i);
           ctx |> List.iter (fun input -> input ==> i);
