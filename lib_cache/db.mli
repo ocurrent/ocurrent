@@ -1,5 +1,6 @@
 module Build : sig
   type entry = {
+    job_id : string;
     build : int64;      (* Build number (increases for rebuilds). *)
     value : string Current.or_error;
     rebuild : bool;     (* If [true], then a rebuild was requested. *)

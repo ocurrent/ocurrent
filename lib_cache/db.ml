@@ -31,6 +31,7 @@ module Build = struct
   }
 
   type entry = {
+    job_id : string;
     build : int64;
     value : string Current.or_error;
     rebuild : bool;
@@ -46,15 +47,15 @@ module Build = struct
                      ok        BOOL NOT NULL, \
                      rebuild   BOOL NOT NULL DEFAULT 0, \
                      value     BLOB, \
-                     job       TEXT NOT NULL, \
+                     job_id    TEXT NOT NULL, \
                      ready     DATETIME NOT NULL, \
                      running   DATETIME, \
                      finished  DATETIME NOT NULL, \
                      PRIMARY KEY (builder, key, build))" |> or_fail "create table";
     let record = Sqlite3.prepare db "INSERT INTO build_cache \
-                                     (builder, key, build, ok, value, job, ready, running, finished) \
+                                     (builder, key, build, ok, value, job_id, ready, running, finished) \
                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)" in
-    let lookup = Sqlite3.prepare db "SELECT build, ok, rebuild, value, strftime('%s', finished) \
+    let lookup = Sqlite3.prepare db "SELECT build, ok, rebuild, value, strftime('%s', finished), job_id \
                                      FROM build_cache \
                                      WHERE builder = ? AND key = ? \
                                      ORDER BY build DESC \
@@ -114,11 +115,12 @@ module Build = struct
             Sqlite3.Data.INT ok;
             Sqlite3.Data.INT rebuild;
             Sqlite3.Data.BLOB value;
-            Sqlite3.Data.TEXT finished] ->
+            Sqlite3.Data.TEXT finished;
+            Sqlite3.Data.TEXT job_id] ->
           let value = if ok = 1L then Ok value else Error (`Msg value) in
           let rebuild = rebuild <> 0L in
           let finished = float_of_string finished in
-          result := Some { build; value; rebuild; finished }
+          result := Some { build; value; rebuild; finished; job_id }
         | _ -> Fmt.failwith "Invalid row from lookup!"
     in
     exec ~cb t.lookup;
