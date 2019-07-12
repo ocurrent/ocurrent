@@ -1,6 +1,6 @@
 .PHONY: test build
 
-DOTS=$(sort $(wildcard _build/default/test/*.dot))
+DOTS=$(sort $(wildcard _build/default/test/v*.dot))
 
 test:
 	dune build @check
