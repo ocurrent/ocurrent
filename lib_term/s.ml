@@ -91,6 +91,11 @@ module type TERM = sig
       [x] is ready, so using [bind] makes static analysis less useful. You can
       use the [info] argument to provide some information here. *)
 
+  val bind_input : info:description -> ('a -> 'b input) -> 'a t -> 'b t
+  (** [bind_input ~info f x] is a term that first runs [x] to get [y] and then
+      behaves as the input [f y]. [info] is used to describe the operation
+      in the analysis result. *)
+
   val list_map : ('a t -> 'b t) -> 'a list t -> 'b list t
   (** [list_map f xs] adds [f] to the end of each input term
       and collects all the results into a single list. *)
@@ -109,9 +114,6 @@ module type TERM = sig
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
-  val track : 'a input -> 'a t
-  (** [track i] evaluates to the current value of [i]. *)
-
   module Syntax : sig
     val (let+) : 'a t -> ('a -> 'b) -> 'b t
     (** Syntax for [map]. Use this to process the result of a term without
@@ -125,9 +127,19 @@ module type TERM = sig
         be determined at runtime by looking at the concrete value. Static
         analysis cannot predict what this will do until the input is ready. *)
 
+    val (let>) : 'a t -> ('a -> 'b input) -> description -> 'b t
+    (** [let>] is used to define a component.
+        e.g. [component "my-op" |>
+              let> x = fetch uri in
+              ...] *)
+
     val (let**) : 'a t -> ('a -> 'b t) -> description -> 'b t
     (** Like [let*], but allows you to name the operation.
         e.g. [component "my-op" |> let** x = fetch uri in ...] *)
+
+    val (and>) : 'a t -> 'b t -> ('a * 'b) t
+    (** Syntax for [pair]. Use this to depend on multiple terms.
+        Note: this is the same as [and+]. *)
 
     val (and*) : 'a t -> 'b t -> ('a * 'b) t
     (** Syntax for [pair]. Use this to depend on multiple terms.

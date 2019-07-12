@@ -1,7 +1,9 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
+  n4 [label="head",fillcolor="#90ee90",style="filled"]
   n3 [label="fetch",fillcolor="#90ee90",style="filled"]
+  n4 -> n3
   n2 [label="build",fillcolor="#90ee90",style="filled"]
   n3 -> n2
   n1 [label="docker run make test",fillcolor="#90ee90",style="filled"]

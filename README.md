@@ -155,13 +155,13 @@ module FC = Current_cache.Make(Frob)
 
 let frob key =
   Current.component "Frob" |>
-  let** key = key in
+  let> key = key in
   FC.get Frob.No_context key
 ```
 
 The `frob` function is the one exposed to users.
 These functions always start by getting the actual values
-from their `Current.t` arguments using `let**` (and `and*`, for additional arguments).
+from their `Current.t` arguments using `let>` (and `and>`, for additional arguments).
 The `Current.component` line provides the label for the dot diagrams.
 
 The `build` function does the real work.

@@ -114,8 +114,15 @@ module Make (Input : S.INPUT) = struct
     ctx.inputs <- watch @ ctx.inputs;
     make (Analysis.of_output ~env v) (Dyn.of_output v)
 
+  let bind_input ~info (f:'a -> 'b Input.t) (x:'a t) =
+    bind ~info (fun x -> track (f x)) x
+
   module Syntax = struct
     let (let**) x f info = bind ~info f x
+
+    let (let>) x f info = bind_input ~info f x
+    let (and>) = pair
+
     let (let*) x f = bind f x
     let (and*) = pair
 

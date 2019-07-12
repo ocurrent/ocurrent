@@ -40,7 +40,12 @@ let watch update =
 
 let pp f = Fmt.string f "watch"
 
-let input = Current.monitor ~read ~watch ~pp
+let monitor = Current.monitor ~read ~watch ~pp
+
+let input () =
+  Current.component "input" |>
+  let> () = Current.return () in
+  monitor
 
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)
 
@@ -48,7 +53,7 @@ let wanted = Bool_var.create ~name:"wanted" (Ok true)
 
 let test_pipeline () =
   let* wanted = Bool_var.get wanted in
-  if wanted then let* out = Current.track input in Current.fail out
+  if wanted then let* out = input () in Current.fail out
   else Current.return ()
 
 let get_watch () =

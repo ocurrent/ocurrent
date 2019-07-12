@@ -66,7 +66,7 @@ module Fetch_cache = Current_cache.Make(Fetch)
 
 let fetch cid =
   Current.component "fetch" |>
-  let** cid = cid in
+  let> cid = cid in
   Fetch_cache.get Fetch.No_context cid
 
 let with_checkout ~switch ~job commit fn =
@@ -138,24 +138,29 @@ module Local = struct
     Current.monitor ~read ~watch ~pp
 
   let commit_of_ref t gref =
-    let i =
-      match Ref_map.find_opt gref t.heads with
-      | Some i -> i
-      | None ->
-        let i = make_input t gref in
-        t.heads <- Ref_map.add gref i t.heads;
-        i
-    in
-    Current.track i
+    match Ref_map.find_opt gref t.heads with
+    | Some i -> i
+    | None ->
+      let i = make_input t gref in
+      t.heads <- Ref_map.add gref i t.heads;
+      i
 
-  let head t = Current.track t.head
+  let head t =
+    Current.component "head" |>
+    let> () = Current.return () in
+    t.head
 
   let head_commit t =
     Current.component "head commit" |>
-    let** h = head t in
+    let> h = head t in
     match h with
-    | `Commit id -> Current.return { Commit.repo = t.repo; id }
+    | `Commit id -> Current.Input.const { Commit.repo = t.repo; id }
     | `Ref gref -> commit_of_ref t gref
+
+  let commit_of_ref t gref =
+    Current.component "commit_of_ref %s" gref |>
+    let> () = Current.return () in
+    commit_of_ref t gref
 
   let read_head repo =
     let path = Fpath.(repo / ".git" / "HEAD") in

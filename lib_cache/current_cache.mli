@@ -14,7 +14,7 @@ module Schedule : sig
 end
 
 module Make (B : S.BUILDER) : sig
-  val get : ?schedule:Schedule.t -> B.t -> B.Key.t -> B.Value.t Current.t
+  val get : ?schedule:Schedule.t -> B.t -> B.Key.t -> B.Value.t Current.Input.t
   (** [get b k] is a term for the result of building [k]. *)
 
   val invalidate : B.Key.t -> unit
@@ -25,7 +25,7 @@ module Make (B : S.BUILDER) : sig
 end
 
 module Output (P : S.PUBLISHER) : sig
-  val set : P.t -> P.Key.t -> P.Value.t -> unit Current.t
+  val set : P.t -> P.Key.t -> P.Value.t -> unit Current.Input.t
   (** [set p k v] is a term for the result of setting [k] to [v]. *)
 
   val reset : unit -> unit

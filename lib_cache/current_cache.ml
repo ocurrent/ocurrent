@@ -211,7 +211,6 @@ module Make(B : S.BUILDER) = struct
     | Lwt.Fail ex -> raise ex
 
   let get ?(schedule=Schedule.default) ctx key =
-    Current.track @@
     Current.Input.of_fn @@ fun config ->
     let key_digest = B.Key.digest key in
     let b =
@@ -387,7 +386,6 @@ module Output(Op : S.PUBLISHER) = struct
     { key; current; desired; ctx; op = `Finished; job_id }
 
   let set ctx key value =
-    Current.track @@
     Current.Input.of_fn @@ fun config ->
     Log.debug (fun f -> f "set: %a" Op.pp (key, value));
     let key_digest = Op.Key.digest key in

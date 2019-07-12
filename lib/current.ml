@@ -94,7 +94,11 @@ module Var (T : Current_term.S.T) = struct
     end
 
   let get t =
-    track (fun _env -> t.current, [watch t] )
+    let open Syntax in
+    component "%s" t.name |>
+    let> () = return () in
+    Input.of_fn @@ fun _env ->
+    t.current, [watch t]
 
   let set t v =
     t.current <- v;

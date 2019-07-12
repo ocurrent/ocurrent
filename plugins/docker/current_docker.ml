@@ -13,7 +13,7 @@ module Make (Host : S.HOST) = struct
 
   let pull ~schedule tag =
     Current.component "pull %s" tag |>
-    let** () = Current.return () in
+    let> () = Current.return () in
     PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
 
   module BC = Current_cache.Make(Build)
@@ -26,8 +26,8 @@ module Make (Host : S.HOST) = struct
 
   let build ?schedule ?label ?dockerfile ~pull src =
     Current.component "build%a" pp_sp_label label |>
-    let** commit = src
-    and* dockerfile = Current.option_seq dockerfile in
+    let> commit = src
+    and> dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
     BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host }
 
@@ -35,26 +35,26 @@ module Make (Host : S.HOST) = struct
 
   let run image ~args =
     Current.component "run" |>
-    let** image = image in
+    let> image = image in
     RC.get Run.No_context { Run.Key.image; args; docker_host }
 
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
     Current.component "docker-tag %s" tag |>
-    let** image = image in
+    let> image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
 
   let push ~tag image =
     Current.component "docker-push %s" tag |>
-    let** image = image in
+    let> image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
 
   module SC = Current_cache.Output(Service)
 
   let service ~name ~image () =
     Current.component "docker-service %s" name |>
-    let** image = image in
+    let> image = image in
     SC.set Service.No_context { Service.Key.name; docker_host } { Service.Value.image }
 end
 

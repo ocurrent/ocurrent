@@ -28,13 +28,13 @@ end
 
 let build_on platform ~src =
   Current.component "build-%s" platform |>
-  let** c = src in
-  Current.return @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
+  let> c = src in
+  Current.Input.const @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
 
 let build c =
   Current.component "build" |>
-  let** c = c in
-  Current.return @@ "image-" ^ Fpath.to_string c
+  let> c = c in
+  Current.Input.const @@ "image-" ^ Fpath.to_string c
 
 let build ?on src =
   match on with
@@ -78,7 +78,7 @@ module Run_cache = Current_cache.Make(Run)
 
 let run image ~cmd =
   Current.component "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
-  let** image = image in
+  let> image = image in
   let key = { Key.image; cmd } in
   Run_cache.get No_context key
 
@@ -108,7 +108,7 @@ module Push_cache = Current_cache.Make(Push)
 
 let push image ~tag =
   Current.component "docker push %s" tag |>
-  let** image = image in
+  let> image = image in
   Push_cache.get No_context image
 
 let reset () =

@@ -34,7 +34,7 @@ module BC = Current_cache.Make(Build)
 
 let get ?schedule builds x =
   Current.component "get %s" x |>
-  let** () = Current.return () in
+  let> () = Current.return () in
   BC.get ?schedule builds x
 
 let some = function
@@ -253,7 +253,7 @@ module OC = Current_cache.Output(Publish)
 
 let set p k v =
   Current.component "set" |>
-  let** v = v in
+  let> v = v in
   OC.set p k v
 
 let output _switch () =
@@ -293,7 +293,7 @@ module OC2 = Current_cache.Output(Publish2)
 
 let set2 p k v =
   Current.component "set2" |>
-  let** v = v in
+  let> v = v in
   OC2.set p k v
 
 let output_autocancel _switch () =
