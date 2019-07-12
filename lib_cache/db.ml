@@ -1,21 +1,9 @@
+module Db = Current.Db
+
 let or_fail label x =
   match x with
   | Sqlite3.Rc.OK -> ()
   | err -> Fmt.failwith "Sqlite3 %s error: %s" label (Sqlite3.Rc.to_string err)
-
-let no_callback _ = failwith "SQL query requested, but no callback supplied!"
-
-let exec ?(cb=no_callback) stmt =
-  let rec loop () =
-    match Sqlite3.step stmt with
-    | Sqlite3.Rc.DONE -> ()
-    | Sqlite3.Rc.ROW ->
-      let cols = Sqlite3.data_count stmt in
-      cb @@ List.init cols (fun i -> Sqlite3.column stmt i);
-      loop ()
-    | x -> Fmt.failwith "Sqlite3 exec error: %s" (Sqlite3.Rc.to_string x)
-  in
-  loop ()
 
 let format_timestamp time =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } = time in
@@ -39,7 +27,7 @@ module Build = struct
   }
 
   let db = lazy (
-    let db = Lazy.force Current.db in
+    let db = Lazy.force Db.v in
     Sqlite3.exec db "CREATE TABLE IF NOT EXISTS build_cache ( \
                      builder   TEXT NOT NULL, \
                      key       BLOB, \
@@ -67,71 +55,45 @@ module Build = struct
 
   let record ~builder ~build ~key ~job ~ready ~running ~finished value =
     let t = Lazy.force db in
-    Sqlite3.reset t.record |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT builder);
-    bind 2 (Sqlite3.Data.BLOB key);
-    bind 3 (Sqlite3.Data.INT build);
-    begin
+    let ok, value =
       match value with
-      | Ok v ->
-        bind 4 (Sqlite3.Data.INT 1L);
-        bind 5 (Sqlite3.Data.BLOB v);
-      | Error (`Msg v) ->
-        bind 4 (Sqlite3.Data.INT 0L);
-        bind 5 (Sqlite3.Data.BLOB v);
-    end;
-    bind 6 (Sqlite3.Data.TEXT job);
-    bind 7 (Sqlite3.Data.TEXT (format_timestamp ready));
-    bind 8
+      | Ok v -> 1L, v
+      | Error (`Msg v) -> 0L, v
+    in
+    Db.exec t.record Sqlite3.Data.[
+      TEXT builder;
+      BLOB key;
+      INT build;
+      INT ok;
+      BLOB value;
+      TEXT job;
+      TEXT (format_timestamp ready);
       (match running with
-       | Some time -> Sqlite3.Data.TEXT (format_timestamp time);
-       | None -> Sqlite3.Data.NULL
+       | Some time -> TEXT (format_timestamp time);
+       | None -> NULL
       );
-    bind 9 (Sqlite3.Data.TEXT (format_timestamp finished));
-    exec t.record
+      TEXT (format_timestamp finished);
+    ]
 
   let invalidate ~builder key =
     let t = Lazy.force db in
-    Sqlite3.reset t.invalidate |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.invalidate i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT builder);
-    bind 2 (Sqlite3.Data.BLOB key);
-    exec t.invalidate
+    Db.exec t.invalidate Sqlite3.Data.[ TEXT builder; BLOB key ]
 
   let lookup ~builder key =
     let t = Lazy.force db in
     Sqlite3.reset t.lookup |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.lookup i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT builder);
-    bind 2 (Sqlite3.Data.BLOB key);
-    let result = ref None in
-    let cb row =
-      match !result with
-      | Some _ -> Fmt.failwith "Multiple rows from lookup!"
-      | None ->
-        match row with
-        | [ Sqlite3.Data.INT build;
-            Sqlite3.Data.INT ok;
-            Sqlite3.Data.INT rebuild;
-            Sqlite3.Data.BLOB value;
-            Sqlite3.Data.TEXT finished;
-            Sqlite3.Data.TEXT job_id] ->
-          let value = if ok = 1L then Ok value else Error (`Msg value) in
-          let rebuild = rebuild <> 0L in
-          let finished = float_of_string finished in
-          result := Some { build; value; rebuild; finished; job_id }
-        | _ -> Fmt.failwith "Invalid row from lookup!"
-    in
-    exec ~cb t.lookup;
-    !result
+    match Db.query_some t.lookup Sqlite3.Data.[ TEXT builder; BLOB key ] with
+    | None -> None
+    | Some Sqlite3.Data.[INT build; INT ok; INT rebuild; BLOB value; TEXT finished; TEXT job_id] ->
+      let value = if ok = 1L then Ok value else Error (`Msg value) in
+      let rebuild = rebuild <> 0L in
+      let finished = float_of_string finished in
+      Some { build; value; rebuild; finished; job_id }
+    | Some _ -> Fmt.failwith "Invalid row from lookup!"
 
   let drop_all builder =
     let t = Lazy.force db in
-    Sqlite3.reset t.drop |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.drop i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT builder);
-    exec t.drop
+    Db.exec t.drop Sqlite3.Data.[TEXT builder]
 end
 
 module Publish = struct
@@ -149,7 +111,7 @@ module Publish = struct
   }
 
   let db = lazy (
-    let db = Lazy.force Current.db in
+    let db = Lazy.force Current.Db.v in
     Sqlite3.exec db "CREATE TABLE IF NOT EXISTS publish_cache ( \
                      op        TEXT NOT NULL, \
                      key       BLOB, \
@@ -167,44 +129,20 @@ module Publish = struct
 
   let record ~op ~key ~job_id value =
     let t = Lazy.force db in
-    Sqlite3.reset t.record |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT op);
-    bind 2 (Sqlite3.Data.BLOB key);
-    bind 3 (Sqlite3.Data.TEXT job_id);
-    bind 4 (Sqlite3.Data.BLOB value);
-    exec t.record
+    Db.exec t.record Sqlite3.Data.[ TEXT op; BLOB key; TEXT job_id; BLOB value ]
 
   let invalidate ~op key =
     let t = Lazy.force db in
-    Sqlite3.reset t.invalidate |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.invalidate i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT op);
-    bind 2 (Sqlite3.Data.BLOB key);
-    exec t.invalidate
+    Db.exec t.invalidate Sqlite3.Data.[ TEXT op; BLOB key ]
 
   let lookup ~op key =
     let t = Lazy.force db in
-    Sqlite3.reset t.lookup |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.lookup i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT op);
-    bind 2 (Sqlite3.Data.BLOB key);
-    let result = ref None in
-    let cb row =
-      match !result with
-      | Some _ -> Fmt.failwith "Multiple rows from lookup!"
-      | None ->
-        match row with
-        | [Sqlite3.Data.BLOB value; TEXT job_id] -> result := Some { value; job_id }
-        | _ -> Fmt.failwith "Invalid row from lookup!"
-    in
-    exec ~cb t.lookup;
-    !result
+    match Db.query_some t.lookup Sqlite3.Data.[ TEXT op; BLOB key ] with
+    | None -> None
+    | Some Sqlite3.Data.[ BLOB value; TEXT job_id ] -> Some { value; job_id }
+    | Some _ -> Fmt.failwith "Invalid row from lookup!"
 
   let drop_all op =
     let t = Lazy.force db in
-    Sqlite3.reset t.drop |> or_fail "reset";
-    let bind i v = Sqlite3.bind t.drop i v |> or_fail "bind" in
-    bind 1 (Sqlite3.Data.TEXT op);
-    exec t.drop
+    Db.exec t.drop Sqlite3.Data.[ TEXT op ]
 end

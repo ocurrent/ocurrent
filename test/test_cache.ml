@@ -46,7 +46,7 @@ let date = function
   | Some x -> int_of_string x
 
 let disk_cache () =
-  let db = Lazy.force Current.db in
+  let db = Lazy.force Current.Db.v in
   let results = ref [] in
   let cb (row:Sqlite3.row) _ =
     match row with

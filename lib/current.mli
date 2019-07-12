@@ -131,9 +131,6 @@ val state_dir : string -> Fpath.t
 (** [state_dir name] is a directory under which state (build results, logs) can be stored.
     [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory. *)
 
-val db : Sqlite3.db Lazy.t
-(** An sqlite database stored in [state_dir "db"]. *)
-
 module String : sig
   type t = string
   val digest : t -> string
@@ -233,4 +230,31 @@ module Process : sig
   (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
       (recursively).
       @param prefix Allows giving the directory a more meaningful name (for debugging). *)
+end
+
+module Db : sig
+  type t = Sqlite3.db
+
+  val v : t Lazy.t
+  (** An sqlite database stored in [state_dir "db"]. *)
+
+  val exec : Sqlite3.stmt -> Sqlite3.Data.t list -> unit
+  (** [exec stmt values] executes [stmt values].
+      Raises an exception on error. *)
+
+  val query : Sqlite3.stmt -> Sqlite3.Data.t list -> Sqlite3.Data.t list list
+  (** [query stmt values] executes the SQL query [stmt values] and returns the resulting rows. *)
+
+  val query_one : Sqlite3.stmt -> Sqlite3.Data.t list -> Sqlite3.Data.t list
+  (** [query_one stmt values] executes the SQL query [stmt values] and returns the single resulting row.
+      Raises an exception if there are no results or multiple results. *)
+
+  val query_some : Sqlite3.stmt -> Sqlite3.Data.t list -> Sqlite3.Data.t list option
+  (** [query_some stmt values] executes the SQL query [stmt values] and returns the single resulting row,
+      or [None] if there are no results.
+      Raises an exception if there are multiple results. *)
+
+  val exec_literal : t -> string -> unit
+  (** [exec_literal t sql] executes [sql] on [t].
+      Raises an exception on error. *)
 end

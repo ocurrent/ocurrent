@@ -271,9 +271,9 @@ module Unit = struct
     | x -> Fmt.failwith "Unit.unmarshal(%S)" x
 end
 
-let db = Disk_store.db
 let state_dir = Disk_store.state_dir
 
+module Db = Db
 module Job = Job
 module Process = Process
 module Switch = Switch
