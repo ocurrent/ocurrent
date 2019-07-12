@@ -42,6 +42,9 @@ module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
 
+  val const : 'a -> 'a t
+  (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
+
   val of_fn : (Config.t -> 'a Current_term.Output.t * watch list) -> 'a t
   (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will

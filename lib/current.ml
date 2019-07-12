@@ -54,6 +54,8 @@ module Input = struct
 
   let of_fn t = t
 
+  let const x = of_fn @@ fun _env -> Ok x, []
+
   let get env (t : 'a t) = t env
 
   let pp_watch f t = t#pp f
