@@ -190,7 +190,7 @@ end
 module Job : sig
   type t
 
-  val create : switch:Switch.t -> label:string -> unit -> t Lwt.t
+  val create : switch:Switch.t -> label:string -> unit -> t
   (** [create ~switch ~label ()] is a new job.
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging).*)

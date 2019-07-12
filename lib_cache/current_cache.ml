@@ -72,8 +72,7 @@ module Make(B : S.BUILDER) = struct
 
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
-  let do_build ~config ctx build =
-    Job.create ~switch:build.switch ~label:B.id () >>= fun job ->
+  let do_build ~config ~job ctx build =
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     let is_finished = ref false in
@@ -138,12 +137,13 @@ module Make(B : S.BUILDER) = struct
         | Some x -> Int64.succ x.Db.Build.build       (* A rebuild was requested *)
       in
       let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
+      let job = Job.create ~switch ~label:B.id () in
       let build = { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->
                Lwt.finalize
-                 (fun () -> do_build ~config ctx build)
+                 (fun () -> do_build ~config ~job ctx build)
                  (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
             (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
@@ -335,7 +335,7 @@ module Output(Op : S.PUBLISHER) = struct
          Lwt.finalize
            (fun () ->
               let pp_op f = pp_op f (output.key, op.value) in
-              Job.create ~switch ~label:Op.id () >>= fun job ->
+              let job = Job.create ~switch ~label:Op.id () in
               output.job_id <- Some (Job.id job);
               Job.log job "Publish: %t" pp_op;
               Lwt.catch

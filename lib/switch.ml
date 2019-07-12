@@ -45,6 +45,15 @@ let gc t =
     Log.err (fun f -> f "Switch %S GC'd while still on!" label);
     Lwt.async (fun () -> turn_off t @@ Error (`Msg "Switch GC'd while still on!"))
 
+let add_hook_or_fail t fn =
+  match t.state with
+  | `On (_, callbacks) ->
+    if Stack.is_empty callbacks then Gc.finalise gc t;
+    Stack.push fn callbacks
+  | `Off (Ok ()) -> Fmt.failwith "Switch already off!"
+  | `Off (Error (`Msg msg)) -> Fmt.failwith "Switch already off (%s)!" msg
+  | `Turning_off _ -> Fmt.failwith "Switch is being turned off!"
+
 let add_hook_or_exec t fn =
   match t.state with
   | `On (_, callbacks) ->

@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 type t = Fpath.t * out_channel
 
 let open_temp_file ~dir ~prefix ~suffix =
@@ -27,6 +25,7 @@ let fd (_, ch) =
   Unix.descr_of_out_channel ch
 
 let create ~switch ~label () =
+  if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
   let jobs_dir = Disk_store.state_dir "job" in
   let time = Unix.gettimeofday () |> Unix.gmtime in
   let date =
@@ -44,7 +43,7 @@ let create ~switch ~label () =
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
     let t = path, ch in
-    Switch.add_hook_or_exec switch (fun reason ->
+    Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
           | Error (`Msg m) ->
@@ -52,6 +51,5 @@ let create ~switch ~label () =
         end;
         close_out ch;
         Lwt.return_unit
-      )
-    >|= fun () ->
+      );
     t
