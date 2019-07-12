@@ -47,6 +47,7 @@ module Make(B : S.BUILDER) = struct
   type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
 
   type build = {
+    job_id : Current.Input.job_id;
     key : B.Key.t;
     build_number : int64;           (* Increments on rebuild *)
     switch : Current.Switch.t;      (* Turning this off aborts the build. *)
@@ -119,17 +120,16 @@ module Make(B : S.BUILDER) = struct
     let finished, set_finished = Lwt.wait () in
     let previous = Db.Build.lookup ~builder:B.id key_digest in
     match previous with
-    | Some previous when not previous.Db.Build.rebuild ->
+    | Some { Db.Build.rebuild = false; build = build_number; value; finished = fin_time; job_id } ->
       Log.info (fun f -> f "@[<hov2>Loaded cached result for@ %a@]" B.pp key);
       let v =
-        match previous.Db.Build.value with
+        match value with
         | Ok v -> Ok (B.Value.unmarshal v)
         | Error _ as e -> e
       in
-      Lwt.wakeup set_finished (v, previous.Db.Build.finished);
-      let build_number = previous.Db.Build.build in
+      Lwt.wakeup set_finished (v, fin_time);
       let switch = Current.Switch.create_off @@ Error (`Msg "Loaded from cache") in
-      { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
+      { job_id; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
     | _ ->
       let build_number =
         match previous with
@@ -138,7 +138,7 @@ module Make(B : S.BUILDER) = struct
       in
       let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
       let job = Job.create ~switch ~label:B.id () in
-      let build = { switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
+      let build = { job_id = Job.id job; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->
@@ -170,12 +170,12 @@ module Make(B : S.BUILDER) = struct
           )
       end
     in
-    Error `Pending, [watch]
+    Error `Pending, Some build.job_id, [watch]
 
   (* The build must be finished when calling this. *)
   let input_finished ~schedule build (value, finished) =
     match schedule.Schedule.valid_for with
-    | None -> (value :> B.Value.t Current_term.Output.t), []
+    | None -> (value :> B.Value.t Current_term.Output.t), Some build.job_id, []
     | Some duration ->
       let remaining_time = Duration.to_f duration +. finished -. !timestamp () in
       let changed =
@@ -202,7 +202,7 @@ module Make(B : S.BUILDER) = struct
           method release = ()
         end
       in
-      (value :> B.Value.t Current_term.Output.t), [watch]
+      (value :> B.Value.t Current_term.Output.t), Some build.job_id, [watch]
 
   let input build ~schedule =
     match Lwt.state build.finished with
@@ -263,7 +263,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   type output = {
     key : Op.Key.t;
-    mutable job_id : string option;       (* Current or last log *)
+    mutable job_id : Current.Input.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
     mutable ctx : Op.t;                   (* The context for [desired]. *)
@@ -409,8 +409,8 @@ module Output(Op : S.PUBLISHER) = struct
     in
     maybe_start ~config o;
     match o.op with
-    | `Finished -> Ok (), []
-    | `Error e -> (Error e :> unit Current_term.Output.t), []
+    | `Finished -> Ok (), o.job_id, []
+    | `Error e -> (Error e :> unit Current_term.Output.t), o.job_id, []
     | `Running op ->
       let watch =
         object
@@ -420,7 +420,7 @@ module Output(Op : S.PUBLISHER) = struct
           method release = ()
         end
       in
-      Error `Pending, [watch]
+      Error `Pending, o.job_id, [watch]
 
   let reset () =
     outputs := Outputs.empty;

@@ -48,13 +48,15 @@ module Input = struct
     method release : unit
   end
 
-  type 'a t = Config.t -> 'a Current_term.Output.t * watch list
+  type job_id = string
+
+  type 'a t = Config.t -> 'a Current_term.Output.t * job_id option * watch list
 
   type env = Config.t
 
   let of_fn t = t
 
-  let const x = of_fn @@ fun _env -> Ok x, []
+  let const x = of_fn @@ fun _env -> Ok x, None, []
 
   let get env (t : 'a t) = t env
 
@@ -98,7 +100,7 @@ module Var (T : Current_term.S.T) = struct
     component "%s" t.name |>
     let> () = return () in
     Input.of_fn @@ fun _env ->
-    t.current, [watch t]
+    t.current, None, [watch t]
 
   let set t v =
     t.current <- v;
@@ -228,7 +230,7 @@ end = struct
           if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
       end
     in
-    t.value, [watch]
+    t.value, None, [watch]
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in

@@ -11,12 +11,14 @@ module type INPUT = sig
   (** An input that was used while evaluating a term.
       If the input changes, the term should be re-evaluated. *)
 
+  type job_id
+
   type watch
 
   type env
   (** A context which the caller can associate with an execution. *)
 
-  val get : env -> 'a t -> 'a Output.t * watch list
+  val get : env -> 'a t -> 'a Output.t * job_id option * watch list
 end
 
 module type ANALYSIS = sig

@@ -42,17 +42,21 @@ module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
 
+  type job_id = string
+
   val const : 'a -> 'a t
   (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
 
-  val of_fn : (Config.t -> 'a Current_term.Output.t * watch list) -> 'a t
+  val of_fn : (Config.t -> 'a Current_term.Output.t * job_id option * watch list) -> 'a t
   (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will
       call [release] exactly once when each watch is no longer needed.
 
       Note: the engine calls [f] in an evaluation before calling [release]
       on the previous watches, so if the ref-count drops to zero then you can
-      cancel the job. *)
+      cancel the job.
+
+      [f] returns a tuple of [(value, id, watches)]. [id] is used to generate links in the diagrams. *)
 
   val pp_watch : watch Fmt.t
   (** [pp_watch f w] is [w#pp f]. *)
@@ -204,7 +208,7 @@ module Job : sig
   val log : t -> ('a, Format.formatter, unit, unit) format4 -> 'a
   (** [log t fmt] appends a formatted message to the log, with a newline added at the end. *)
 
-  val id : t -> string
+  val id : t -> Input.job_id
   (** [id t] is the unique identifier for this job. *)
 
   val fd : t -> Unix.file_descr
