@@ -110,14 +110,25 @@ module Make (Input : S.INPUT) = struct
     let fn = Dyn.pair a.fn b.fn in
     make md fn
 
-  let track i =
-    cache @@ fun ~env ctx ->
-    let v, _job, watch = Input.get ctx.user_env i in
-    ctx.inputs <- watch @ ctx.inputs;
-    make (An.of_output ~env v) (Dyn.of_output v)
-
   let bind_input ~info (f:'a -> 'b Input.t) (x:'a t) =
-    bind ~info (fun x -> track (f x)) x
+    cache @@ fun ~env ctx ->
+    let x = x ctx in
+    let md = An.bind ~env ~name:info x.md in
+    match Dyn.run x.fn with
+    | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
+    | Error (`Pending) -> make (md An.Active) Dyn.pending
+    | Ok y ->
+      let md = md An.Pass in
+      let input = f y in
+      let v, _job, watch = Input.get ctx.user_env input in
+      ctx.inputs <- watch @ ctx.inputs;
+      An.set_state md (
+        match v with
+        | Error (`Msg _) -> An.Fail
+        | Error (`Pending) -> An.Active
+        | Ok _ -> An.Pass
+      );
+      make md (Dyn.of_output v)
 
   module Syntax = struct
     let (let**) x f info = bind ~info f x
