@@ -84,6 +84,9 @@ to see the diagrams.
 A green box indicates a pipeline stage that succeeded, orange means
 in-progress, grey means cannot be started yet, and red means failed.
 
+Clicking on a box shows the log for that operation (though not all operations
+have logs; `head commit` doesn't, for example).
+
 ### Example 2 : `build_matrix.ml`
 
 [build_matrix.ml][] contains a slightly more advanced pipeline:
