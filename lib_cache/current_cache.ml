@@ -264,6 +264,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   type output = {
     key : Op.Key.t;
+    mutable job_id : string option;       (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
     mutable ctx : Op.t;                   (* The context for [desired]. *)
@@ -335,6 +336,7 @@ module Output(Op : S.PUBLISHER) = struct
            (fun () ->
               let pp_op f = pp_op f (output.key, op.value) in
               Job.create ~switch ~label:Op.id () >>= fun job ->
+              output.job_id <- Some (Job.id job);
               Job.log job "Publish: %t" pp_op;
               Lwt.catch
                 (fun () ->
@@ -348,7 +350,8 @@ module Output(Op : S.PUBLISHER) = struct
                 Job.log job "Publish(%t) : succeeded" pp_op;
                 output.current <- Some (Value.digest op.value);
                 output.op <- `Finished;
-                Db.Publish.record ~op:Op.id ~key:(Op.Key.digest output.key) (Value.digest op.value);
+                let job_id = Job.id job in
+                Db.Publish.record ~op:Op.id ~job_id ~key:(Op.Key.digest output.key) (Value.digest op.value);
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
                 maybe_start ~config output;
@@ -376,12 +379,12 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* Create a new in-memory [op], initialising it from the database. *)
   let get_op ctx key desired =
-    let current =
+    let current, job_id =
       match Db.Publish.lookup ~op:Op.id (Op.Key.digest key) with
-      | Some entry -> Some entry.Db.Publish.value
-      | None -> None
+      | Some { Db.Publish.value; job_id } -> Some value, Some job_id
+      | None -> None, None
     in
-    { key; current; desired; ctx; op = `Finished }
+    { key; current; desired; ctx; op = `Finished; job_id }
 
   let set ctx key value =
     Current.track @@

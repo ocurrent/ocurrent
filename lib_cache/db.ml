@@ -142,6 +142,7 @@ module Publish = struct
   }
 
   type entry = {
+    job_id : string;
     value : string;
   }
 
@@ -150,24 +151,26 @@ module Publish = struct
     Sqlite3.exec db "CREATE TABLE IF NOT EXISTS publish_cache ( \
                      op        TEXT NOT NULL, \
                      key       BLOB, \
+                     job_id    TEXT NOT NULL, \
                      value     BLOB, \
                      PRIMARY KEY (op, key))" |> or_fail "create table";
     let record = Sqlite3.prepare db "INSERT OR REPLACE INTO publish_cache \
-                                     (op, key, value) \
-                                     VALUES (?, ?, ?)" in
-    let lookup = Sqlite3.prepare db "SELECT value FROM publish_cache WHERE op = ? AND key = ?" in
+                                     (op, key, job_id, value) \
+                                     VALUES (?, ?, ?, ?)" in
+    let lookup = Sqlite3.prepare db "SELECT value, job_id FROM publish_cache WHERE op = ? AND key = ?" in
     let invalidate = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ? AND key = ?" in
     let drop = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ?" in
     { db; record; invalidate; drop; lookup }
   )
 
-  let record ~op ~key value =
+  let record ~op ~key ~job_id value =
     let t = Lazy.force db in
     Sqlite3.reset t.record |> or_fail "reset";
     let bind i v = Sqlite3.bind t.record i v |> or_fail "bind" in
     bind 1 (Sqlite3.Data.TEXT op);
     bind 2 (Sqlite3.Data.BLOB key);
-    bind 3 (Sqlite3.Data.BLOB value);
+    bind 3 (Sqlite3.Data.TEXT job_id);
+    bind 4 (Sqlite3.Data.BLOB value);
     exec t.record
 
   let invalidate ~op key =
@@ -190,7 +193,7 @@ module Publish = struct
       | Some _ -> Fmt.failwith "Multiple rows from lookup!"
       | None ->
         match row with
-        | [Sqlite3.Data.BLOB value] -> result := Some { value }
+        | [Sqlite3.Data.BLOB value; TEXT job_id] -> result := Some { value; job_id }
         | _ -> Fmt.failwith "Invalid row from lookup!"
     in
     exec ~cb t.lookup;
