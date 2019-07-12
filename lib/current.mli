@@ -210,6 +210,9 @@ module Job : sig
   val id : t -> Input.job_id
   (** [id t] is the unique identifier for this job. *)
 
+  val log_path : Input.job_id -> Fpath.t or_error
+  (** [log_path id] is the path of the log for job [id], if valid. *)
+
   val fd : t -> Unix.file_descr
 end
 

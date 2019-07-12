@@ -24,9 +24,27 @@ let id (path, _) =
 let fd (_, ch) =
   Unix.descr_of_out_channel ch
 
+let jobs_dir = lazy (Disk_store.state_dir "job")
+
+let log_path job_id =
+  let open Astring in
+  let jobs_dir = Lazy.force jobs_dir in
+  match String.cuts ~sep:"/" job_id with
+  | [date; file] when
+      not (String.is_prefix ~affix:"." date) &&
+      not (String.is_prefix ~affix:"." file) &&
+      String.is_suffix ~affix:".log" file ->
+    let path = Fpath.(jobs_dir / date / file) in
+    begin match Bos.OS.File.exists path with
+      | Ok true -> Ok path
+      | Ok false -> Error (`Msg (Fmt.strf "Job log %a does not exist" Fpath.pp path))
+      | Error _ as e -> e
+    end
+  | _ -> Error (`Msg (Fmt.strf "Invalid job ID %S" job_id))
+
 let create ~switch ~label () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
-  let jobs_dir = Disk_store.state_dir "job" in
+  let jobs_dir = Lazy.force jobs_dir in
   let time = Unix.gettimeofday () |> Unix.gmtime in
   let date =
     let { Unix.tm_year; tm_mon; tm_mday; _ } = time in

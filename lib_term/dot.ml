@@ -4,12 +4,14 @@ let list_bind f x =
 let pp_option f (name, v) =
   Fmt.pf f "%s=%S" name v
 
-let node f ?style ?shape ?bg i label =
+let node f ?style ?shape ?bg ?url i label =
   let attrs = [
     "label", Some label;
     "fillcolor", bg;
     "style", style;
-    "shape", shape
+    "shape", shape;
+    "URL", url;
+    "target", (if url = None then None else Some "_top");
   ] |> list_bind (function
       | _, None -> []
       | k, Some v -> [k, v]

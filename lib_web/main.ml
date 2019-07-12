@@ -16,7 +16,7 @@ let render { Current.Engine.value; analysis = _; watches } =
     (body [
         h1 [txt "OCurrent"];
         div [
-          img ~src:"/pipeline.svg" ~alt:"Pipeline diagram" ();
+          object_ ~a:[a_data "/pipeline.svg"] [txt "Pipeline diagram"];
         ];
         h2 [txt "Result"];
         p (render_result value);

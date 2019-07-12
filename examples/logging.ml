@@ -21,7 +21,8 @@ let with_dot ~dotfile f () =
   let dot_data =
     let+ a = Current.Analysis.get result in
     Logs.debug (fun f -> f "Pipeline: @[%a@]" Current.Analysis.pp a);
-    Fmt.strf "%a" Current.Analysis.pp_dot a
+    let url _ = None in
+    Fmt.strf "%a" (Current.Analysis.pp_dot ~url) a
   in
   let* () = Current_fs.save (Current.return dotfile) dot_data in
   result

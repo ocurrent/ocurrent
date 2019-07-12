@@ -39,8 +39,9 @@ module type ANALYSIS = sig
   val pp : t Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 
-  val pp_dot : t Fmt.t
-  (** [pp_dot] formats a [t] as a graphviz dot graph. *)
+  val pp_dot : url:(job_id -> string option) -> t Fmt.t
+  (** [pp_dot ~url] formats a [t] as a graphviz dot graph.
+      @param url Generates a URL from an ID. *)
 end
 
 module type TERM = sig

@@ -1,3 +1,3 @@
 (library
   (name current_web)
-  (libraries current lwt.unix cohttp-lwt-unix tyxml))
+  (libraries current current_cache lwt.unix cohttp-lwt-unix tyxml))

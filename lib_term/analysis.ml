@@ -177,7 +177,7 @@ module Make (Job : sig type id end) = struct
     outputs : int list;
   }
 
-  let pp_dot f x =
+  let pp_dot ~url f x =
     let next = ref 0 in
     let seen : out_node Id.Map.t ref = ref Id.Map.empty in
     let edge ?style ?color a b = Dot.edge f ?style ?color a b in
@@ -200,7 +200,9 @@ module Make (Job : sig type id end) = struct
           | Pass -> "#90ee90"
           | Fail -> "#ff4500"
         in
-        let node = Dot.node ~style:"filled" ~bg f in
+        let node ?id =
+          let url = match id with None -> None | Some id -> url id in
+          Dot.node ~style:"filled" ~bg ?url f in
         let outputs =
           match md.ty with
           | Constant when ctx = [] -> node i "(const)"; [i]
@@ -215,13 +217,13 @@ module Make (Job : sig type id end) = struct
             inputs |> List.iter (fun input -> input ==> i);
             ctx |> List.iter (fun input -> input ==> i);
             [i]
-          | Bind_input {x; info; id = _} ->
+          | Bind_input {x; info; id} ->
             let inputs =
               match x.ty with
               | Constant -> []
               | _ -> aux x
             in
-            node i info;
+            node ?id i info;
             inputs |> List.iter (fun input -> input ==> i);
             ctx |> List.iter (fun input -> input ==> i);
             [i]

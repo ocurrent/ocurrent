@@ -1,4 +1,5 @@
 open Lwt.Infix
+open Astring
 
 let src = Logs.Src.create "current_web" ~doc:"OCurrent web interface"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -10,8 +11,21 @@ let dot_to_svg = ("", [| "dot"; "-Tsvg" |])
 let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg -> Error (`Msg msg)
 
+let get_job date log =
+  match Current.Job.log_path @@ Fmt.strf "%s/%s" date log with
+  | Error (`Msg body) ->
+    Server.respond_error ~status:`Bad_request ~body ()
+  | Ok path ->
+    match Bos.OS.File.read path with
+    | Ok body ->
+      let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
+      Server.respond_string ~status:`OK ~headers ~body ()
+    | Error (`Msg body) ->
+      Server.respond_error ~status:`Internal_server_error ~body ()
+
 let render_svg a =
-  let dotfile = Fmt.to_to_string Current.Analysis.pp_dot a in
+  let url id = Some (Fmt.strf "/job/%s" id) in
+  let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~url) a in
   let proc = Lwt_process.open_process_full dot_to_svg in
   Lwt_io.write proc#stdin dotfile >>= fun () ->
   Lwt_io.close proc#stdin >>= fun () ->
@@ -34,12 +48,14 @@ let handle_request ~engine _conn request _body =
     let meth = Cohttp.Request.meth request in
     let path = Cohttp.Request.resource request in
     Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
-    match meth, path with
-    | `GET, "/" | `GET, "/index.html" ->
+    match meth, String.cuts ~sep:"/" ~empty:false path with
+    | `GET, ([] | ["index.html"]) ->
       let state = Current.Engine.state engine in
       let body = html_to_string (Main.render state) in
       Server.respond_string ~status:`OK ~body ()
-    | `GET, "/pipeline.svg" ->
+    | `GET, ["job"; date; log] ->
+      get_job date log
+    | `GET, ["pipeline.svg"] ->
       begin
         let state = Current.Engine.state engine in
         render_svg state.Current.Engine.analysis >>= function

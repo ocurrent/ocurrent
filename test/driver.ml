@@ -29,7 +29,8 @@ let with_analysis ~name ~i (t : unit Current.t) =
   let data =
     let+ a = Current.Analysis.get t in
     Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp a);
-    Fmt.strf "%a" Current.Analysis.pp_dot a
+    let url _ = None in
+    Fmt.strf "%a" (Current.Analysis.pp_dot ~url) a
   in
   let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
   let* () = Current_fs.save path data in
