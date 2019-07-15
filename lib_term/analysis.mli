@@ -20,7 +20,7 @@ module Make (Job : sig type id end) : sig
      passed to a [bind]. All static values created within this environment get an
      implicit dependency on [b]. *)
 
-  val return     : env:env -> unit -> t
+  val return     : env:env -> string option -> t
   val fail       : env:env -> unit -> t
   val state      : env:env -> t -> t
   val catch      : env:env -> t -> t

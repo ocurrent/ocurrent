@@ -15,16 +15,20 @@ digraph pipeline {
   n6 -> n1
   subgraph cluster_0 {
   n0 [label="map",shape="none"]
+  n11 [label="example.org/bar#222",fillcolor="#90ee90",style="filled"]
   n10 [label="fetch",fillcolor="#ffa500",style="filled"]
+  n11 -> n10
   n9 [label="build",fillcolor="#d3d3d3",style="filled"]
   n10 -> n9
   n8 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
   n9 -> n8
-  n13 [label="fetch",fillcolor="#ffa500",style="filled"]
-  n12 [label="build",fillcolor="#d3d3d3",style="filled"]
+  n15 [label="example.org/foo#111",fillcolor="#90ee90",style="filled"]
+  n14 [label="fetch",fillcolor="#ffa500",style="filled"]
+  n15 -> n14
+  n13 [label="build",fillcolor="#d3d3d3",style="filled"]
+  n14 -> n13
+  n12 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
   n13 -> n12
-  n11 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
-  n12 -> n11
   }
   n1 -> n0
   }

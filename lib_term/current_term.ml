@@ -51,9 +51,9 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (An.pending ~env ()) Dyn.pending
 
-  let return x =
+  let return ?label x =
     cache @@ fun ~env _ctx ->
-    make (An.return ~env ()) (Dyn.return x)
+    make (An.return ~env label) (Dyn.return x)
 
   let fail msg =
     cache @@ fun ~env _ctx ->
@@ -153,7 +153,7 @@ module Make (Input : S.INPUT) = struct
       and+ () = all xs in
       ()
 
-  let list_map f xs =
+  let list_map ~pp f xs =
     cache @@ fun ~env ctx ->
     let xs = xs ctx in
     match Dyn.run xs.fn with
@@ -167,15 +167,15 @@ module Make (Input : S.INPUT) = struct
       let rec aux = function
         | [] -> return []
         | x :: xs ->
-          let+ y = f (return x)
+          let+ y = f (return ~label:(Fmt.to_to_string pp x) x)
           and+ ys = aux xs in
           y :: ys
       in
       let results = aux items ctx in
       { results with md = An.list_map ~env ~f:results.md xs.md }
 
-  let list_iter f xs =
-    let+ (_ : unit list) = list_map f xs in
+  let list_iter ~pp f xs =
+    let+ (_ : unit list) = list_map ~pp f xs in
     ()
 
   let option_seq : 'a t option -> 'a option t = function
@@ -195,7 +195,7 @@ module Make (Input : S.INPUT) = struct
 
   let env =
     cache @@ fun ~env ctx ->
-    make (An.return ~env ()) (Dyn.return ctx.user_env)
+    make (An.return ~env None) (Dyn.return ctx.user_env)
 
   module Executor = struct
     let run ~env:user_env f =

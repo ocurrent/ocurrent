@@ -35,7 +35,7 @@ module Make (Job : sig type id end) = struct
     mutable state : state;
   }
   and metadata_ty =
-    | Constant
+    | Constant of string option
     | State of t
     | Catch of t
     | Bind of t * string
@@ -58,11 +58,11 @@ module Make (Job : sig type id end) = struct
     incr env.next;
     { id = Id.mint (); ty; bind = env.bind; state }
 
-  let return ~env () =
-    make ~env Constant Pass
+  let return ~env label =
+    make ~env (Constant label) Pass
 
   let fail ~env () =
-    make ~env Constant Fail
+    make ~env (Constant None) Fail
 
   let state ~env t =
     make ~env (State t) Pass
@@ -72,10 +72,10 @@ module Make (Job : sig type id end) = struct
     make ~env (Catch t) state
 
   let pending ~env () =
-    make ~env Constant Active
+    make ~env (Constant None) Active
 
   let of_output ~env = function
-    | Ok _ -> return ~env ()
+    | Ok _ -> return ~env None
     | Error `Msg _ -> fail ~env ()
     | Error `Pending -> pending ~env ()
 
@@ -87,7 +87,7 @@ module Make (Job : sig type id end) = struct
 
   let simplify x =
     match x.ty, x.bind with
-    | Constant, Some c -> c
+    | Constant None, Some c -> c
     | _ -> x
 
   let pair_state a b =
@@ -105,8 +105,8 @@ module Make (Job : sig type id end) = struct
       a.bind =? b.bind && b.bind =? env.bind
     in
     match single_context, a.ty, b.ty with
-    | true, Constant, _ -> b
-    | true, _, Constant -> a
+    | true, Constant None, _ -> b
+    | true, _, Constant None -> a
     | _ ->
       make ~env (Pair (a, b)) (pair_state a b)
 
@@ -156,11 +156,12 @@ module Make (Job : sig type id end) = struct
       else (
         seen := Id.Set.add md.id !seen;
         match md.ty with
-        | Constant ->
+        | Constant None ->
           begin match md.bind with
             | Some ctx -> aux f ctx
             | None -> Fmt.string f "(const)"
           end
+        | Constant (Some l) -> Fmt.string f l
         | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
         | Bind_input {x; info; id = _} -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
@@ -205,12 +206,13 @@ module Make (Job : sig type id end) = struct
           Dot.node ~style:"filled" ~bg ?url f in
         let outputs =
           match md.ty with
-          | Constant when ctx = [] -> node i "(const)"; [i]
-          | Constant -> ctx
+          | Constant (Some l) -> node i l; [i]
+          | Constant None when ctx = [] -> node i "(const)"; [i]
+          | Constant None -> ctx
           | Bind (x, name) ->
             let inputs =
               match x.ty with
-              | Constant -> []
+              | Constant None -> []
               | _ -> aux x
             in
             node i name;
@@ -220,7 +222,7 @@ module Make (Job : sig type id end) = struct
           | Bind_input {x; info; id} ->
             let inputs =
               match x.ty with
-              | Constant -> []
+              | Constant None -> []
               | _ -> aux x
             in
             node ?id i info;

@@ -57,8 +57,9 @@ module type TERM = sig
   val pending : unit -> 'a t
   (** [pending ()] is a term that never produces a result. *)
 
-  val return : 'a -> 'a t
-  (** [return x] is a term that immediately succeeds with [x]. *)
+  val return : ?label:string -> 'a -> 'a t
+  (** [return x] is a term that immediately succeeds with [x].
+      @param label Label the constant in the diagrams. *)
 
   val fail : string -> 'a t
   (** [fail m] is a term that immediately fails with message [m]. *)
@@ -101,11 +102,12 @@ module type TERM = sig
       behaves as the input [f y]. [info] is used to describe the operation
       in the analysis result. *)
 
-  val list_map : ('a t -> 'b t) -> 'a list t -> 'b list t
-  (** [list_map f xs] adds [f] to the end of each input term
-      and collects all the results into a single list. *)
+  val list_map : pp:'a Fmt.t -> ('a t -> 'b t) -> 'a list t -> 'b list t
+  (** [list_map ~pp f xs] adds [f] to the end of each input term
+      and collects all the results into a single list.
+      @param pp Label the instances. *)
 
-  val list_iter : ('a t -> unit t) -> 'a list t -> unit t
+  val list_iter : pp:'a Fmt.t -> ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
   val option_seq : 'a t option -> 'a option t

@@ -105,7 +105,7 @@ let v5 commit =
   let ok = test bin in
   Opam.revdeps src
   |> Current.gate ~on:ok
-  |> Current.list_iter (fun s -> s |> fetch |> build |> test)
+  |> Current.list_iter ~pp:(Git.Commit.pp) (fun s -> s |> fetch |> build |> test)
 
 let test_v5 _switch () =
   Driver.test ~name:"v5" (with_commit v5) @@ function
