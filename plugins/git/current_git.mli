@@ -24,6 +24,10 @@ module Commit : sig
 
   val marshal : t -> string
   val unmarshal : string -> t
+
+  val ancestor : t -> string -> t
+  (** [ancestor t hash] is like [t], but with [hash] as the commit.
+      [hash] must be an ancestor of [t] (this isn't checked currently). *)
 end
 
 val fetch : Commit_id.t Current.t -> Commit.t Current.t

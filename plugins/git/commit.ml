@@ -34,3 +34,6 @@ let unmarshal s =
   match Yojson.Safe.from_string s |> of_yojson with
   | Ok x -> x
   | Error e -> failwith e
+
+let ancestor t hash =
+  { t with id = { t.id with Commit_id.hash } }

@@ -1,0 +1,7 @@
+(library
+  (name current_sandmark)
+  (libraries current current.cache current_git)
+  (preprocess (per_module
+                ((pps ppx_deriving.std ppx_deriving_yojson) sandmark)
+                (future_syntax current_sandmark)
+              )))
