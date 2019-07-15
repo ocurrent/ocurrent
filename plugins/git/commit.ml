@@ -21,6 +21,9 @@ let compare a b = String.compare (id a) (id b)
 let equal a b = String.equal (id a) (id b)
 let pp = Fmt.using id Fmt.string
 
+let pp_short f t =
+  Fmt.string f @@ Astring.String.with_range ~len:6 (id t)
+
 let check_cached t =
   let hash = id t in
   let branch = Fmt.strf "fetch-%s" hash in

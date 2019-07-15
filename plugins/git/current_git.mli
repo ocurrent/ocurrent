@@ -19,6 +19,9 @@ module Commit : sig
   val equal : t -> t -> bool
   val pp : t Fmt.t
 
+  val pp_short : t Fmt.t
+  (** [pp_short] shows just the start of the hash. *)
+
   val marshal : t -> string
   val unmarshal : string -> t
 end
