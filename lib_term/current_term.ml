@@ -47,6 +47,10 @@ module Make (Input : S.INPUT) = struct
         last := Some (ctx, r);
         r
 
+  let blocked () =
+    cache @@ fun ~env _ctx ->
+    make (An.blocked ~env ()) Dyn.pending
+
   let pending () =
     cache @@ fun ~env _ctx ->
     make (An.pending ~env ()) Dyn.pending
@@ -159,7 +163,7 @@ module Make (Input : S.INPUT) = struct
     match Dyn.run xs.fn with
     | Error _ ->
       (* Not ready; use static version of map. *)
-      let f = f (pending ()) ctx in
+      let f = f (blocked ()) ctx in
       let md = An.list_map ~env ~f:f.md xs.md in
       make md Dyn.pending
     | Ok items ->

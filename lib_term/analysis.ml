@@ -58,6 +58,9 @@ module Make (Job : sig type id end) = struct
     incr env.next;
     { id = Id.mint (); ty; bind = env.bind; state }
 
+  let blocked ~env () =
+    make ~env (Constant None) Blocked
+
   let return ~env label =
     make ~env (Constant label) Pass
 
@@ -159,7 +162,7 @@ module Make (Job : sig type id end) = struct
         | Constant None ->
           begin match md.bind with
             | Some ctx -> aux f ctx
-            | None -> Fmt.string f "(const)"
+            | None -> Fmt.string f (if md.state = Blocked then "(input)" else "(const)")
           end
         | Constant (Some l) -> Fmt.string f l
         | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
@@ -207,7 +210,9 @@ module Make (Job : sig type id end) = struct
         let outputs =
           match md.ty with
           | Constant (Some l) -> node i l; [i]
-          | Constant None when ctx = [] -> node i "(const)"; [i]
+          | Constant None when ctx = [] ->
+            node i (if md.state = Blocked then "(input)" else "(const)");
+            [i]
           | Constant None -> ctx
           | Bind (x, name) ->
             let inputs =
