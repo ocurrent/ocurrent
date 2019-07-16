@@ -18,7 +18,7 @@ depends: [
   "irmin-watcher"
   "cmdliner"
   "dockerfile"
-  "ppx_deriving_yojson"
+  "ppx_deriving_yojson" {>= "3.5.1"}
   "sqlite3"
   "duration"
   "cohttp-lwt-unix"
