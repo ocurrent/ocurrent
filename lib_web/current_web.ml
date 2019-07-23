@@ -15,16 +15,49 @@ let respond_error status body =
   let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
   Server.respond_error ~status ~headers ~body ()
 
-let get_job date log =
-  let job_id = Fmt.strf "%s/%s" date log in
+type actions = <
+  rebuild : (unit -> unit) option;
+  cancel : (unit -> unit) option;
+>
+
+let lookup_actions ~engine job_id =
+  let state = Current.Engine.state engine in
+  let jobs = state.Current.Engine.jobs in
+  match Current.Job_map.find_opt job_id jobs with
+  | Some a -> (a :> actions)
+  | None ->
+    object
+      method rebuild = None
+      method cancel = None
+    end
+
+let get_job ~actions job_id =
   match Current.Job.log_path job_id with
   | Error (`Msg msg) -> respond_error `Bad_request msg
   | Ok path ->
     match Bos.OS.File.read path with
     | Error (`Msg msg) -> respond_error `Internal_server_error msg
-    | Ok body ->
-      let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
-      Server.respond_string ~status:`OK ~headers ~body ()
+    | Ok log ->
+      let body = Job.render ~actions ~job_id ~log in
+      let headers =
+        (* Otherwise, an nginx reverse proxy will wait for the whole log before sending anything. *)
+        Cohttp.Header.init_with "X-Accel-Buffering" "no"
+      in
+      Server.respond ~status:`OK ~headers ~body ()
+
+let cancel_job ~actions _job_id =
+  match actions#cancel with
+  | None -> respond_error `Bad_request "Job does not support cancel (already finished?)"
+  | Some cancel ->
+    cancel ();
+    Server.respond_redirect ~uri:(Uri.of_string "/") ()
+
+let rebuild_job ~actions _job_id =
+  match actions#rebuild with
+  | None -> respond_error `Bad_request "Job does not support rebuild"
+  | Some rebuild ->
+    rebuild ();
+    Server.respond_redirect ~uri:(Uri.of_string "/") ()
 
 let render_svg a =
   let url id = Some (Fmt.strf "/job/%s" id) in
@@ -55,7 +88,17 @@ let handle_request ~engine _conn request _body =
       let body = Main.dashboard state in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["job"; date; log] ->
-      get_job date log
+      let job_id = Fmt.strf "%s/%s" date log in
+      let actions = lookup_actions ~engine job_id in
+      get_job ~actions job_id
+    | `POST, ["job"; date; log; "rebuild"] ->
+      let job_id = Fmt.strf "%s/%s" date log in
+      let actions = lookup_actions ~engine job_id in
+      rebuild_job ~actions job_id
+    | `POST, ["job"; date; log; "cancel"] ->
+      let job_id = Fmt.strf "%s/%s" date log in
+      let actions = lookup_actions ~engine job_id in
+      cancel_job ~actions job_id
     | `GET, ["css"; "style.css"] ->
       Style.get ()
     | `GET, ["pipeline.svg"] ->
