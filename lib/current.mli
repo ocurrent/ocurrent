@@ -20,25 +20,25 @@ module Config : sig
   val cmdliner : t Cmdliner.Term.t
 end
 
+class type watch = object
+  method pp : Format.formatter -> unit
+  (** Format a message for the user explaining what is being waited on. *)
+
+  method changed : unit Lwt.t
+  (** A Lwt promise that resolves when the input has changed (and so terms
+      using it should be recalculated). *)
+
+  method cancel : (unit -> unit) option
+  (** A function to call if the user explicitly requests the operation be cancelled,
+      or [None] if it is not something that can be cancelled. *)
+
+  method release : unit
+  (** Called to release the caller's reference to the watch (reduce the
+      ref-count by 1). Some inputs may cancel a build if the ref-count
+      reaches zero. *)
+end
+
 module Input : sig
-  class type watch = object
-    method pp : Format.formatter -> unit
-    (** Format a message for the user explaining what is being waited on. *)
-
-    method changed : unit Lwt.t
-    (** A Lwt promise that resolves when the input has changed (and so terms
-        using it should be recalculated). *)
-
-    method cancel : (unit -> unit) option
-    (** A function to call if the user explicitly requests the operation be cancelled,
-        or [None] if it is not something that can be cancelled. *)
-
-    method release : unit
-    (** Called to release the caller's reference to the watch (reduce the
-        ref-count by 1). Some inputs may cancel a build if the ref-count
-        reaches zero. *)
-  end
-
   type 'a t
   (** An input that produces an ['a term]. *)
 
@@ -96,12 +96,12 @@ module Engine : sig
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : Input.watch list;
+    watches : watch list;
   }
 
   val create :
     ?config:Config.t ->
-    ?trace:(unit Current_term.Output.t -> Input.watch list -> unit Lwt.t) ->
+    ?trace:(unit Current_term.Output.t -> watch list -> unit Lwt.t) ->
     (unit -> unit term) ->
     t
   (** [create pipeline] is a new engine running [pipeline].

@@ -40,25 +40,38 @@ module Config = struct
     Term.(const make $ Arg.value cmdliner_confirm)
 end
 
-module Input = struct
-  class type watch = object
-    method pp : Format.formatter -> unit
-    method changed : unit Lwt.t
-    method cancel : (unit -> unit) option
-    method release : unit
-  end
+class type watch = object
+  method pp : Format.formatter -> unit
+  method changed : unit Lwt.t
+  method cancel : (unit -> unit) option
+  method release : unit
+end
 
+module Step = struct
+  type t = {
+    config : Config.t;
+    mutable watches : watch list;
+  }
+
+  let create config =
+    { config; watches = [] }
+end
+
+module Input = struct
   type job_id = string
 
   type 'a t = Config.t -> 'a Current_term.Output.t * job_id option * watch list
 
-  type env = Config.t
+  type env = Step.t
 
   let of_fn t = t
 
   let const x = of_fn @@ fun _env -> Ok x, None, []
 
-  let get env (t : 'a t) = t env
+  let get step (t : 'a t) =
+    let value, job_id, watches = t step.Step.config in
+    step.watches <- watches @ step.watches;
+    (value, job_id)
 
   let pp_watch f t = t#pp f
 end
@@ -119,7 +132,7 @@ module Engine = struct
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : Input.watch list;
+    watches : watch list;
   }
 
   type t = {
@@ -138,7 +151,9 @@ module Engine = struct
     let rec aux () =
       let old = !last_result in
       Log.debug (fun f -> f "Evaluating...");
-      let r, an, watches = Executor.run ~env:config f in
+      let step = Step.create config in
+      let r, an = Executor.run ~env:step f in
+      let watches = step.Step.watches in
       List.iter (fun w -> w#release) old.watches;
       last_result := {
         value = r;

@@ -12,7 +12,6 @@ module Make (Input : S.INPUT) = struct
   type context = {
     user_env : Input.env;
     default_env : An.env;
-    mutable inputs : Input.watch list;
   }
 
   type 'a t = context -> 'a node
@@ -124,8 +123,7 @@ module Make (Input : S.INPUT) = struct
     | Ok y ->
       let md = md An.Pass in
       let input = f y in
-      let v, id, watch = Input.get ctx.user_env input in
-      ctx.inputs <- watch @ ctx.inputs;
+      let v, id = Input.get ctx.user_env input in
       An.set_state md ?id (
         match v with
         | Error (`Msg _) -> An.Fail
@@ -204,14 +202,14 @@ module Make (Input : S.INPUT) = struct
   module Executor = struct
     let run ~env:user_env f =
       let default_env = An.make_env () in
-      let ctx = { default_env; user_env; inputs = [] } in
+      let ctx = { default_env; user_env } in
       try
         let x = f () ctx in
-        Dyn.run x.fn, x.md, ctx.inputs
+        Dyn.run x.fn, x.md
       with ex ->
         let fn = Dyn.fail (Printexc.to_string ex) |> Dyn.run in
         let md = An.fail ~env:default_env () in
-        fn, md, []
+        fn, md
   end
 
   module Analysis = struct

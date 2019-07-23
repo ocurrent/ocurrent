@@ -13,12 +13,10 @@ module type INPUT = sig
 
   type job_id
 
-  type watch
-
   type env
   (** A context which the caller can associate with an execution. *)
 
-  val get : env -> 'a t -> 'a Output.t * job_id option * watch list
+  val get : env -> 'a t -> 'a Output.t * job_id option
 end
 
 module type ANALYSIS = sig
@@ -158,17 +156,12 @@ module type EXECUTOR = sig
   type 'a term
   (** See [TERM]. *)
 
-  type watch
-  (** See [INPUT]. *)
-
   type env
   (** See [INPUT]. *)
 
   type analysis
   (** See [ANALYSIS]. *)
 
-  val run : env:env -> (unit -> 'a term) -> 'a Output.t * analysis * watch list
-  (** [run ~env f] evaluates term [f ()], returning the current output, its analysis,
-      and the set of inputs that were used during the evaluation. If any of the
-      inputs change, you should call [run] again to get the new results. *)
+  val run : env:env -> (unit -> 'a term) -> 'a Output.t * analysis
+  (** [run ~env f] evaluates term [f ()], returning the current output and its analysis. *)
 end
