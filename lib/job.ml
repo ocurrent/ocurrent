@@ -1,12 +1,18 @@
-type t = Fpath.t * out_channel
+type t = {
+  log : Fpath.t;
+  mutable ch : out_channel option;
+}
 
 let open_temp_file ~dir ~prefix ~suffix =
   let path, ch = Filename.open_temp_file ~temp_dir:(Fpath.to_string dir) prefix suffix in
   Fpath.v path, ch
 
-let write (_, ch) msg =
-  output_string ch msg;
-  flush ch
+let write t msg =
+  match t.ch with
+  | None -> Log.err (fun f -> f "Job.write(%a, %S) called on closed job" Fpath.pp t.log msg)
+  | Some ch ->
+    output_string ch msg;
+    flush ch
 
 let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
@@ -16,13 +22,15 @@ let log t fmt =
     (tm_year + 1900) (tm_mon + 1) tm_mday
     tm_hour tm_min tm_sec
 
-let id (path, _) =
-  match Fpath.split_base path with
+let id t =
+  match Fpath.split_base t.log with
   | parent_dir, leaf ->
     Fpath.(base parent_dir // leaf) |> Fpath.to_string
 
-let fd (_, ch) =
-  Unix.descr_of_out_channel ch
+let fd t =
+  match t.ch with
+  | None -> Fmt.failwith "Job.fd(%a) called on closed job" Fpath.pp t.log
+  | Some ch -> Unix.descr_of_out_channel ch
 
 let jobs_dir = lazy (Disk_store.state_dir "job")
 
@@ -60,7 +68,7 @@ let create ~switch ~label () =
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
-    let t = path, ch in
+    let t = {log = path; ch = Some ch} in
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
@@ -68,6 +76,7 @@ let create ~switch ~label () =
             log t "%s" m
         end;
         close_out ch;
+        t.ch <- None;
         Lwt.return_unit
       );
     t
