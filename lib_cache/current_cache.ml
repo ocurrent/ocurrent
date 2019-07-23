@@ -107,15 +107,20 @@ module Make(B : S.BUILDER) = struct
           ~job:(Job.id job)
           ~ready ~running:!running ~finished:(Unix.gmtime finished)
           result;
-        x, finished
+        finished
       in
-      match x with
-      | Ok v ->
-        Job.log job "Success";
-        record @@ Ok (B.Value.marshal v)
-      | Error (`Msg m) as e ->
-        Job.log job "Failed: %s" m;
-        record e
+      if Current.Switch.is_on build.switch then (
+        match x with
+        | Ok v ->
+          Job.log job "Success";
+          x, record @@ Ok (B.Value.marshal v)
+        | Error (`Msg m) as e ->
+          Job.log job "Failed: %s" m;
+          x, record e
+      ) else (
+        let x = Error (`Msg "Cancelled") in
+        x, record x
+      )
     )
 
   (* Create a new in-memory build object. Try to initialise it with the value from the disk-cache.
