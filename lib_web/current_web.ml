@@ -11,17 +11,20 @@ let dot_to_svg = ("", [| "dot"; "-Tsvg" |])
 let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg -> Error (`Msg msg)
 
+let respond_error status body =
+  let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
+  Server.respond_error ~status ~headers ~body ()
+
 let get_job date log =
-  match Current.Job.log_path @@ Fmt.strf "%s/%s" date log with
-  | Error (`Msg body) ->
-    Server.respond_error ~status:`Bad_request ~body ()
+  let job_id = Fmt.strf "%s/%s" date log in
+  match Current.Job.log_path job_id with
+  | Error (`Msg msg) -> respond_error `Bad_request msg
   | Ok path ->
     match Bos.OS.File.read path with
+    | Error (`Msg msg) -> respond_error `Internal_server_error msg
     | Ok body ->
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
       Server.respond_string ~status:`OK ~headers ~body ()
-    | Error (`Msg body) ->
-      Server.respond_error ~status:`Internal_server_error ~body ()
 
 let render_svg a =
   let url id = Some (Fmt.strf "/job/%s" id) in
@@ -36,13 +39,11 @@ let render_svg a =
   | Unix.WSTOPPED i
   | Unix.WSIGNALED i -> errorf "dot crashed (signal %d)" i
 
-let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
-
 let handle_request ~engine _conn request _body =
   match Lwt.state (Current.Engine.thread engine) with
   | Lwt.Fail ex ->
     let body = Fmt.strf "Engine has crashed: %a" Fmt.exn ex in
-    Server.respond_error ~status:`Internal_server_error ~body ()
+    respond_error `Internal_server_error body
   | Lwt.Return `Cant_happen -> assert false
   | Lwt.Sleep ->
     let meth = Cohttp.Request.meth request in
@@ -51,10 +52,12 @@ let handle_request ~engine _conn request _body =
     match meth, String.cuts ~sep:"/" ~empty:false path with
     | `GET, ([] | ["index.html"]) ->
       let state = Current.Engine.state engine in
-      let body = html_to_string (Main.render state) in
+      let body = Main.dashboard state in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["job"; date; log] ->
       get_job date log
+    | `GET, ["css"; "style.css"] ->
+      Style.get ()
     | `GET, ["pipeline.svg"] ->
       begin
         let state = Current.Engine.state engine in
@@ -63,8 +66,7 @@ let handle_request ~engine _conn request _body =
           let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in
           Server.respond_string ~status:`OK ~headers ~body ()
         | Error (`Msg msg) ->
-          let headers = Cohttp.Header.init_with "Content-Type" "text/plain" in
-          Server.respond_error ~status:`Internal_server_error ~headers ~body:msg ()
+          respond_error `Internal_server_error msg
       end
     | _ ->
       Server.respond_not_found ()
