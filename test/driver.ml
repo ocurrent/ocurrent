@@ -36,16 +36,38 @@ let with_analysis ~name ~i (t : unit Current.t) =
   let* () = Current_fs.save path data in
   t
 
-let current_watches = ref []
+let current_watches = ref { Current.Engine.
+                            value = Error `Pending;
+                            analysis = Current.Analysis.booting;
+                            watches = [];
+                            jobs = Current.Job_map.empty }
+
+let actions_of msg =
+  let name w = Fmt.strf "%a" Current.Engine.pp_metadata w in
+  let watches = (!current_watches).Current.Engine.watches in
+  match List.find_opt (fun w -> name w = msg) watches with
+  | None -> Fmt.failwith "No such watch %S." msg
+  | Some md ->
+    (* Check that the job is in the index too. *)
+    match Current.Engine.job_id md with
+    | None -> Fmt.failwith "Job %S does not have an ID!" msg
+    | Some job_id ->
+      let jobs = (!current_watches).Current.Engine.jobs in
+      match Current.Job_map.find_opt job_id jobs with
+      | None -> Fmt.failwith "Job %S is not in the index! Have @[%a@]"
+                  job_id
+                  Fmt.(Dump.list string) (Current.Job_map.bindings jobs |> List.map fst)
+      | Some actions -> actions
 
 let cancel msg =
-  let name w = Fmt.strf "%a" Current.Engine.pp_metadata w in
-  match List.find_opt (fun w -> name w = msg) !current_watches with
-  | None -> Fmt.failwith "No such watch %S." msg
-  | Some w ->
-    match (Current.Engine.actions w)#cancel with
-    | Some c -> c ()
-    | None -> Fmt.failwith "Watch %S cannot be cancelled" msg
+  match (actions_of msg)#cancel with
+  | Some c -> c ()
+  | None -> Fmt.failwith "Watch %S cannot be cancelled" msg
+
+let rebuild msg =
+  match (actions_of msg)#rebuild with
+  | None -> Fmt.failwith "Job %S cannot be rebuilt!" msg
+  | Some rebuild -> rebuild ()
 
 let ready i = Current.Engine.is_stale i
 
@@ -57,8 +79,9 @@ let test ?config ~name v actions =
   Docker.reset ();
   (* Perform an initial analysis: *)
   let i = ref 1 in
-  let trace x watches =
-    current_watches := watches;
+  let trace step_result =
+    current_watches := step_result;
+    let { Current.Engine.watches; value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
     Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Engine.pp_metadata) watches);
     begin

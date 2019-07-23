@@ -11,7 +11,10 @@ val test :
     first call). If [actions i] raises [Exit] then the tests finish. *)
 
 val cancel : string -> unit
-(** [cancel msg] cancels the watch named [msg]. *)
+(** [cancel msg] cancels the job named [msg]. *)
+
+val rebuild : string -> unit
+(** [rebuild msg] triggers a rebuild of the job named [msg]. *)
 
 exception Expect_skip
 (** The [actions] callback can raise this if it's OK if the next step's inputs

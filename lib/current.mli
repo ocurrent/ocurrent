@@ -30,6 +30,10 @@ class type actions = object
   (** A function to call if the user explicitly requests the operation be cancelled,
       or [None] if it is not something that can be cancelled. *)
 
+  method rebuild : (unit -> unit) option
+  (** A function to call if the user explicitly requests the operation be done again,
+      or [None] if it is not something that can be repeated. *)
+
   method release : unit
   (** Called to release the caller's reference to the watch (reduce the
       ref-count by 1). Some inputs may cancel a build if the ref-count
@@ -110,7 +114,7 @@ module Engine : sig
 
   val create :
     ?config:Config.t ->
-    ?trace:(unit Current_term.Output.t -> metadata list -> unit Lwt.t) ->
+    ?trace:(results -> unit Lwt.t) ->
     (unit -> unit term) ->
     t
   (** [create pipeline] is a new engine running [pipeline].
@@ -125,6 +129,8 @@ module Engine : sig
       Use this to monitor the engine (in case it crashes). *)
 
   val actions : metadata -> actions
+
+  val job_id : metadata -> job_id option
 
   val is_stale : metadata -> bool
   (** [is_stale m] is [true] if this job has signalled that

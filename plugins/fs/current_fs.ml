@@ -11,6 +11,7 @@ let save path value =
   let actions = object
     method pp f = Fmt.pf f "Save %a" Fpath.pp path
     method cancel = None
+    method rebuild = None
     method release = ()
   end in
   match Bos.OS.File.read path with

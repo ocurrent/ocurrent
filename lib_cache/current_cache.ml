@@ -2,6 +2,11 @@ open Lwt.Infix
 
 module Job = Current.Job
 
+let rebuild_cond = Lwt_condition.create ()
+(* This triggers when the user invalidates an entry and we should re-evaluate.
+   Ideally this condition would be per-job, but since we currently re-evaluate
+   everything anyway, a global is fine. *)
+
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
 
@@ -161,6 +166,7 @@ module Make(B : S.BUILDER) = struct
       object
         method pp f = B.pp f build.key
         method cancel = Some (cancel ~msg:"Cancelled by user")
+        method rebuild = None
         method release =
           build.ref_count <- build.ref_count - 1;
           if build.ref_count = 0 && B.auto_cancel && is_running build then (
@@ -174,13 +180,19 @@ module Make(B : S.BUILDER) = struct
 
   (* The build must be finished when calling this. *)
   let input_finished ~schedule build (value, finished) =
+    let rebuild () =
+      invalidate build.key;
+      Lwt_condition.broadcast rebuild_cond ()
+    in
+    let rebuild_requested = Lwt_condition.wait rebuild_cond in
     match schedule.Schedule.valid_for with
     | None ->
       (value :> B.Value.t Current_term.Output.t),
-      Current.Input.metadata ~job_id:build.job_id @@
+      Current.Input.metadata ~job_id:build.job_id ~changed:rebuild_requested @@
       object
         method pp f = B.pp f build.key
         method cancel = None
+        method rebuild = Some rebuild
         method release = ()
       end
     | Some duration ->
@@ -194,6 +206,7 @@ module Make(B : S.BUILDER) = struct
           !sleep remaining_time
         )
       in
+      let changed = Lwt.choose [changed; rebuild_requested] in
       (value :> B.Value.t Current_term.Output.t),
       Current.Input.metadata ~job_id:build.job_id ~changed @@
       object
@@ -206,6 +219,7 @@ module Make(B : S.BUILDER) = struct
               pp_duration_rough (Duration.of_f remaining_time)
 
         method cancel = None
+        method rebuild = Some rebuild
         method release = ()
       end
 
@@ -298,6 +312,11 @@ module Output(Op : S.PUBLISHER) = struct
           pp_op (output.key, op.value)
           pp_desired output
 
+  (* Caller needs to notify about the change, if needed. *)
+  let invalidate output =
+    output.current <- None;
+    Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key)
+
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. *)
   let rec maybe_start ~config output =
@@ -326,8 +345,7 @@ module Output(Op : S.PUBLISHER) = struct
         (* Either we don't know the current state, or we know we want something different.
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
-        output.current <- None;
-        Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key);
+        invalidate output;
         output.op <- `Running (publish ~config output)
   and publish ~config output =
     let finished, set_finished = Lwt.wait () in
@@ -417,10 +435,16 @@ module Output(Op : S.PUBLISHER) = struct
       match o.job_id with
       | None -> assert false
       | Some job_id ->
-        x, Current.Input.metadata ~job_id @@
+        let rebuild () =
+          invalidate o;
+          Lwt_condition.broadcast rebuild_cond ()
+        in
+        let changed = Lwt_condition.wait rebuild_cond in
+        x, Current.Input.metadata ~job_id ~changed @@
         object
           method pp f = pp_output f o
           method cancel = None
+          method rebuild = Some rebuild
           method release = ()
         end
     in
@@ -432,6 +456,7 @@ module Output(Op : S.PUBLISHER) = struct
       object
         method pp f = pp_output f o
         method cancel = None
+        method rebuild = None
         method release = ()
       end
 

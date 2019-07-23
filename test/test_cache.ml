@@ -108,11 +108,19 @@ let basic _switch () =
   Driver.test ~name:"cache" (pipeline builds) @@ function
   | 1 ->
     let b = Builds.find "a" !builds in
+    builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
     Lwt.wakeup b @@ Ok "done"
   | 2 -> 
     Alcotest.(check string) "Result correct" "done" !result;
     Alcotest.check database "Result stored" ["a", Ok "done", 0, 0, 1] @@ disk_cache ();
+    Driver.rebuild "a";
+  | 3 ->
+    let b = Builds.find "a" !builds in
+    builds := Builds.remove "a" !builds;
+    Lwt.wakeup b @@ Ok "rebuild"
+  | 4 ->
+    Alcotest.(check string) "Rebuild result" "rebuild" !result;
     raise Exit
   | _ ->
     assert false
@@ -315,6 +323,12 @@ let output_autocancel _switch () =
     Alcotest.(check string) "Changed during publish" "cancelled-changing" p.Publish.state;
     Publish.complete p @@ Ok ();
   | 5 ->
+    Alcotest.(check string) "Success" "new" p.Publish.state;
+    Driver.rebuild "Set foo to new (completed)";
+  | 6 ->
+    Alcotest.(check string) "Re-publish has started" "new-changing" p.Publish.state;
+    Publish.complete p @@ Ok ();
+  | 7 ->
     Alcotest.(check string) "Success" "new" p.Publish.state;
     raise Exit
   | _ ->

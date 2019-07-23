@@ -47,6 +47,7 @@ type job_id = string
 class type actions = object
   method pp : Format.formatter -> unit
   method cancel : (unit -> unit) option
+  method rebuild : (unit -> unit) option
   method release : unit
 end
 
@@ -90,6 +91,7 @@ module Input = struct
     Ok x, metadata @@ object
       method pp f = Fmt.string f "Input.const"
       method cancel = None
+      method rebuild = None
       method release = ()
     end
 
@@ -128,6 +130,7 @@ module Var (T : Current_term.S.T) = struct
     object
       method pp f = Fmt.string f t.name
       method cancel = None
+      method rebuild = None
       method release = ()
     end
 
@@ -140,9 +143,12 @@ module Var (T : Current_term.S.T) = struct
     Lwt_condition.broadcast t.cond ()
 end
 
-let default_trace r _inputs =
-  Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r);
-  Lwt.return_unit
+let rec filter_map f = function
+  | [] -> []
+  | x :: xs ->
+    match f x with
+    | None -> filter_map f xs
+    | Some y -> y :: filter_map f xs
 
 module Engine = struct
   type metadata = job_metadata
@@ -166,12 +172,9 @@ module Engine = struct
     jobs = Job_map.empty;
   }
 
-  let rec filter_map f = function
-    | [] -> []
-    | x :: xs ->
-      match f x with
-      | None -> filter_map f xs
-      | Some y -> y :: filter_map f xs
+  let default_trace r =
+    Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r.value);
+    Lwt.return_unit
 
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
@@ -188,7 +191,7 @@ module Engine = struct
         watches;
         jobs = step.Step.jobs;
       };
-      trace r watches >>= fun () ->
+      trace !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (filter_map (fun w -> w.changed) watches) >>= fun () ->
       aux ()
@@ -205,6 +208,8 @@ module Engine = struct
   let thread t = t.thread
 
   let actions m = m.actions
+
+  let job_id m = m.job_id
 
   let pp_metadata f m = m.actions#pp f
 
@@ -274,6 +279,7 @@ end = struct
     t.value, Input.metadata ~changed @@
     object
       method cancel = None
+      method rebuild = None   (* Might be useful to implement this *)
       method pp f = t.pp f
       method release =
         assert (t.ref_count > 0);
