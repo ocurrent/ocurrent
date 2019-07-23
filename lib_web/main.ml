@@ -10,7 +10,7 @@ let render_result = function
   | Error `Pending -> [txt "Pending..."]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]
 
-let render { Current.Engine.value; analysis = _; watches } =
+let render { Current.Engine.value; analysis = _; watches; jobs = _ } =
   html
     (head (title (txt "OCurrent")) [])
     (body [

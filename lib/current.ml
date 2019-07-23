@@ -2,6 +2,8 @@ open Lwt.Infix
 
 type 'a or_error = ('a, [`Msg of string]) result
 
+module Job_map = Map.Make(String)
+
 module Config = struct
   type t = {
     mutable confirm : Level.t option;
@@ -57,11 +59,16 @@ type job_metadata = {
 module Step = struct
   type t = {
     config : Config.t;
+    mutable jobs : actions Job_map.t;
     mutable watches : job_metadata list;
   }
 
   let create config =
-    { config; watches = [] }
+    let jobs = Job_map.empty in
+    { config; jobs; watches = [] }
+
+  let register_job t id actions =
+    t.jobs <- Job_map.add id actions t.jobs
 end
 
 module Input = struct
@@ -88,8 +95,12 @@ module Input = struct
 
   let get step (t : 'a t) =
     let value, metadata = t step.Step.config in
-    let { job_id; changed = _; actions = _ } = metadata in
+    let { job_id; changed = _; actions } = metadata in
     step.watches <- metadata :: step.watches;
+    begin match job_id with
+      | None -> ()
+      | Some job_id -> Step.register_job step job_id actions
+    end;
     (value, job_id)
 end
 
@@ -140,6 +151,7 @@ module Engine = struct
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
     watches : metadata list;
+    jobs : actions Job_map.t;
   }
 
   type t = {
@@ -151,6 +163,7 @@ module Engine = struct
     value = Error (`Pending);
     analysis = Analysis.booting;
     watches = [];
+    jobs = Job_map.empty;
   }
 
   let rec filter_map f = function
@@ -173,6 +186,7 @@ module Engine = struct
         value = r;
         analysis = an;
         watches;
+        jobs = step.Step.jobs;
       };
       trace r watches >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");

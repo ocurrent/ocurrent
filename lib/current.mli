@@ -66,6 +66,8 @@ module Input : sig
       cancel the job. *)
 end
 
+module Job_map : Map.S with type key = job_id
+
 val monitor :
   read:(unit -> 'a or_error Lwt.t) ->
   watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
@@ -103,6 +105,7 @@ module Engine : sig
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
     watches : metadata list;
+    jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
   }
 
   val create :
