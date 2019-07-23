@@ -20,13 +20,11 @@ module Config : sig
   val cmdliner : t Cmdliner.Term.t
 end
 
-class type watch = object
+type job_id = string
+
+class type actions = object
   method pp : Format.formatter -> unit
   (** Format a message for the user explaining what is being waited on. *)
-
-  method changed : unit Lwt.t
-  (** A Lwt promise that resolves when the input has changed (and so terms
-      using it should be recalculated). *)
 
   method cancel : (unit -> unit) option
   (** A function to call if the user explicitly requests the operation be cancelled,
@@ -42,24 +40,30 @@ module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
 
-  type job_id = string
+  type metadata
+  (** Information about a value of the input at some point. *)
 
   val const : 'a -> 'a t
   (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
 
-  val of_fn : (Config.t -> 'a Current_term.Output.t * job_id option * watch list) -> 'a t
+  val metadata :
+    ?job_id:job_id ->
+    ?changed:unit Lwt.t ->
+    actions -> metadata
+  (** [metadata actions] is used to provide metadata about a value.
+      @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
+      @param changed A Lwt promise that resolves when the input has changed (and so terms
+                     using it should be recalculated).
+      @param actions Ways to interact with this input. *)
+
+  val of_fn : (Config.t -> 'a Current_term.Output.t * metadata) -> 'a t
   (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will
       call [release] exactly once when each watch is no longer needed.
 
       Note: the engine calls [f] in an evaluation before calling [release]
       on the previous watches, so if the ref-count drops to zero then you can
-      cancel the job.
-
-      [f] returns a tuple of [(value, id, watches)]. [id] is used to generate links in the diagrams. *)
-
-  val pp_watch : watch Fmt.t
-  (** [pp_watch f w] is [w#pp f]. *)
+      cancel the job. *)
 end
 
 val monitor :
@@ -88,20 +92,22 @@ type 'a term = 'a t
 
 module Analysis : Current_term.S.ANALYSIS with
   type 'a term := 'a t and
-  type job_id := Input.job_id
+  type job_id := job_id
 
 module Engine : sig
   type t
 
+  type metadata
+
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : watch list;
+    watches : metadata list;
   }
 
   val create :
     ?config:Config.t ->
-    ?trace:(unit Current_term.Output.t -> watch list -> unit Lwt.t) ->
+    ?trace:(unit Current_term.Output.t -> metadata list -> unit Lwt.t) ->
     (unit -> unit term) ->
     t
   (** [create pipeline] is a new engine running [pipeline].
@@ -114,6 +120,14 @@ module Engine : sig
   val thread : t -> 'a Lwt.t
   (** [thread t] is the engine's thread.
       Use this to monitor the engine (in case it crashes). *)
+
+  val actions : metadata -> actions
+
+  val is_stale : metadata -> bool
+  (** [is_stale m] is [true] if this job has signalled that
+      it should be re-evaluated. Provided for unit-tests. *)
+
+  val pp_metadata : metadata Fmt.t
 end
 
 module Var (T : Current_term.S.T) : sig
@@ -207,13 +221,15 @@ module Job : sig
   val log : t -> ('a, Format.formatter, unit, unit) format4 -> 'a
   (** [log t fmt] appends a formatted message to the log, with a newline added at the end. *)
 
-  val id : t -> Input.job_id
+  val id : t -> job_id
   (** [id t] is the unique identifier for this job. *)
 
-  val log_path : Input.job_id -> Fpath.t or_error
+  val log_path : job_id -> Fpath.t or_error
   (** [log_path id] is the path of the log for job [id], if valid. *)
 
   val fd : t -> Unix.file_descr
+
+  val pp_id : job_id Fmt.t
 end
 
 module Process : sig

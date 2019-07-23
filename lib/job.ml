@@ -71,3 +71,5 @@ let create ~switch ~label () =
         Lwt.return_unit
       );
     t
+
+let pp_id = Fmt.string

@@ -8,17 +8,22 @@ let save path value =
   let> path = path
   and> value = value in
   Current.Input.of_fn @@ fun _env ->
-  let return x = x, None, [] in
+  let actions = object
+    method pp f = Fmt.pf f "Save %a" Fpath.pp path
+    method cancel = None
+    method release = ()
+  end in
   match Bos.OS.File.read path with
   | Ok old when old = value ->
     Log.info (fun f -> f "No change for %a" Fpath.pp path);
-    return (Ok ())
+    Ok (), Current.Input.metadata actions
   | Error _ as e when Bos.OS.File.exists path = Ok true ->
-    return e
+    e, Current.Input.metadata actions
   | _ ->
     (* Old contents differ, or file doesn't exist. *)
     match Bos.OS.File.write path value with
     | Ok () ->
       Log.info (fun f -> f "Updated %a" Fpath.pp path);
-      return (Ok ())
-    | Error _ as e -> return e
+      Ok (), Current.Input.metadata actions
+    | Error _ as e ->
+      e, Current.Input.metadata actions

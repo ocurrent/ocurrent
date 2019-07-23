@@ -47,7 +47,7 @@ module Make(B : S.BUILDER) = struct
   type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
 
   type build = {
-    job_id : Current.Input.job_id;
+    job_id : Current.job_id;
     key : B.Key.t;
     build_number : int64;           (* Increments on rebuild *)
     switch : Current.Switch.t;      (* Turning this off aborts the build. *)
@@ -157,10 +157,9 @@ module Make(B : S.BUILDER) = struct
     let cancel ~msg () =
       Lwt.async (fun () -> Current.Switch.turn_off build.switch @@ Error (`Msg msg))
     in
-    let watch =
+    let actions =
       object
         method pp f = B.pp f build.key
-        method changed = Lwt.map ignore build.finished
         method cancel = Some (cancel ~msg:"Cancelled by user")
         method release =
           build.ref_count <- build.ref_count - 1;
@@ -170,12 +169,20 @@ module Make(B : S.BUILDER) = struct
           )
       end
     in
-    Error `Pending, Some build.job_id, [watch]
+    let changed = Lwt.map ignore build.finished in
+    Error `Pending, Current.Input.metadata ~job_id:build.job_id ~changed actions
 
   (* The build must be finished when calling this. *)
   let input_finished ~schedule build (value, finished) =
     match schedule.Schedule.valid_for with
-    | None -> (value :> B.Value.t Current_term.Output.t), Some build.job_id, []
+    | None ->
+      (value :> B.Value.t Current_term.Output.t),
+      Current.Input.metadata ~job_id:build.job_id @@
+      object
+        method pp f = B.pp f build.key
+        method cancel = None
+        method release = ()
+      end
     | Some duration ->
       let remaining_time = Duration.to_f duration +. finished -. !timestamp () in
       let changed =
@@ -187,22 +194,20 @@ module Make(B : S.BUILDER) = struct
           !sleep remaining_time
         )
       in
-      let watch =
-        object
-          method pp f =
-            if remaining_time <= 0.0 then
-              Fmt.pf f "%a (expired)" B.pp build.key
-            else
-              Fmt.pf f "%a will be invalid after %a"
-                B.pp build.key
-                pp_duration_rough (Duration.of_f remaining_time)
+      (value :> B.Value.t Current_term.Output.t),
+      Current.Input.metadata ~job_id:build.job_id ~changed @@
+      object
+        method pp f =
+          if remaining_time <= 0.0 then
+            Fmt.pf f "%a (expired)" B.pp build.key
+          else
+            Fmt.pf f "%a will be invalid after %a"
+              B.pp build.key
+              pp_duration_rough (Duration.of_f remaining_time)
 
-          method changed = changed
-          method cancel = None
-          method release = ()
-        end
-      in
-      (value :> B.Value.t Current_term.Output.t), Some build.job_id, [watch]
+        method cancel = None
+        method release = ()
+      end
 
   let input build ~schedule =
     match Lwt.state build.finished with
@@ -263,7 +268,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   type output = {
     key : Op.Key.t;
-    mutable job_id : Current.Input.job_id option; (* Current or last log *)
+    mutable job_id : Current.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
     mutable ctx : Op.t;                   (* The context for [desired]. *)
@@ -408,19 +413,27 @@ module Output(Op : S.PUBLISHER) = struct
         o
     in
     maybe_start ~config o;
-    match o.op with
-    | `Finished -> Ok (), o.job_id, []
-    | `Error e -> (Error e :> unit Current_term.Output.t), o.job_id, []
-    | `Running op ->
-      let watch =
+    let resolved x =
+      match o.job_id with
+      | None -> assert false
+      | Some job_id ->
+        x, Current.Input.metadata ~job_id @@
         object
           method pp f = pp_output f o
-          method changed = op.finished
           method cancel = None
           method release = ()
         end
-      in
-      Error `Pending, o.job_id, [watch]
+    in
+    match o.op with
+    | `Finished -> resolved (Ok ())
+    | `Error e -> resolved (Error e :> unit Current_term.Output.t)
+    | `Running op ->
+      Error `Pending, Current.Input.metadata ?job_id:o.job_id ~changed:op.finished @@
+      object
+        method pp f = pp_output f o
+        method cancel = None
+        method release = ()
+      end
 
   let reset () =
     outputs := Outputs.empty;

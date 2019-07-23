@@ -1,6 +1,6 @@
 open Tyxml.Html
 
-let string_of_watch = Fmt.to_to_string Current.Input.pp_watch
+let string_of_watch = Fmt.to_to_string Current.Engine.pp_metadata
 
 let render_watch w =
   li [txt (string_of_watch w)]

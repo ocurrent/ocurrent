@@ -40,17 +40,24 @@ module Config = struct
     Term.(const make $ Arg.value cmdliner_confirm)
 end
 
-class type watch = object
+type job_id = string
+
+class type actions = object
   method pp : Format.formatter -> unit
-  method changed : unit Lwt.t
   method cancel : (unit -> unit) option
   method release : unit
 end
 
+type job_metadata = {
+  job_id : job_id option;
+  changed : unit Lwt.t option;
+  actions : actions;
+}
+
 module Step = struct
   type t = {
     config : Config.t;
-    mutable watches : watch list;
+    mutable watches : job_metadata list;
   }
 
   let create config =
@@ -58,22 +65,32 @@ module Step = struct
 end
 
 module Input = struct
-  type job_id = string
+  type nonrec job_id = job_id
 
-  type 'a t = Config.t -> 'a Current_term.Output.t * job_id option * watch list
+  type metadata = job_metadata
+
+  type 'a t = Config.t -> 'a Current_term.Output.t * metadata
 
   type env = Step.t
 
   let of_fn t = t
 
-  let const x = of_fn @@ fun _env -> Ok x, None, []
+  let metadata ?job_id ?changed actions =
+    { job_id; changed; actions }
+
+  let const x =
+    of_fn @@ fun _env ->
+    Ok x, metadata @@ object
+      method pp f = Fmt.string f "Input.const"
+      method cancel = None
+      method release = ()
+    end
 
   let get step (t : 'a t) =
-    let value, job_id, watches = t step.Step.config in
-    step.watches <- watches @ step.watches;
+    let value, metadata = t step.Step.config in
+    let { job_id; changed = _; actions = _ } = metadata in
+    step.watches <- metadata :: step.watches;
     (value, job_id)
-
-  let pp_watch f t = t#pp f
 end
 
 include Current_term.Make(Input)
@@ -90,30 +107,18 @@ module Var (T : Current_term.S.T) = struct
   let create ~name current =
     { current; name; cond = Lwt_condition.create () }
 
-  let watch t =
-    let v = t.current in
-    object
-      method pp f = Fmt.string f t.name
-
-      method changed =
-        let rec aux () =
-          if Current_term.Output.equal T.equal t.current v then
-            Lwt_condition.wait t.cond >>= aux
-          else
-            Lwt.return ()
-        in aux ()
-
-      method release = ()
-
-      method cancel = None
-    end
-
   let get t =
     let open Syntax in
     component "%s" t.name |>
     let> () = return () in
     Input.of_fn @@ fun _env ->
-    t.current, None, [watch t]
+    let changed = Lwt_condition.wait t.cond in
+    t.current, Input.metadata ~changed @@
+    object
+      method pp f = Fmt.string f t.name
+      method cancel = None
+      method release = ()
+    end
 
   let set t v =
     t.current <- v;
@@ -129,10 +134,12 @@ let default_trace r _inputs =
   Lwt.return_unit
 
 module Engine = struct
+  type metadata = job_metadata
+
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : watch list;
+    watches : metadata list;
   }
 
   type t = {
@@ -146,6 +153,13 @@ module Engine = struct
     watches = [];
   }
 
+  let rec filter_map f = function
+    | [] -> []
+    | x :: xs ->
+      match f x with
+      | None -> filter_map f xs
+      | Some y -> y :: filter_map f xs
+
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
     let rec aux () =
@@ -154,7 +168,7 @@ module Engine = struct
       let step = Step.create config in
       let r, an = Executor.run ~env:step f in
       let watches = step.Step.watches in
-      List.iter (fun w -> w#release) old.watches;
+      List.iter (fun w -> w.actions#release) old.watches;
       last_result := {
         value = r;
         analysis = an;
@@ -162,7 +176,7 @@ module Engine = struct
       };
       trace r watches >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
-      Lwt.choose (List.map (fun w -> w#changed) watches) >>= fun () ->
+      Lwt.choose (filter_map (fun w -> w.changed) watches) >>= fun () ->
       aux ()
     in
     let thread =
@@ -175,6 +189,15 @@ module Engine = struct
   let state t = !(t.last_result)
 
   let thread t = t.thread
+
+  let actions m = m.actions
+
+  let pp_metadata f m = m.actions#pp f
+
+  let is_stale m =
+    match m.changed with
+    | Some p -> Lwt.state p <> Lwt.Sleep
+    | None -> false
 end
 
 module Monitor : sig
@@ -234,18 +257,15 @@ end = struct
       Lwt.async (fun () -> enable t >|= fun `Finished -> ())
     );  (* (else the previous thread will check [ref_count] before exiting) *)
     let changed = Lwt_condition.wait t.external_cond in
-    let watch =
-      object
-        method changed = changed
-        method cancel = None
-        method pp f = t.pp f
-        method release =
-          assert (t.ref_count > 0);
-          t.ref_count <- t.ref_count - 1;
-          if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
-      end
-    in
-    t.value, None, [watch]
+    t.value, Input.metadata ~changed @@
+    object
+      method cancel = None
+      method pp f = t.pp f
+      method release =
+        assert (t.ref_count > 0);
+        t.ref_count <- t.ref_count - 1;
+        if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
+    end
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
