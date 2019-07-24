@@ -20,6 +20,8 @@ module Config = struct
     t.confirm <- level;
     Lwt_condition.broadcast t.level_cond ()
 
+  let get_confirm t = t.confirm
+
   let rec confirmed l t =
     match t.confirm with
     | Some threshold when Level.compare l threshold >= 0 ->
@@ -163,6 +165,7 @@ module Engine = struct
   type t = {
     thread : 'a. 'a Lwt.t;
     last_result : results ref;
+    config : Config.t;
   }
 
   let booting = {
@@ -201,9 +204,11 @@ module Engine = struct
          and also frees us from handling an initial exception specially. *)
       Lwt.pause () >>= aux
     in
-    { thread; last_result }
+    { thread; last_result; config }
 
   let state t = !(t.last_result)
+
+  let config t = t.config
 
   let thread t = t.thread
 

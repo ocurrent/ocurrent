@@ -29,7 +29,27 @@ let template contents =
       )
   )
 
-let dashboard { Current.Engine.value; analysis = _; watches; jobs } =
+let settings config =
+  let selected = Current.Config.get_confirm config in
+  let levels =
+    Current.Level.values
+    |> List.map @@ fun level ->
+    let s = Current.Level.to_string level in
+    let msg = Fmt.strf "Confirm if level >= %s" s in
+    let sel = if selected = Some level then [a_selected ()] else [] in
+    option ~a:(a_value s :: sel) (txt msg)
+  in
+  form ~a:[a_action "/set/confirm"; a_method `Post] [
+    select ~a:[a_name "level"] (
+      let sel = if selected = None then [a_selected ()] else [] in
+      option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: levels
+    );
+    input ~a:[a_input_type `Submit; a_value "Submit"] ();
+  ]
+
+let dashboard engine =
+  let config = Current.Engine.config engine in
+  let { Current.Engine.value; analysis = _; watches; jobs } = Current.Engine.state engine in
   template [
     div [
       object_ ~a:[a_data "/pipeline.svg"] [txt "Pipeline diagram"];
@@ -40,4 +60,6 @@ let dashboard { Current.Engine.value; analysis = _; watches; jobs } =
     ul (List.map render_job (Current.Job_map.bindings jobs));
     h2 [txt "Watches"];
     ul (List.map render_watches watches);
+    h2 [txt "Settings"];
+    settings config;
   ]

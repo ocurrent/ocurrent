@@ -13,6 +13,8 @@ module Config : sig
   (** Change the [confirm] setting. Existing jobs waiting for confirmation
       will now start if permitted by the new configuration. *)
 
+  val get_confirm : t -> Level.t option
+
   val confirmed : Level.t -> t -> unit Lwt.t
   (** [confirmed l t] is a promise that resolves once we are ready to run
       an action at level [l] or higher. *)
@@ -131,6 +133,8 @@ module Engine : sig
   val actions : metadata -> actions
 
   val job_id : metadata -> job_id option
+
+  val config : t -> Config.t
 
   val is_stale : metadata -> bool
   (** [is_stale m] is [true] if this job has signalled that

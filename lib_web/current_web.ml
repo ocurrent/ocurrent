@@ -72,7 +72,21 @@ let render_svg a =
   | Unix.WSTOPPED i
   | Unix.WSIGNALED i -> errorf "dot crashed (signal %d)" i
 
-let handle_request ~engine _conn request _body =
+let set_confirm config body =
+  let q = Uri.of_string ("/?" ^ body) in
+  match Uri.get_query_param q "level" with
+  | None -> respond_error `Bad_request "Missing level"
+  | Some "none" ->
+    Current.Config.set_confirm config None;
+    Server.respond_redirect ~uri:(Uri.of_string "/") ()
+  | Some level ->
+    match Current.Level.of_string level with
+    | Error (`Msg msg) -> respond_error `Bad_request msg
+    | Ok level ->
+      Current.Config.set_confirm config (Some level);
+      Server.respond_redirect ~uri:(Uri.of_string "/") ()
+
+let handle_request ~engine _conn request body =
   match Lwt.state (Current.Engine.thread engine) with
   | Lwt.Fail ex ->
     let body = Fmt.strf "Engine has crashed: %a" Fmt.exn ex in
@@ -84,8 +98,7 @@ let handle_request ~engine _conn request _body =
     Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
     match meth, String.cuts ~sep:"/" ~empty:false path with
     | `GET, ([] | ["index.html"]) ->
-      let state = Current.Engine.state engine in
-      let body = Main.dashboard state in
+      let body = Main.dashboard engine in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["job"; date; log] ->
       let job_id = Fmt.strf "%s/%s" date log in
@@ -99,6 +112,9 @@ let handle_request ~engine _conn request _body =
       let job_id = Fmt.strf "%s/%s" date log in
       let actions = lookup_actions ~engine job_id in
       cancel_job ~actions job_id
+    | `POST, ["set"; "confirm"] ->
+      Cohttp_lwt.Body.to_string body >>= fun body ->
+      set_confirm (Current.Engine.config engine) body
     | `GET, ["css"; "style.css"] ->
       Style.get ()
     | `GET, ["pipeline.svg"] ->

@@ -10,13 +10,15 @@ let rebuild_cond = Lwt_condition.create ()
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
 
-let confirm (confirmed, level) =
+let confirm ~job (confirmed, level) =
   match Lwt.state confirmed with
   | Lwt.Return () -> Lwt.return_unit
   | _ ->
-    Log.info (fun f -> f "Waiting for confirm-level >= %a" Current.Level.pp level);
+    Job.log job "Waiting for confirm-threshold > %a" Current.Level.pp level;
+    Log.info (fun f -> f "Waiting for confirm-threshold > %a" Current.Level.pp level);
     confirmed >|= fun () ->
-    Log.info (fun f -> f "Confirm-level now >= %a" Current.Level.pp level)
+    Job.log job "Confirm-threshold now > %a" Current.Level.pp level;
+    Log.info (fun f -> f "Confirm-threshold now > %a" Current.Level.pp level)
 
 module Schedule = struct
   type t = {
@@ -84,7 +86,7 @@ module Make(B : S.BUILDER) = struct
     let is_finished = ref false in
     Job.log job "Starting build for %a" B.pp build.key;
     let level = B.level ctx build.key in
-    confirm (Current.Config.confirmed level config, level) >>= fun () ->
+    confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
     running := Some (!timestamp () |> Unix.gmtime);
     Lwt.catch
       (fun () -> B.build ~switch:build.switch ctx job build.key)
@@ -368,7 +370,7 @@ module Output(Op : S.PUBLISHER) = struct
               Lwt.catch
                 (fun () ->
                    let level = Op.level ctx output.key (Value.value op.value) in
-                   confirm (Current.Config.confirmed level config, level) >>= fun () ->
+                   confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
                    Op.publish ~switch ctx job output.key (Value.value op.value)
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
