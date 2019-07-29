@@ -1,4 +1,7 @@
-type source = Current_git.Commit.t
+type source = [
+  | `No_context
+  | `Git of Current_git.Commit.t Current.t
+]
 
 module type DOCKER = sig
   module Image : sig
@@ -20,7 +23,7 @@ module type DOCKER = sig
     ?label:string ->
     ?dockerfile:Dockerfile.t Current.t ->
     pull:bool ->
-    source Current.t ->
+    source ->
     Image.t Current.t
   (** [build ~pull src] builds a Docker image from source.
       @param squash If set to [true], pass "--squash" to "docker build".

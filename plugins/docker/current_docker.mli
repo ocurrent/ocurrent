@@ -1,7 +1,5 @@
 (** Integration with Docker containers. *)
 
-type source = Current_git.Commit.t
-
 module S = S
 
 module Default : S.DOCKER

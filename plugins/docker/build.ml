@@ -8,7 +8,7 @@ let id = "docker-build"
 
 module Key = struct
   type t = {
-    commit : Current_git.Commit.t;
+    commit : [ `No_context | `Git of Current_git.Commit.t ];
     dockerfile : string option;
     docker_host : string option;
     squash : bool;
@@ -17,10 +17,14 @@ module Key = struct
   let digest_dockerfile = function
     | None -> None
     | Some contents -> Some (Digest.string contents |> Digest.to_hex)
+                         
+  let source_to_json = function
+    | `No_context -> `Null
+    | `Git commit -> `String (Current_git.Commit.id commit)
 
   let to_json { commit; dockerfile; docker_host; squash } =
     `Assoc [
-      "commit", `String (Current_git.Commit.id commit);
+      "commit", source_to_json commit;
       "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
       "docker_host", [%derive.to_yojson:string option] docker_host;
       "squash", [%derive.to_yojson:bool] squash;
@@ -37,9 +41,14 @@ let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg ->
   Error (`Msg msg)
 
+let with_context ~switch ~job context fn =
+  match context with
+  | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
+  | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
+
 let build ~switch { pull } job key =
   let { Key.commit; docker_host; dockerfile; squash } = key in
-  Current_git.with_checkout ~switch ~job commit @@ fun dir ->
+  with_context ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
     | None -> []

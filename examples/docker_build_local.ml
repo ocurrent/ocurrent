@@ -8,7 +8,7 @@ let () = Logging.init ()
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let image = Docker.build ~pull src in
+  let image = Docker.build ~pull (`Git src) in
   Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
 
 let main config mode repo =
