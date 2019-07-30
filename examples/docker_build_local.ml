@@ -1,5 +1,3 @@
-open! Current.Syntax    (* (not actually needed for this example) *)
-
 module Git = Current_git
 module Docker = Current_docker.Default
 
