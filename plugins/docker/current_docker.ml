@@ -24,12 +24,12 @@ module Make (Host : S.HOST) = struct
     | None -> None
     | Some x -> Some (f x)
 
-  let build ?schedule ?label ?dockerfile ~pull src =
+  let build ?schedule ?(squash=false) ?label ?dockerfile ~pull src =
     Current.component "build%a" pp_sp_label label |>
     let> commit = src
     and> dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host }
+    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host; squash }
 
   module RC = Current_cache.Make(Run)
 

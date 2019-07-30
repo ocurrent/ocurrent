@@ -11,17 +11,19 @@ module Key = struct
     commit : Current_git.Commit.t;
     dockerfile : string option;
     docker_host : string option;
+    squash : bool;
   }
 
   let digest_dockerfile = function
     | None -> None
     | Some contents -> Some (Digest.string contents |> Digest.to_hex)
 
-  let to_json { commit; dockerfile; docker_host } =
+  let to_json { commit; dockerfile; docker_host; squash } =
     `Assoc [
       "commit", `String (Current_git.Commit.id commit);
       "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
       "docker_host", [%derive.to_yojson:string option] docker_host;
+      "squash", [%derive.to_yojson:bool] squash;
     ]
 
   let digest t = Yojson.Safe.to_string (to_json t)
@@ -36,7 +38,7 @@ let errorf fmt =
   Error (`Msg msg)
 
 let build ~switch { pull } job key =
-  let { Key.commit; docker_host; dockerfile } = key in
+  let { Key.commit; docker_host; dockerfile; squash } = key in
   Current_git.with_checkout ~switch ~job commit @@ fun dir ->
   let f =
     match dockerfile with
@@ -46,9 +48,10 @@ let build ~switch { pull } job key =
       ["-f"; "-"]
   in
   let pull = if pull then ["--pull"] else [] in
+  let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
   let cmd = Cmd.docker ~docker_host @@ ["build"] @
-                                       pull @ f @
+                                       pull @ squash @ f @
                                        ["--iidfile";
                                         Fpath.to_string iidfile; "--";
                                         Fpath.to_string dir] in

@@ -16,12 +16,14 @@ module type DOCKER = sig
 
   val build :
     ?schedule:Current_cache.Schedule.t ->
+    ?squash:bool ->
     ?label:string ->
     ?dockerfile:Dockerfile.t Current.t ->
     pull:bool ->
     source Current.t ->
     Image.t Current.t
   (** [build ~pull src] builds a Docker image from source.
+      @param squash If set to [true], pass "--squash" to "docker build".
       @param dockerfile If present, this is used as the contents of the Dockerfile.
       @param pull If [true], always check for updates and pull the latest version. *)
 
