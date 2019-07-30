@@ -33,8 +33,9 @@ module type DOCKER = sig
   val tag : tag:string -> Image.t Current.t -> unit Current.t
   (** [tag image ~tag] does "docker tag image tag" *)
 
-  val push : tag:string -> Image.t Current.t -> unit Current.t
-  (** [push image ~tag] does "docker tag image tag && docker push tag" *)
+  val push : ?auth:(string * string) -> tag:string -> Image.t Current.t -> unit Current.t
+  (** [push image ~tag] does "docker tag image tag && docker push tag".
+      @param auth If give, do a "docker login" using this username/password pair before pushing. *)
 
   val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
