@@ -12,21 +12,6 @@ let ( >>!= ) x f =
   | Ok y -> f y
   | Error _ as e -> Lwt.return e
 
-let id_of_repo repo =
-  let base = Filename.basename repo in
-  let digest = Digest.string repo |> Digest.to_hex in
-  Fmt.strf "%s-%s" base digest
-
-(* .../var/git/myrepo-hhh *)
-let local_copy repo =
-  let repos_dir = Current.state_dir "git" in
-  Fpath.append repos_dir (Fpath.v (id_of_repo repo))
-
-let dir_exists d =
-  match Bos.OS.Dir.exists d with
-  | Ok x -> x
-  | Error (`Msg x) -> failwith x
-
 module Fetch = struct
   type t = No_context
   module Key = Commit_id
@@ -36,10 +21,10 @@ module Fetch = struct
 
   let build ~switch No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
-    let local_repo = local_copy remote_repo in
+    let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
-      if dir_exists local_repo then Lwt.return (Ok ())
+      if Cmd.dir_exists local_repo then Lwt.return (Ok ())
       else Cmd.git_clone ~switch ~job ~src:remote_repo local_repo
     end >>!= fun () ->
     let commit = { Commit.repo = local_repo; id = key } in
@@ -68,6 +53,13 @@ let fetch cid =
   Current.component "fetch" |>
   let> cid = cid in
   Fetch_cache.get Fetch.No_context cid
+
+module Clone_cache = Current_cache.Make(Clone)
+
+let clone ~schedule ?(gref="master") repo =
+  Current.component "clone %s %s" repo gref |>
+  let> () = Current.return () in
+  Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 
 let with_checkout ~switch ~job commit fn =
   let { Commit.repo; id } = commit in
