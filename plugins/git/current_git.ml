@@ -74,7 +74,9 @@ let with_checkout ~switch ~job commit fn =
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
   Cmd.git_clone ~switch ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
-  | Ok () -> fn tmpdir
+  | Ok () ->
+    Cmd.git_remote_set_url ~job ~repo:tmpdir ~remote:"origin" id.Commit_id.repo >>!= fun () ->
+    fn tmpdir
   | Error e ->
     Commit.check_cached ~job commit >>= function
     | Error not_cached ->
