@@ -3,5 +3,4 @@
   (libraries current_term lwt cmdliner sqlite3 lwt.unix)
   (preprocess (per_module
                 ((pps ppx_deriving.std) level)
-                (future_syntax current)
               )))

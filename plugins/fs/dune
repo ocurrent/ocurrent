@@ -1,4 +1,3 @@
 (library
   (name current_fs)
-  (libraries current fpath bos logs)
-  (preprocess future_syntax))
+  (libraries current fpath bos logs))

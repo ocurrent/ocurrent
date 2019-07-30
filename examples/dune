@@ -7,5 +7,4 @@
              current_fs
              lwt.unix
              logs.fmt
-             fmt.tty)
-  (preprocess future_syntax))
+             fmt.tty))
