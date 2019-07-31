@@ -43,19 +43,19 @@ module Make (Host : S.HOST) = struct
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
-    Current.component "docker-tag %s" tag |>
+    Current.component "docker-tag@ %s" tag |>
     let> image = image in
     TC.set None { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
 
   let push ?auth ~tag image =
-    Current.component "docker-push %s" tag |>
+    Current.component "docker-push@ %s" tag |>
     let> image = image in
     TC.set auth { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
 
   module SC = Current_cache.Output(Service)
 
   let service ~name ~image () =
-    Current.component "docker-service %s" name |>
+    Current.component "docker-service@ %s" name |>
     let> image = image in
     SC.set Service.No_context { Service.Key.name; docker_host } { Service.Value.image }
 end
