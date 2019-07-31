@@ -22,10 +22,11 @@ let build ~switch No_context job key =
   | Error _ as e -> Lwt.return e
   | Ok () ->
     let { Key.docker_host; tag } = key in
-    let cmd = Cmd.docker ~docker_host ["image"; "inspect"; tag; "-f"; "{{.Id}}"] in
+    let cmd = Cmd.docker ~docker_host ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
     Current.Process.check_output ~job cmd >|= function
     | Error _ as e -> e
     | Ok id ->
+      let id = String.trim id in
       Current.Job.log job "Pulled %S -> %S" tag id;
       Ok (Image.of_hash id)
 
