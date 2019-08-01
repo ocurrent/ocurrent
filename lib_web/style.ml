@@ -23,6 +23,10 @@ let css = {|
   div#main {
     margin: 0.5em;
   }
+
+  div#main object {
+    max-width: 100%;
+  }
 |}
 
 let get () =
