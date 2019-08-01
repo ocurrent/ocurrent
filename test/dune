@@ -19,6 +19,7 @@
 
 (alias
  (name runtest)
+ (package current)
  (action
   (progn
    (diff expected/v1.1.dot v1.1.dot) (diff expected/v1.2.dot v1.2.dot) (diff expected/v1.3.dot v1.3.dot)
