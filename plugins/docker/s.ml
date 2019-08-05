@@ -3,6 +3,8 @@ type source = [
   | `Git of Current_git.Commit.t Current.t
 ]
 
+type repo_id = string
+
 module type DOCKER = sig
   module Image : sig
     include Current_cache.S.WITH_DIGEST
@@ -12,7 +14,7 @@ module type DOCKER = sig
     val pp : t Fmt.t
   end
 
-  val pull : schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
+  val pull : ?label:string -> schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
   (** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
       @param schedule Controls how often we check for updates. If the schedule
                       has no [valid_for] limit then we will only ever pull once. *)

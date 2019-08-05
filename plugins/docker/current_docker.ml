@@ -2,6 +2,8 @@ open Current.Syntax
 
 module S = S
 
+let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,") string)
+
 module Make (Host : S.HOST) = struct
   module Image = Image
 
@@ -9,8 +11,9 @@ module Make (Host : S.HOST) = struct
 
   let docker_host = Host.docker_host
 
-  let pull ~schedule tag =
-    Current.component "pull %s" tag |>
+  let pull ?label ~schedule tag =
+    let label = Option.value label ~default:tag in
+    Current.component "pull %s" label |>
     let> () = Current.return () in
     PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
 
@@ -43,12 +46,12 @@ module Make (Host : S.HOST) = struct
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
-    Current.component "docker-tag@ %s" tag |>
+    Current.component "docker-tag@ %a" pp_tag tag |>
     let> image = image in
     TC.set None { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
 
   let push ?auth ~tag image =
-    Current.component "docker-push@ %s" tag |>
+    Current.component "docker-push@ %a" pp_tag tag |>
     let> image = image in
     TC.set auth { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
 
@@ -63,3 +66,10 @@ end
 module Default = Make(struct
     let docker_host = Sys.getenv_opt "DOCKER_HOST"
   end)
+
+module MC = Current_cache.Output(Push_manifest)
+
+let push_manifest ?auth ~tag manifests =
+  Current.component "docker-push-manifest@ %a" pp_tag tag |>
+  let> manifests = Current.list_seq manifests in
+  MC.set auth tag { Push_manifest.Value.manifests }
