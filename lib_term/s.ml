@@ -108,6 +108,10 @@ module type TERM = sig
   val list_iter : pp:'a Fmt.t -> ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
+  val list_seq : 'a t list -> 'a list t
+  (** [list_seq x] evaluates to a list containing the results of evaluating
+      each element in [x], once all elements of [x] have successfully completed. *)
+
   val option_seq : 'a t option -> 'a option t
   (** [option_seq None] is [Current.return None] and
       [option_seq (Some x)] is [Current.map some x].

@@ -180,6 +180,13 @@ module Make (Input : S.INPUT) = struct
     let+ (_ : unit list) = list_map ~pp f xs in
     ()
 
+  let rec list_seq : 'a t list -> 'a list t = function
+    | [] -> return []
+    | x :: xs ->
+      let+ y = x
+      and+ ys = list_seq xs in
+      y :: ys
+
   let option_seq : 'a t option -> 'a option t = function
     | None -> return None
     | Some x -> let+ y = x in Some y
