@@ -334,6 +334,25 @@ let output_autocancel _switch () =
   | _ ->
     assert false
 
+let output_retry _switch () =
+  OC2.reset ();
+  let p = Publish2.create () in
+  let pipeline () = set2 p "foo" (Current.return "value") in
+  Driver.test ~name:"cache.output_retry" pipeline @@ function
+  | 1 ->
+    Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
+    Publish.complete p @@ Error (`Msg "Failed")
+  | 2 ->
+    Driver.rebuild "Set foo to value: Failed"
+  | 3 ->
+    Alcotest.(check string) "Publish has restarted" "init-changing-changing" p.Publish.state;
+    Publish.complete p @@ Ok ()
+  | 4 ->
+    Alcotest.(check string) "Publish has completed" "value" p.Publish.state;
+    raise Exit
+  | _ ->
+    assert false
+
 let tests =
   [
     Driver.test_case_gc "basic"             basic;
@@ -341,4 +360,5 @@ let tests =
     Driver.test_case_gc "autocancel"        autocancel;
     Driver.test_case_gc "output"            output;
     Driver.test_case_gc "output_autocancel" output_autocancel;
+    Driver.test_case_gc "output_retry"      output_retry;
   ]

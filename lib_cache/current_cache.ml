@@ -296,7 +296,7 @@ module Output(Op : S.PUBLISHER) = struct
     mutable op : [
       | `Running of op                    (* The currently-running operation. *)
       | `Error of [`Msg of string]        (* Why [desired] isn't possible. *)
-      | `Finished
+      | `Finished                         (* Note: if current <> desired then rebuild. *)
     ];
   }
 
@@ -321,6 +321,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* Caller needs to notify about the change, if needed. *)
   let invalidate output =
+    assert (output.op = `Finished);
     output.current <- None;
     Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key)
 
@@ -443,8 +444,14 @@ module Output(Op : S.PUBLISHER) = struct
       | None -> assert false
       | Some job_id ->
         let rebuild () =
-          invalidate o;
-          Lwt_condition.broadcast rebuild_cond ()
+          match o.op with
+          | `Finished | `Error _ ->
+            o.op <- `Finished;
+            invalidate o;
+            Lwt_condition.broadcast rebuild_cond ()
+          | `Running _ ->
+            Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
+            ()
         in
         let changed = Lwt_condition.wait rebuild_cond in
         x, Current.Input.metadata ~job_id ~changed @@
