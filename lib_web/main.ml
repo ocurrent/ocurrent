@@ -56,10 +56,13 @@ let dashboard engine =
     ];
     h2 [txt "Result"];
     p (render_result value);
-    h2 [txt "Jobs"];
-    ul (List.map render_job (Current.Job_map.bindings jobs));
-    h2 [txt "Watches"];
-    ul (List.map render_watches watches);
     h2 [txt "Settings"];
     settings config;
+    h2 [txt "Debugging"];
+    details (summary [txt "Debugging information"]) [
+      h2 [txt "Jobs"];
+      ul (List.map render_job (Current.Job_map.bindings jobs));
+      h2 [txt "Watches"];
+      ul (List.map render_watches watches);
+    ];
   ]
