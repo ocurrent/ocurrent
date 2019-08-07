@@ -25,7 +25,7 @@ module Make (B : S.BUILDER) : sig
 end
 
 module Output (P : S.PUBLISHER) : sig
-  val set : P.t -> P.Key.t -> P.Value.t -> unit Current.Input.t
+  val set : P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Input.t
   (** [set p k v] is a term for the result of setting [k] to [v]. *)
 
   val reset : unit -> unit

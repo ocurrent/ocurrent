@@ -64,9 +64,13 @@ module type PUBLISHER = sig
   module Value : WITH_DIGEST
   (** The value to publish. *)
 
+  module Outcome : WITH_MARSHAL
+  (** Extra information about the result, if any.
+      Usually this is just [Current.Unit]. *)
+
   val publish :
     switch:Current.Switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
-    unit Current.or_error Lwt.t
+    Outcome.t Current.or_error Lwt.t
   (** [publish ~switch t j k v] sets output [k] to value [v].
       If the switch is turned off, the operation should be cancelled.
       Log messages can be written to [j]. *)

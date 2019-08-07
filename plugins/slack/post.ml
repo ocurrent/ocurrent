@@ -6,6 +6,7 @@ let id = "slack-post"
 
 module Key = Current.String
 module Value = Current.String
+module Outcome = Current.Unit
 
 let publish ~switch:_ t _job _key message =
   let headers = Cohttp.Header.of_list [

@@ -296,7 +296,8 @@ module Output(Op : S.PUBLISHER) = struct
     mutable op : [
       | `Running of op                    (* The currently-running operation. *)
       | `Error of [`Msg of string]        (* Why [desired] isn't possible. *)
-      | `Finished                         (* Note: if current <> desired then rebuild. *)
+      | `Finished of Op.Outcome.t         (* Note: if current <> desired then rebuild. *)
+      | `Retry                            (* Need to try again. *)
     ];
   }
 
@@ -309,8 +310,10 @@ module Output(Op : S.PUBLISHER) = struct
     match output.op with
     | `Error (`Msg msg) ->
       Fmt.pf f "%a: %s" pp_desired output msg
-    | `Finished ->
+    | `Finished _ ->
       Fmt.pf f "%a (completed)" pp_desired output
+    | `Retry ->
+      Fmt.pf f "%a (retry scheduled)" pp_desired output
     | `Running op ->
       if Value.equal op.value output.desired then
         Fmt.pf f "%a (in-progress)" pp_op (output.key, op.value)
@@ -321,9 +324,12 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* Caller needs to notify about the change, if needed. *)
   let invalidate output =
-    assert (output.op = `Finished);
-    output.current <- None;
-    Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key)
+    match output.op with
+    | `Finished _ | `Retry ->
+      output.current <- None;
+      output.op <- `Retry;
+      Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key)
+    | _ -> assert false
 
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. *)
@@ -346,7 +352,10 @@ module Output(Op : S.PUBLISHER) = struct
           Current.Switch.turn_off op.switch @@
           Error (`Msg "Auto-cancelling job because it is no longer needed")
         );
-    | `Finished ->
+    | `Retry ->
+        invalidate output;
+        output.op <- `Running (publish ~config output)
+    | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
       | _ ->
@@ -376,12 +385,15 @@ module Output(Op : S.PUBLISHER) = struct
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >|= function
-              | Ok () ->
+              | Ok outcome ->
                 Job.log job "Publish(%t) : succeeded" pp_op;
                 output.current <- Some (Value.digest op.value);
-                output.op <- `Finished;
+                output.op <- `Finished outcome;
                 let job_id = Job.id job in
-                Db.Publish.record ~op:Op.id ~job_id ~key:(Op.Key.digest output.key) (Value.digest op.value);
+                Db.Publish.record ~op:Op.id ~job_id
+                  ~key:(Op.Key.digest output.key)
+                  ~value:(Value.digest op.value)
+                  (Op.Outcome.marshal outcome);
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
                 maybe_start ~config output;
@@ -397,7 +409,7 @@ module Output(Op : S.PUBLISHER) = struct
                   (* If it failed but we have a new value to set, ignore the stale error. *)
                   not (Value.equal op.value output.desired)
                 in
-                output.op <- if retry then `Finished else `Error e;
+                output.op <- if retry then `Retry else `Error e;
                 maybe_start ~config output;
                 Lwt.wakeup set_finished ()
            )
@@ -409,12 +421,13 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* Create a new in-memory [op], initialising it from the database. *)
   let get_op ctx key desired =
-    let current, job_id =
+    let current, job_id, op =
       match Db.Publish.lookup ~op:Op.id (Op.Key.digest key) with
-      | Some { Db.Publish.value; job_id } -> Some value, Some job_id
-      | None -> None, None
+      | Some { Db.Publish.value; job_id; outcome } ->
+        Some value, Some job_id, `Finished (Op.Outcome.unmarshal outcome)
+      | None -> None, None, `Retry
     in
-    { key; current; desired; ctx; op = `Finished; job_id }
+    { key; current; desired; ctx; op; job_id }
 
   let set ctx key value =
     Current.Input.of_fn @@ fun config ->
@@ -429,8 +442,8 @@ module Output(Op : S.PUBLISHER) = struct
         if not (Value.equal value o.desired) then (
           o.desired <- value;
           match o.op with
-          | `Error _ -> o.op <- `Finished   (* Clear error when the desired value changes. *)
-          | `Running _ | `Finished -> ()
+          | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
+          | `Running _ | `Finished _ | `Retry -> ()
         );
         o
       | None ->
@@ -445,8 +458,8 @@ module Output(Op : S.PUBLISHER) = struct
       | Some job_id ->
         let rebuild () =
           match o.op with
-          | `Finished | `Error _ ->
-            o.op <- `Finished;
+          | `Finished _ | `Error _ | `Retry ->
+            o.op <- `Retry;
             invalidate o;
             Lwt_condition.broadcast rebuild_cond ()
           | `Running _ ->
@@ -463,8 +476,9 @@ module Output(Op : S.PUBLISHER) = struct
         end
     in
     match o.op with
-    | `Finished -> resolved (Ok ())
-    | `Error e -> resolved (Error e :> unit Current_term.Output.t)
+    | `Finished x -> resolved (Ok x)
+    | `Error e -> resolved (Error e :> Op.Outcome.t Current_term.Output.t)
+    | `Retry -> resolved (Error `Pending) (* (probably can't happen) *)
     | `Running op ->
       Error `Pending, Current.Input.metadata ?job_id:o.job_id ~changed:op.finished @@
       object

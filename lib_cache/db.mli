@@ -39,16 +39,18 @@ module Publish : sig
   type entry = {
     job_id : string;
     value : string;
+    outcome : string;
   }
 
   val record :
     op:string ->
     key:string ->
+    value:string ->
     job_id:string ->
     string ->
     unit
-  (** [record ~op ~key ~job_id value] records that [key] is now set to [value].
-      This replaces any previous entry. *)
+  (** [record ~op ~key ~value ~job_id outcome] records that [key] is now set to [value],
+      producing [outcome]. This replaces any previous entry. *)
 
   val lookup : op:string -> string -> entry option
   (** [lookup ~op key] returns the previously stored result for [op] and [key], if any. *)

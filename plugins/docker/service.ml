@@ -22,6 +22,8 @@ module Value = struct
     ]
 end
 
+module Outcome = Current.Unit
+
 let cmd { Key.name; docker_host } { Value.image } =
   Cmd.docker ~docker_host ["service"; "update"; "--image"; Image.hash image; name]
 

@@ -108,6 +108,7 @@ module Publish = struct
   type entry = {
     job_id : string;
     value : string;
+    outcome : string;
   }
 
   let db = lazy (
@@ -117,19 +118,20 @@ module Publish = struct
                      key       BLOB, \
                      job_id    TEXT NOT NULL, \
                      value     BLOB, \
+                     outcome   BLOB, \
                      PRIMARY KEY (op, key))" |> or_fail "create table";
     let record = Sqlite3.prepare db "INSERT OR REPLACE INTO publish_cache \
-                                     (op, key, job_id, value) \
-                                     VALUES (?, ?, ?, ?)" in
-    let lookup = Sqlite3.prepare db "SELECT value, job_id FROM publish_cache WHERE op = ? AND key = ?" in
+                                     (op, key, job_id, value, outcome) \
+                                     VALUES (?, ?, ?, ?, ?)" in
+    let lookup = Sqlite3.prepare db "SELECT value, job_id, outcome FROM publish_cache WHERE op = ? AND key = ?" in
     let invalidate = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ? AND key = ?" in
     let drop = Sqlite3.prepare db "DELETE FROM publish_cache WHERE op = ?" in
     { db; record; invalidate; drop; lookup }
   )
 
-  let record ~op ~key ~job_id value =
+  let record ~op ~key ~value ~job_id outcome =
     let t = Lazy.force db in
-    Db.exec t.record Sqlite3.Data.[ TEXT op; BLOB key; TEXT job_id; BLOB value ]
+    Db.exec t.record Sqlite3.Data.[ TEXT op; BLOB key; TEXT job_id; BLOB value; BLOB outcome ]
 
   let invalidate ~op key =
     let t = Lazy.force db in
@@ -139,7 +141,7 @@ module Publish = struct
     let t = Lazy.force db in
     match Db.query_some t.lookup Sqlite3.Data.[ TEXT op; BLOB key ] with
     | None -> None
-    | Some Sqlite3.Data.[ BLOB value; TEXT job_id ] -> Some { value; job_id }
+    | Some Sqlite3.Data.[ BLOB value; TEXT job_id; BLOB outcome ] -> Some { value; job_id; outcome }
     | Some _ -> Fmt.failwith "Invalid row from lookup!"
 
   let drop_all op =

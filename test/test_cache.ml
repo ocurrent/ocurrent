@@ -205,6 +205,7 @@ let autocancel _switch () =
 module Publish = struct
   module Key = Current.String
   module Value = Current.String
+  module Outcome = Current.Unit
 
   type t = {
     mutable state : string;

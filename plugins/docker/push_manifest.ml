@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-type auth = Tag.auth
+type auth = Push.auth
 
 type t = auth option
 
@@ -24,6 +24,8 @@ module Value = struct
       "manifests", `List (List.map (fun id -> `String id) manifests);
     ]
 end
+
+module Outcome = Current.Unit
 
 let create_cmd ~tag {Value.manifests} =
   let args = ["docker"; "manifest"; "create"; tag] @ manifests in
