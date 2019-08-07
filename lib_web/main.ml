@@ -42,7 +42,7 @@ let settings config =
   form ~a:[a_action "/set/confirm"; a_method `Post] [
     select ~a:[a_name "level"] (
       let sel = if selected = None then [a_selected ()] else [] in
-      option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: levels
+      option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: List.rev levels
     );
     input ~a:[a_input_type `Submit; a_value "Submit"] ();
   ]
