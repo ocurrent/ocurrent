@@ -41,6 +41,10 @@ let errorf fmt =
   fmt |> Fmt.kstrf @@ fun msg ->
   Error (`Msg msg)
 
+let or_raise = function
+  | Ok () -> ()
+  | Error (`Msg m) -> raise (Failure m)
+
 let with_context ~switch ~job context fn =
   match context with
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
@@ -49,29 +53,26 @@ let with_context ~switch ~job context fn =
 let build ~switch { pull } job key =
   let { Key.commit; docker_host; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
-  let f =
-    match dockerfile with
-    | None -> []
+  begin match dockerfile with
+    | None -> ()
     | Some contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
-      ["-f"; "-"]
-  in
+      Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;
+  end;
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
   let cmd = Cmd.docker ~docker_host @@ ["build"] @
-                                       pull @ squash @ f @
+                                       pull @ squash @
                                        ["--iidfile";
                                         Fpath.to_string iidfile; "--";
                                         Fpath.to_string dir] in
   Current.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
-    match Bos.OS.File.read iidfile with
-    | Ok hash ->
-      Log.info (fun f -> f "Built docker image %s" hash);
-      Ok (Image.of_hash hash)
-    | Error _ as e -> e
+    Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->
+    Log.info (fun f -> f "Built docker image %s" hash);
+    Image.of_hash hash
 
 let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key
 
