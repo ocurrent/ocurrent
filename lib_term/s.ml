@@ -52,8 +52,8 @@ module type TERM = sig
   type description
   (** Information about operations hidden behind a bind. *)
 
-  val pending : unit -> 'a t
-  (** [pending ()] is a term that never produces a result. *)
+  val active : Output.active -> 'a t
+  (** [active x] is a term indicating that the result is not determined yet. *)
 
   val return : ?label:string -> 'a -> 'a t
   (** [return x] is a term that immediately succeeds with [x].
@@ -62,19 +62,19 @@ module type TERM = sig
   val fail : string -> 'a t
   (** [fail m] is a term that immediately fails with message [m]. *)
 
-  val state : 'a t -> ('a, [`Pending | `Msg of string]) result t
+  val state : 'a t -> ('a, [`Active of Output.active | `Msg of string]) result t
   (** [state t] always immediately returns a successful result giving the current state of [t]. *)
 
   val catch : 'a t -> 'a or_error t
   (** [catch t] successfully returns [Ok x] if [t] evaluates successfully to [x],
       or successfully returns [Error e] if [t] fails with error [e].
-      If [t] is pending then [catch t] will be pending too. *)
+      If [t] is active then [catch t] will be active too. *)
 
   val ignore_value : 'a t -> unit t
   (** [ignore_value x] is [map ignore x]. *)
 
   val of_output : 'a Output.t -> 'a t
-  (** [of_output x] is a returned, failed or pending term. *)
+  (** [of_output x] is a returned, failed or active term. *)
 
   val map : ('a -> 'b) -> 'a t -> 'b t
   (** [map f x] is a term that runs [x] and then transforms the result using [f]. *)

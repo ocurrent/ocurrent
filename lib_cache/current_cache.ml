@@ -7,6 +7,9 @@ let rebuild_cond = Lwt_condition.create ()
    Ideally this condition would be per-job, but since we currently re-evaluate
    everything anyway, a global is fine. *)
 
+let running_cond = Lwt_condition.create ()
+(** Triggered when a build moves from `ready` to `running`. *)
+
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
 
@@ -61,6 +64,7 @@ module Make(B : S.BUILDER) = struct
     finished : build_result Lwt.t;  (* Unresolved if the build is still in progress. *)
     mutable auto_cancelled : bool;  (* Don't record the result (because the build was auto-cancelled). *)
     mutable ref_count : int;        (* The number of watchers waiting for the result (for auto-cancel). *)
+    mutable running : bool;         (* [true] if a build has started running (not waiting for resources or confirmation). *)
   }
 
   let builds : build Builds.t ref = ref Builds.empty
@@ -83,16 +87,17 @@ module Make(B : S.BUILDER) = struct
   let do_build ~config ~job ctx build =
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
-    let is_finished = ref false in
     Job.log job "Starting build for %a" B.pp build.key;
     let level = B.level ctx build.key in
     confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
+    build.running <- true;
     running := Some (!timestamp () |> Unix.gmtime);
+    Lwt_condition.broadcast running_cond ();
     Lwt.catch
       (fun () -> B.build ~switch:build.switch ctx job build.key)
       (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
     >|= fun x ->
-    is_finished := true;
+    build.running <- false;
     let finished = !timestamp () in
     if build.auto_cancelled then (
       force_invalidate (B.Key.digest build.key);
@@ -141,7 +146,7 @@ module Make(B : S.BUILDER) = struct
       in
       Lwt.wakeup set_finished (v, fin_time);
       let switch = Current.Switch.create_off @@ Error (`Msg "Loaded from cache") in
-      { job_id; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
+      { job_id; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false; running = false }
     | _ ->
       let build_number =
         match previous with
@@ -150,7 +155,7 @@ module Make(B : S.BUILDER) = struct
       in
       let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
       let job = Job.create ~switch ~label:B.id () in
-      let build = { job_id = Job.id job; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
+      let build = { job_id = Job.id job; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false; running = false } in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->
@@ -182,8 +187,9 @@ module Make(B : S.BUILDER) = struct
           )
       end
     in
-    let changed = Lwt.map ignore build.finished in
-    Error `Pending, Current.Input.metadata ~job_id:build.job_id ~changed actions
+    let changed = Lwt.choose [Lwt.map ignore build.finished; Lwt_condition.wait running_cond] in
+    let state = if build.running then `Running else `Ready in
+    Error (`Active state), Current.Input.metadata ~job_id:build.job_id ~changed actions
 
   (* The build must be finished when calling this. *)
   let input_finished ~schedule build (value, finished) =
@@ -283,6 +289,7 @@ module Output(Op : S.PUBLISHER) = struct
   type op = {
     value : Value.t;                (* The value currently being set. *)
     switch : Current.Switch.t;      (* Turning this off aborts the operation. *)
+    started : unit Lwt.t;
     finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
   }
@@ -294,7 +301,7 @@ module Output(Op : S.PUBLISHER) = struct
     mutable desired : Value.t;            (* The value we want. *)
     mutable ctx : Op.t;                   (* The context for [desired]. *)
     mutable op : [
-      | `Running of op                    (* The currently-running operation. *)
+      | `Active of op                     (* The currently-running operation. *)
       | `Error of [`Msg of string]        (* Why [desired] isn't possible. *)
       | `Finished of Op.Outcome.t         (* Note: if current <> desired then rebuild. *)
       | `Retry                            (* Need to try again. *)
@@ -314,7 +321,7 @@ module Output(Op : S.PUBLISHER) = struct
       Fmt.pf f "%a (completed)" pp_desired output
     | `Retry ->
       Fmt.pf f "%a (retry scheduled)" pp_desired output
-    | `Running op ->
+    | `Active op ->
       if Value.equal op.value output.desired then
         Fmt.pf f "%a (in-progress)" pp_op (output.key, op.value)
       else
@@ -336,14 +343,14 @@ module Output(Op : S.PUBLISHER) = struct
   let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
-    | `Running _ when not Op.auto_cancel ->
+    | `Active _ when not Op.auto_cancel ->
       (* Already publishing something and we don't auto-cancel.
          When the stale push completes, we'll get called again. *)
       ()
-    | `Running op when Value.equal output.desired op.value ->
+    | `Active op when Value.equal output.desired op.value ->
       (* We're already working to set the desired value. Just keep going. *)
       ()
-    | `Running op ->
+    | `Active op ->
       assert Op.auto_cancel;
       Log.info (fun f -> f "Auto-cancelling %a" pp_op (output.key, op.value));
       op.autocancelled <- true;
@@ -354,7 +361,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate output;
-        output.op <- `Running (publish ~config output)
+        output.op <- `Active (publish ~config output)
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -363,12 +370,13 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate output;
-        output.op <- `Running (publish ~config output)
+        output.op <- `Active (publish ~config output)
   and publish ~config output =
+    let started, set_started = Lwt.wait () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let op = { value = output.desired; switch; finished; autocancelled = false } in
+    let op = { value = output.desired; switch; started; finished; autocancelled = false } in
     Lwt.async
       (fun () ->
          Lwt.finalize
@@ -381,6 +389,7 @@ module Output(Op : S.PUBLISHER) = struct
                 (fun () ->
                    let level = Op.level ctx output.key (Value.value op.value) in
                    confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
+                   Lwt.wakeup set_started ();
                    Op.publish ~switch ctx job output.key (Value.value op.value)
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
@@ -443,7 +452,7 @@ module Output(Op : S.PUBLISHER) = struct
           o.desired <- value;
           match o.op with
           | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
-          | `Running _ | `Finished _ | `Retry -> ()
+          | `Active _ | `Finished _ | `Retry -> ()
         );
         o
       | None ->
@@ -462,7 +471,7 @@ module Output(Op : S.PUBLISHER) = struct
             o.op <- `Retry;
             invalidate o;
             Lwt_condition.broadcast rebuild_cond ()
-          | `Running _ ->
+          | `Active _ ->
             Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
             ()
         in
@@ -478,9 +487,12 @@ module Output(Op : S.PUBLISHER) = struct
     match o.op with
     | `Finished x -> resolved (Ok x)
     | `Error e -> resolved (Error e :> Op.Outcome.t Current_term.Output.t)
-    | `Retry -> resolved (Error `Pending) (* (probably can't happen) *)
-    | `Running op ->
-      Error `Pending, Current.Input.metadata ?job_id:o.job_id ~changed:op.finished @@
+    | `Retry -> resolved (Error (`Msg "(retry)")) (* (probably can't happen) *)
+    | `Active op ->
+      let a, changed =
+        if Lwt.state op.started = Lwt.Sleep then `Ready, Lwt.choose [op.started; op.finished]
+        else `Running, op.finished in
+      Error (`Active a), Current.Input.metadata ?job_id:o.job_id ~changed @@
       object
         method pp f = pp_output f o
         method cancel = None

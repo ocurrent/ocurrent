@@ -5,7 +5,7 @@ module Make (Job : sig type id end) : sig
 
   type state =
     | Blocked
-    | Active
+    | Active of Output.active
     | Pass
     | Fail
 
@@ -25,7 +25,7 @@ module Make (Job : sig type id end) : sig
   val fail       : env:env -> unit -> t
   val state      : env:env -> t -> t
   val catch      : env:env -> t -> t
-  val pending    : env:env -> unit -> t
+  val active     : env:env -> Output.active -> t
   val of_output  : env:env -> _ Output.t -> t
   val pair       : env:env -> t -> t -> t
   val bind       : env:env -> ?info:string -> t -> state -> t

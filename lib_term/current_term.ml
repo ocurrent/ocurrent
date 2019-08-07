@@ -46,13 +46,13 @@ module Make (Input : S.INPUT) = struct
         last := Some (ctx, r);
         r
 
-  let blocked () =
+  let blocked r =
     cache @@ fun ~env _ctx ->
-    make (An.blocked ~env ()) Dyn.pending
+    make (An.blocked ~env ()) (Dyn.of_output r)
 
-  let pending () =
+  let active s =
     cache @@ fun ~env _ctx ->
-    make (An.pending ~env ()) Dyn.pending
+    make (An.active ~env s) (Dyn.active s)
 
   let return ?label x =
     cache @@ fun ~env _ctx ->
@@ -84,7 +84,7 @@ module Make (Input : S.INPUT) = struct
     let md = An.bind ~env ?info x.md in
     match Dyn.run x.fn with
     | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
-    | Error (`Pending) -> make (md An.Active) Dyn.pending
+    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
       let f2 = with_bind_context md f y in
@@ -92,7 +92,7 @@ module Make (Input : S.INPUT) = struct
       An.set_state md (
         match Dyn.run r.fn with
         | Error (`Msg _) -> An.Fail
-        | Error (`Pending) -> An.Active
+        | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
       r
@@ -119,7 +119,7 @@ module Make (Input : S.INPUT) = struct
     let md = An.bind_input ~env ~info x.md in
     match Dyn.run x.fn with
     | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
-    | Error (`Pending) -> make (md An.Active) Dyn.pending
+    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
       let input = f y in
@@ -127,7 +127,7 @@ module Make (Input : S.INPUT) = struct
       An.set_state md ?id (
         match v with
         | Error (`Msg _) -> An.Fail
-        | Error (`Pending) -> An.Active
+        | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
       make md (Dyn.of_output v)
@@ -159,11 +159,11 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env ctx ->
     let xs = xs ctx in
     match Dyn.run xs.fn with
-    | Error _ ->
+    | Error _ as r ->
       (* Not ready; use static version of map. *)
-      let f = f (blocked ()) ctx in
+      let f = f (blocked r) ctx in
       let md = An.list_map ~env ~f:f.md xs.md in
-      make md Dyn.pending
+      make md (Dyn.of_output r)
     | Ok items ->
       (* Ready. Expand inputs. *)
       let rec aux = function

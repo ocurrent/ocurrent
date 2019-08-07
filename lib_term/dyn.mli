@@ -3,10 +3,10 @@
 
 type +'a t
 
-val pending : 'a t
+val active : Output.active -> 'a t
 val return : 'a -> 'a t
 val fail : string -> 'a t
-val state : 'a t -> ('a, [`Pending | `Msg of string]) result t
+val state : 'a t -> ('a, [`Active of Output.active | `Msg of string]) result t
 val catch : 'a t -> 'a S.or_error t
 val of_output : 'a Output.t -> 'a t
 val map : ('a -> 'b) -> 'a t -> 'b t

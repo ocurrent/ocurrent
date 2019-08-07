@@ -37,7 +37,7 @@ let with_analysis ~name ~i (t : unit Current.t) =
   t
 
 let current_watches = ref { Current.Engine.
-                            value = Error `Pending;
+                            value = Error (`Active `Ready);
                             analysis = Current.Analysis.booting;
                             watches = [];
                             jobs = Current.Job_map.empty }

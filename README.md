@@ -82,7 +82,8 @@ to see the diagrams.
 </p>
 
 A green box indicates a pipeline stage that succeeded, orange means
-in-progress, grey means cannot be started yet, and red means failed.
+in-progress, grey means cannot be started yet (inputs not ready),
+yellow means queued or waiting for permission to start, and red means failed.
 
 Clicking on a box shows the log for that operation (though not all operations
 have logs; `head commit` doesn't, for example).

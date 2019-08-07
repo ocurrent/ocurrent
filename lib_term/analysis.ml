@@ -23,7 +23,7 @@ end
 module Make (Job : sig type id end) = struct
   type state =
     | Blocked
-    | Active
+    | Active of Output.active
     | Pass
     | Fail
 
@@ -74,13 +74,13 @@ module Make (Job : sig type id end) = struct
     let state = if t.state = Fail then Pass else t.state in
     make ~env (Catch t) state
 
-  let pending ~env () =
-    make ~env (Constant None) Active
+  let active ~env a =
+    make ~env (Constant None) (Active a)
 
   let of_output ~env = function
     | Ok _ -> return ~env None
     | Error `Msg _ -> fail ~env ()
-    | Error `Pending -> pending ~env ()
+    | Error (`Active a) -> active ~env a
 
   let ( =? ) a b =
     match a, b with
@@ -97,8 +97,8 @@ module Make (Job : sig type id end) = struct
     match a.state, b.state with
     | _, Fail
     | Fail, _ -> Fail
-    | _, (Blocked | Active)
-    | (Blocked | Active), _ -> Blocked
+    | _, (Blocked | Active _)
+    | (Blocked | Active _), _ -> Blocked
     | Pass, Pass -> Pass
 
   let pair ~env a b =
@@ -121,7 +121,7 @@ module Make (Job : sig type id end) = struct
       let ty = Bind (x, info) in
       let state =
         match x.state with
-        | Blocked | Active | Fail -> Blocked
+        | Blocked | Active _ | Fail -> Blocked
         | Pass -> state
       in
       make ~env:parent ty state
@@ -131,7 +131,7 @@ module Make (Job : sig type id end) = struct
     let ty = Bind_input {x; info; id = None} in
     let state =
       match x.state with
-      | Blocked | Active | Fail -> Blocked
+      | Blocked | Active _ | Fail -> Blocked
       | Pass -> state
     in
     make ~env:parent ty state
@@ -200,7 +200,8 @@ module Make (Job : sig type id end) = struct
         let bg =
           match md.state with
           | Blocked -> "#d3d3d3"
-          | Active -> "#ffa500"
+          | Active `Ready -> "#ffff00"
+          | Active `Running -> "#ffa500"
           | Pass -> "#90ee90"
           | Fail -> "#ff4500"
         in
@@ -275,5 +276,5 @@ module Make (Job : sig type id end) = struct
 
   let booting =
     let env = make_env () in
-    pending ~env ()
+    active ~env `Running
 end

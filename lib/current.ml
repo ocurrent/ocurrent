@@ -169,7 +169,7 @@ module Engine = struct
   }
 
   let booting = {
-    value = Error (`Pending);
+    value = Error (`Active `Running);
     analysis = Analysis.booting;
     watches = [];
     jobs = Job_map.empty;
@@ -259,7 +259,7 @@ end = struct
       t.active <- false;
       (* Clear the saved value, so that if we get activated again then we don't
          start by serving up the previous value, which could be quite stale by then. *)
-      t.value <- Error `Pending;
+      t.value <- Error (`Active `Running);
       Lwt.return `Finished
     )
   and get_value ~unwatch t =
@@ -300,7 +300,7 @@ end = struct
       active = false;
       need_refresh = true;
       cond; external_cond;
-      value = Error `Pending;
+      value = Error (`Active `Running);
       read; watch; pp
     } in
     run t

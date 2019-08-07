@@ -12,7 +12,8 @@ let render_job (id, _) =
 
 let render_result = function
   | Ok () -> [txt "Success!"]
-  | Error `Pending -> [txt "Pending..."]
+  | Error (`Active `Ready) -> [txt "Ready..."]
+  | Error (`Active `Running) -> [txt "Running..."]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]
 
 let template contents =

@@ -63,7 +63,8 @@ let get_watch () =
 
 let result =
   let pp f = function
-    | `Pending -> Fmt.string f "Pending"
+    | `Active `Ready -> Fmt.string f "Ready"
+    | `Active `Running -> Fmt.string f "Running"
     | (`Msg m) -> Fmt.pf f "ERR: %s" m
   in
   let error = Alcotest.testable pp (=) in
@@ -77,7 +78,7 @@ let trace step { Current.Engine.value = out; watches = inputs; _ } =
   | 1 ->
     (* Although there is data ready, we shouldn't have started the read yet
        because we're still enabling the watch. *)
-    Alcotest.check result "Initially pending" (Error `Pending) out;
+    Alcotest.check result "Initially pending" (Error (`Active `Running)) out;
     assert (!w <> None);
     assert (List.length inputs = 2);
     let w = get_watch () in
@@ -140,7 +141,7 @@ let trace step { Current.Engine.value = out; watches = inputs; _ } =
     Bool_var.set wanted (Ok true);
     Lwt.return_unit
   | 9 ->
-    Alcotest.check result "Pending again" (Error `Pending) out;
+    Alcotest.check result "Pending again" (Error (`Active `Running)) out;
     let w = get_watch () in
     Lwt.wakeup w.set_ready ();
     data := Some (Ok "baz");
