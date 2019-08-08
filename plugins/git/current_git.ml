@@ -19,7 +19,8 @@ module Fetch = struct
 
   let id = "git-fetch"
 
-  let build ~switch No_context job key =
+  let build ~switch ~set_running No_context job key =
+    set_running ();
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
     let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)

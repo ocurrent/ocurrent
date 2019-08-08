@@ -38,9 +38,12 @@ module type BUILDER = sig
   (** The result of a build. *)
 
   val build :
-    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t ->
+    switch:Current.Switch.t ->
+    set_running:(unit -> unit) ->
+    t -> Current.Job.t -> Key.t ->
     Value.t Current.or_error Lwt.t
-  (** [build ~switch t j k] builds [k].
+  (** [build ~switch ~set_running t j k] builds [k].
+      Call [set_running] once any required resources have been acquired.
       If the switch is turned off, the build should be cancelled.
       Log messages can be written to [j]. *)
 

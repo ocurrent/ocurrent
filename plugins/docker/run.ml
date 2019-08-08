@@ -26,7 +26,8 @@ end
 
 module Value = Current.Unit
 
-let build ~switch No_context job key =
+let build ~switch ~set_running No_context job key =
+  set_running ();
   Current.Process.exec ~switch ~job (Key.cmd key)
 
 let pp = Key.pp

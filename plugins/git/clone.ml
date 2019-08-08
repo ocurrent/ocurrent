@@ -17,7 +17,8 @@ module Value = Commit
 
 let id = "git-clone"
 
-let build ~switch No_context job { Key.repo; gref } =
+let build ~switch ~set_running No_context job { Key.repo; gref } =
+  set_running ();
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin

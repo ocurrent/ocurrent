@@ -90,14 +90,23 @@ module Make(B : S.BUILDER) = struct
     Job.log job "Starting build for %a" B.pp build.key;
     let level = B.level ctx build.key in
     confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
-    build.running <- true;
-    running := Some (!timestamp () |> Unix.gmtime);
-    Lwt_condition.broadcast running_cond ();
+    let set_running () =
+      if not build.running then (
+        build.running <- true;
+        running := Some (!timestamp () |> Unix.gmtime);
+        Lwt_condition.broadcast running_cond ()
+      ) else (
+        Log.warn (fun f -> f "set_running called, but job %a is already running!" B.pp build.key)
+      )
+    in
     Lwt.catch
-      (fun () -> B.build ~switch:build.switch ctx job build.key)
+      (fun () -> B.build ~switch:build.switch ~set_running ctx job build.key)
       (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
     >|= fun x ->
-    build.running <- false;
+    if build.running then
+      build.running <- false
+    else if Stdlib.Result.is_ok x then
+      Log.warn (fun f -> f "Build %a succeeded, but never called set_running!" B.pp build.key);
     let finished = !timestamp () in
     if build.auto_cancelled then (
       force_invalidate (B.Key.digest build.key);

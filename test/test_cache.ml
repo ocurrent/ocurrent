@@ -19,7 +19,8 @@ module Build = struct
 
   let pp = Fmt.string
 
-  let build ~switch:_ t _job key =
+  let build ~switch:_ ~set_running t _job key =
+    set_running ();
     if Builds.mem key !t then Fmt.failwith "Already building %s!" key;
     let finished, set_finished = Lwt.wait () in
     t := Builds.add key set_finished !t;

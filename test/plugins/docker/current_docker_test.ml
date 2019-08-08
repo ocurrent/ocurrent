@@ -55,7 +55,8 @@ module Run = struct
 
   let pp = Key.pp
 
-  let build ~switch No_context _job (key : Key.t) =
+  let build ~switch ~set_running No_context _job (key : Key.t) =
+    set_running ();
     let ready, set_ready = Lwt.wait () in
     containers := Containers.add key set_ready !containers;
     Current.Switch.add_hook_or_exec switch (function
@@ -97,7 +98,9 @@ module Push = struct
 
   let pp f k = Fmt.pf f "docker push %a" Key.pp k
 
-  let build ~switch:_ No_context _job _key = Lwt.return (Ok ())
+  let build ~switch:_ ~set_running No_context _job _key =
+    set_running ();
+    Lwt.return (Ok ())
 
   let auto_cancel = false
 
