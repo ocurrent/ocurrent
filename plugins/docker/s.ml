@@ -24,13 +24,15 @@ module type DOCKER = sig
     ?squash:bool ->
     ?label:string ->
     ?dockerfile:Dockerfile.t Current.t ->
+    ?pool:unit Lwt_pool.t ->
     pull:bool ->
     source ->
     Image.t Current.t
   (** [build ~pull src] builds a Docker image from source.
       @param squash If set to [true], pass "--squash" to "docker build".
       @param dockerfile If present, this is used as the contents of the Dockerfile.
-      @param pull If [true], always check for updates and pull the latest version. *)
+      @param pull If [true], always check for updates and pull the latest version.
+      @param pool Rate limit builds by requiring a resource from the pool. *)
 
   val run : Image.t Current.t -> args:string list -> unit Current.t
   (** [run image ~args] runs [image args] with Docker. *)
