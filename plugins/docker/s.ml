@@ -47,6 +47,6 @@ module type DOCKER = sig
 end
 
 module type HOST = sig
-  val docker_host : string option
-  (** The value to pass to Docker via the "-H" argument ([None] for no argument). *)
+  val docker_context : string option
+  (** The value to pass to Docker via the "--context" argument ([None] for no argument). *)
 end

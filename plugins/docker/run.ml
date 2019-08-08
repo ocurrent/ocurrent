@@ -6,21 +6,21 @@ module Key = struct
   type t = {
     image : Image.t;
     args : string list;
-    docker_host : string option;
+    docker_context : string option;
   }
 
   let pp_args = Fmt.(list ~sep:sp (quote string))
 
-  let cmd { image; args; docker_host } =
-    Cmd.docker ~docker_host @@ ["run"; "-i"; Image.hash image] @ args
+  let cmd { image; args; docker_context } =
+    Cmd.docker ~docker_context @@ ["run"; "-i"; Image.hash image] @ args
 
   let pp f t = Cmd.pp f (cmd t)
 
-  let digest { image; args; docker_host } =
+  let digest { image; args; docker_context } =
     Yojson.Safe.to_string @@ `Assoc [
       "image", `String (Image.hash image);
       "args", [%derive.to_yojson:string list] args;
-      "docker_host", [%derive.to_yojson:string option] docker_host;
+      "docker_context", [%derive.to_yojson:string option] docker_context;
     ]
 end
 

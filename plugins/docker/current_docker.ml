@@ -9,13 +9,13 @@ module Make (Host : S.HOST) = struct
 
   module PC = Current_cache.Make(Pull)
 
-  let docker_host = Host.docker_host
+  let docker_context = Host.docker_context
 
   let pull ?label ~schedule tag =
     let label = Option.value label ~default:tag in
     Current.component "pull %s" label |>
     let> () = Current.return () in
-    PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
+    PC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag }
 
   module BC = Current_cache.Make(Build)
 
@@ -34,39 +34,39 @@ module Make (Host : S.HOST) = struct
     let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host; squash }
+    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_context; squash }
 
   module RC = Current_cache.Make(Run)
 
   let run image ~args =
     Current.component "run" |>
     let> image = image in
-    RC.get Run.No_context { Run.Key.image; args; docker_host }
+    RC.get Run.No_context { Run.Key.image; args; docker_context }
 
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
     Current.component "docker-tag@ %a" pp_tag tag |>
     let> image = image in
-    TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image }
+    TC.set Tag.No_context { Tag.Key.tag; docker_context } { Tag.Value.image }
 
   module Push_cache = Current_cache.Output(Push)
 
   let push ?auth ~tag image =
     Current.component "docker-push@ %a" pp_tag tag |>
     let> image = image in
-    Push_cache.set auth { Push.Key.tag; docker_host } { Push.Value.image }
+    Push_cache.set auth { Push.Key.tag; docker_context } { Push.Value.image }
 
   module SC = Current_cache.Output(Service)
 
   let service ~name ~image () =
     Current.component "docker-service@ %s" name |>
     let> image = image in
-    SC.set Service.No_context { Service.Key.name; docker_host } { Service.Value.image }
+    SC.set Service.No_context { Service.Key.name; docker_context } { Service.Value.image }
 end
 
 module Default = Make(struct
-    let docker_host = Sys.getenv_opt "DOCKER_HOST"
+    let docker_context = Sys.getenv_opt "DOCKER_HOST"
   end)
 
 module MC = Current_cache.Output(Push_manifest)

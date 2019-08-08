@@ -10,7 +10,7 @@ module Key = struct
   type t = {
     commit : [ `No_context | `Git of Current_git.Commit.t ];
     dockerfile : string option;
-    docker_host : string option;
+    docker_context : string option;
     squash : bool;
   }
 
@@ -22,11 +22,11 @@ module Key = struct
     | `No_context -> `Null
     | `Git commit -> `String (Current_git.Commit.id commit)
 
-  let to_json { commit; dockerfile; docker_host; squash } =
+  let to_json { commit; dockerfile; docker_context; squash } =
     `Assoc [
       "commit", source_to_json commit;
       "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
-      "docker_host", [%derive.to_yojson:string option] docker_host;
+      "docker_context", [%derive.to_yojson:string option] docker_context;
       "squash", [%derive.to_yojson:bool] squash;
     ]
 
@@ -51,7 +51,7 @@ let with_context ~switch ~job context fn =
   | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
 
 let build ~switch { pull } job key =
-  let { Key.commit; docker_host; dockerfile; squash } = key in
+  let { Key.commit; docker_context; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
   begin match dockerfile with
     | None -> ()
@@ -62,11 +62,11 @@ let build ~switch { pull } job key =
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
-  let cmd = Cmd.docker ~docker_host @@ ["build"] @
-                                       pull @ squash @
-                                       ["--iidfile";
-                                        Fpath.to_string iidfile; "--";
-                                        Fpath.to_string dir] in
+  let cmd = Cmd.docker ~docker_context @@ ["build"] @
+                                          pull @ squash @
+                                          ["--iidfile";
+                                           Fpath.to_string iidfile; "--";
+                                           Fpath.to_string dir] in
   Current.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->

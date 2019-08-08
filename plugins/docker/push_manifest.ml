@@ -43,7 +43,7 @@ let publish ~switch auth job tag value =
     begin match auth with
       | None -> Lwt.return (Ok ())
       | Some (user, password) ->
-        let cmd = Cmd.login ~docker_host:None ~user in
+        let cmd = Cmd.login ~docker_context:None ~user in
         Current.Process.exec ~switch ~job ~stdin:password cmd
     end >>!= fun () ->
     Current.Process.exec ~switch ~job (push_cmd tag)

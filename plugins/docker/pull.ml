@@ -4,11 +4,11 @@ type t = No_context
 
 module Key = struct
   type t = {
-    docker_host : string option;
+    docker_context : string option;
     tag : string;
   } [@@deriving to_yojson]
 
-  let cmd { docker_host; tag } = Cmd.docker ~docker_host ["pull"; tag]
+  let cmd { docker_context; tag } = Cmd.docker ~docker_context ["pull"; tag]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -21,8 +21,8 @@ let build ~switch No_context job key =
   Current.Process.exec ~switch ~job (Key.cmd key) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
-    let { Key.docker_host; tag } = key in
-    let cmd = Cmd.docker ~docker_host ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
+    let { Key.docker_context; tag } = key in
+    let cmd = Cmd.docker ~docker_context ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
     Current.Process.check_output ~job cmd >|= function
     | Error _ as e -> e
     | Ok id ->

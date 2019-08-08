@@ -1,12 +1,12 @@
 let host_args = function
   | None -> []
-  | Some host -> ["-H"; host]
+  | Some context -> ["--context"; context]
 
-let docker ~docker_host args =
-  "", Array.of_list ("docker" :: host_args docker_host @ args)
+let docker ~docker_context args =
+  "", Array.of_list ("docker" :: host_args docker_context @ args)
 
-let login ~docker_host ~user =
-  docker ~docker_host ["login"; "--password-stdin"; "--username"; user]
+let login ~docker_context ~user =
+  docker ~docker_context ["login"; "--password-stdin"; "--username"; user]
 
 let pp f (prog, args) =
   if prog <> "" then Fmt.pf f "[%S] " prog;

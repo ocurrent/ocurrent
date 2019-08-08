@@ -7,7 +7,7 @@ let id = "docker-tag"
 module Key = struct
   type t = {
     tag : string;
-    docker_host : string option;
+    docker_context : string option;
   } [@@deriving to_yojson]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
@@ -26,8 +26,8 @@ end
 
 module Outcome = Current.Unit
 
-let tag_cmd { Key.tag; docker_host } { Value.image } =
-  Cmd.docker ~docker_host ["tag"; Image.hash image; tag]
+let tag_cmd { Key.tag; docker_context } { Value.image } =
+  Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
 let publish ~switch No_context job key value =
   Current.Process.exec ~switch ~job (tag_cmd key value)
