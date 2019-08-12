@@ -15,10 +15,6 @@ module Config : sig
 
   val get_confirm : t -> Level.t option
 
-  val confirmed : Level.t -> t -> unit Lwt.t
-  (** [confirmed l t] is a promise that resolves once we are ready to run
-      an action at level [l] or higher. *)
-
   val cmdliner : t Cmdliner.Term.t
 end
 
@@ -42,6 +38,19 @@ class type actions = object
       reaches zero. *)
 end
 
+module Step : sig
+  type t
+  type id
+
+  val id : t -> id
+  (** [id t] is a unique value for this evaluation step.
+      This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
+
+  val confirmed : Level.t -> t -> unit Lwt.t
+  (** [confirmed l t] is a promise that resolves once we are ready to run
+      an action at level [l] or higher. *)
+end
+
 module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
@@ -62,7 +71,7 @@ module Input : sig
                      using it should be recalculated).
       @param actions Ways to interact with this input. *)
 
-  val of_fn : (Config.t -> 'a Current_term.Output.t * metadata) -> 'a t
+  val of_fn : (Step.t -> 'a Current_term.Output.t * metadata) -> 'a t
   (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will
       call [release] exactly once when each watch is no longer needed.

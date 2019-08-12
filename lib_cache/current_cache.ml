@@ -84,12 +84,12 @@ module Make(B : S.BUILDER) = struct
 
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
-  let do_build ~config ~job ctx build =
+  let do_build ~step ~job ctx build =
     let ready = !timestamp () |> Unix.gmtime in
     let running = ref None in
     Job.log job "Starting build for %a" B.pp build.key;
     let level = B.level ctx build.key in
-    confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
+    confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
     let set_running () =
       if not build.running then (
         build.running <- true;
@@ -141,7 +141,7 @@ module Make(B : S.BUILDER) = struct
 
   (* Create a new in-memory build object. Try to initialise it with the value from the disk-cache.
      If there isn't one, start a new build in a background thread. *)
-  let get_build ~config ctx key =
+  let get_build ~step ctx key =
     let key_digest = B.Key.digest key in
     let finished, set_finished = Lwt.wait () in
     let previous = Db.Build.lookup ~builder:B.id key_digest in
@@ -169,7 +169,7 @@ module Make(B : S.BUILDER) = struct
           Lwt.try_bind
             (fun () ->
                Lwt.finalize
-                 (fun () -> do_build ~config ~job ctx build)
+                 (fun () -> do_build ~step ~job ctx build)
                  (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
             (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
@@ -252,13 +252,13 @@ module Make(B : S.BUILDER) = struct
     | Lwt.Fail ex -> raise ex
 
   let get ?(schedule=Schedule.default) ctx key =
-    Current.Input.of_fn @@ fun config ->
+    Current.Input.of_fn @@ fun step ->
     let key_digest = B.Key.digest key in
     let b =
       match Builds.find_opt key_digest !builds with
       | Some b -> b
       | None ->
-        let b = get_build ~config ctx key in
+        let b = get_build ~step ctx key in
         builds := Builds.add key_digest b !builds;
         b
     in
@@ -305,6 +305,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   type output = {
     key : Op.Key.t;
+    mutable last_set : Current.Step.id;   (* Last evaluation step setting this output. *)
     mutable job_id : Current.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
@@ -349,7 +350,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. *)
-  let rec maybe_start ~config output =
+  let rec maybe_start ~step output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
     | `Active _ when not Op.auto_cancel ->
@@ -370,7 +371,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate output;
-        output.op <- `Active (publish ~config output)
+        output.op <- `Active (publish ~step output)
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -379,8 +380,8 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate output;
-        output.op <- `Active (publish ~config output)
-  and publish ~config output =
+        output.op <- `Active (publish ~step output)
+  and publish ~step output =
     let started, set_started = Lwt.wait () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
@@ -397,7 +398,7 @@ module Output(Op : S.PUBLISHER) = struct
               Lwt.catch
                 (fun () ->
                    let level = Op.level ctx output.key (Value.value op.value) in
-                   confirm ~job (Current.Config.confirmed level config, level) >>= fun () ->
+                   confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
                    Lwt.wakeup set_started ();
                    Op.publish ~switch ctx job output.key (Value.value op.value)
                 )
@@ -414,7 +415,7 @@ module Output(Op : S.PUBLISHER) = struct
                   (Op.Outcome.marshal outcome);
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                maybe_start ~config output;
+                maybe_start ~step output;
                 Lwt.wakeup set_finished ()
               | Error (`Msg m as e) ->
                 if op.autocancelled then
@@ -428,7 +429,7 @@ module Output(Op : S.PUBLISHER) = struct
                   not (Value.equal op.value output.desired)
                 in
                 output.op <- if retry then `Retry else `Error e;
-                maybe_start ~config output;
+                maybe_start ~step output;
                 Lwt.wakeup set_finished ()
            )
            (fun () ->
@@ -438,24 +439,28 @@ module Output(Op : S.PUBLISHER) = struct
     op
 
   (* Create a new in-memory [op], initialising it from the database. *)
-  let get_op ctx key desired =
+  let get_op ~step_id ctx key desired =
     let current, job_id, op =
       match Db.Publish.lookup ~op:Op.id (Op.Key.digest key) with
       | Some { Db.Publish.value; job_id; outcome } ->
         Some value, Some job_id, `Finished (Op.Outcome.unmarshal outcome)
       | None -> None, None, `Retry
     in
-    { key; current; desired; ctx; op; job_id }
+    { key; current; desired; ctx; op; job_id; last_set = step_id }
 
   let set ctx key value =
-    Current.Input.of_fn @@ fun config ->
+    Current.Input.of_fn @@ fun step ->
     Log.debug (fun f -> f "set: %a" Op.pp (key, value));
     let key_digest = Op.Key.digest key in
     let value = Value.v value in
+    let step_id = Current.Step.id step in
     let o =
       (* Ensure the [op] exists and has [op.desired = value]: *)
       match Outputs.find_opt key_digest !outputs with
       | Some o ->
+        if o.last_set = step_id then
+          Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
+        o.last_set <- step_id;
         o.ctx <- ctx;
         if not (Value.equal value o.desired) then (
           o.desired <- value;
@@ -465,11 +470,11 @@ module Output(Op : S.PUBLISHER) = struct
         );
         o
       | None ->
-        let o = get_op ctx key value in
+        let o = get_op ~step_id ctx key value in
         outputs := Outputs.add key_digest o !outputs;
         o
     in
-    maybe_start ~config o;
+    maybe_start ~step o;
     let resolved x =
       match o.job_id with
       | None -> assert false

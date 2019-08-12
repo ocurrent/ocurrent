@@ -60,18 +60,25 @@ type job_metadata = {
 }
 
 module Step = struct
+  type id = < >
+
   type t = {
+    id : id;
     config : Config.t;
     mutable jobs : actions Job_map.t;
     mutable watches : job_metadata list;
   }
 
+  let id t = t.id
+
   let create config =
     let jobs = Job_map.empty in
-    { config; jobs; watches = [] }
+    { config; jobs; watches = []; id = object end }
 
   let register_job t id actions =
     t.jobs <- Job_map.add id actions t.jobs
+
+  let confirmed l t = Config.confirmed l t.config
 end
 
 module Input = struct
@@ -79,7 +86,7 @@ module Input = struct
 
   type metadata = job_metadata
 
-  type 'a t = Config.t -> 'a Current_term.Output.t * metadata
+  type 'a t = Step.t -> 'a Current_term.Output.t * metadata
 
   type env = Step.t
 
@@ -98,7 +105,7 @@ module Input = struct
     end
 
   let get step (t : 'a t) =
-    let value, metadata = t step.Step.config in
+    let value, metadata = t step in
     let { job_id; changed = _; actions } = metadata in
     step.watches <- metadata :: step.watches;
     begin match job_id with
