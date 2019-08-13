@@ -32,6 +32,22 @@ module Output (P : S.PUBLISHER) : sig
   (** [reset ()] clears the cache. Useful for unit-tests. *)
 end
 
+module Db : sig
+  module Build : sig
+    type entry = {
+      job_id : string;
+      build : int64;      (* Build number (increases for rebuilds). *)
+      value : string Current.or_error;
+      rebuild : bool;     (* If [true], then a rebuild was requested. *)
+      finished : float;   (* When the entry was created. *)
+    }
+
+    val query : ?ok:bool -> unit -> entry list
+    (** Search the database for matching records.
+        @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results. *)
+  end
+end
+
 (**/**)
 
 (* For unit tests we need our own test clock: *)

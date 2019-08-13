@@ -94,7 +94,8 @@ let handle_request ~engine _conn request body =
   | Lwt.Return `Cant_happen -> assert false
   | Lwt.Sleep ->
     let meth = Cohttp.Request.meth request in
-    let path = Cohttp.Request.resource request in
+    let uri = Cohttp.Request.uri request in
+    let path = Uri.path uri in
     Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
     match meth, String.cuts ~sep:"/" ~empty:false path with
     | `GET, ([] | ["index.html"]) ->
@@ -127,6 +128,9 @@ let handle_request ~engine _conn request body =
         | Error (`Msg msg) ->
           respond_error `Internal_server_error msg
       end
+    | `GET, ["query"] ->
+      let body = Query.render uri in
+      Server.respond_string ~status:`OK ~body ()
     | _ ->
       Server.respond_not_found ()
 

@@ -33,6 +33,8 @@ module Build : sig
 
   val invalidate : builder:string -> string -> unit
   (** [invalidate ~builder key] removes any existing entry for [builder, key]. *)
+
+  val query : ?ok:bool -> unit -> entry list
 end
 
 module Publish : sig

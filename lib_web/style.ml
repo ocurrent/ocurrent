@@ -6,18 +6,36 @@ let css = {|
     padding: 0;
   }
 
-  h1 {
+  nav {
     margin: 0;
     padding: 0.1em;
     display: block;
     background: black;
     color: #ddd;
-    font-size: 100%;
   }
 
-  h1 a {
+  nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  nav li {
+    display: inline;
+  }
+
+  nav li:hover {
+    background: yellow;
+  }
+
+  nav a {
     color: #ddd;
     text-decoration: none;
+    padding: 1em;
+  }
+
+  nav a:hover {
+    color: black;
   }
 
   div#main {
@@ -26,6 +44,21 @@ let css = {|
 
   div#main object {
     max-width: 100%;
+  }
+
+  table.table {
+    border: 1px solid black;
+    padding: 0;
+  }
+
+  table.table th {
+    background: #888;
+    color: white;
+    padding: 0.1em;
+  }
+
+  form {
+    padding: 0.2em;
   }
 |}
 

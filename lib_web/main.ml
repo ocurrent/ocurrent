@@ -24,7 +24,13 @@ let template contents =
         ]
       )
       (body [
-          h1 [a ~a:[a_href "/"] [txt "OCurrent"]];
+          nav [
+            ul [
+              li [a ~a:[a_href "/"] [txt "OCurrent"]];
+              li [a ~a:[a_href "/"] [txt "Home"]];
+              li [a ~a:[a_href "/query"] [txt "Query"]];
+            ]
+          ];
           div ~a:[a_id "main"] contents
         ]
       )

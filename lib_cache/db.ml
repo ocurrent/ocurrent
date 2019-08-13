@@ -81,7 +81,6 @@ module Build = struct
 
   let lookup ~builder key =
     let t = Lazy.force db in
-    Sqlite3.reset t.lookup |> or_fail "reset";
     match Db.query_some t.lookup Sqlite3.Data.[ TEXT builder; BLOB key ] with
     | None -> None
     | Some Sqlite3.Data.[INT build; INT ok; INT rebuild; BLOB value; TEXT finished; TEXT job_id] ->
@@ -90,6 +89,42 @@ module Build = struct
       let finished = float_of_string finished in
       Some { build; value; rebuild; finished; job_id }
     | Some _ -> Fmt.failwith "Invalid row from lookup!"
+
+  let finalize stmt () =
+    let _ : Sqlite3.Rc.t = Sqlite3.finalize stmt in
+    ()
+
+  let pp_where_clause f = function
+    | [] -> ()
+    | tests -> Fmt.pf f "WHERE %a" Fmt.(list ~sep:(unit " AND ") string) tests
+
+  let sqlite_bool = function
+    | false -> Sqlite3.Data.INT 0L
+    | true -> Sqlite3.Data.INT 1L
+
+  let query ?ok () =
+    let tests = List.filter_map Fun.id [
+        Option.map (fun ok -> Fmt.strf "ok=?", sqlite_bool ok) ok;
+    ] in
+    let t = Lazy.force db in
+    let query = Sqlite3.prepare t.db (
+        Fmt.strf "SELECT build, ok, rebuild, value, strftime('%%s', finished), job_id \
+                  FROM build_cache \
+                  %a \
+                  ORDER BY finished DESC \
+                  LIMIT 100"
+          pp_where_clause (List.map fst tests)
+      )
+    in
+    Fun.protect ~finally:(finalize query) @@ fun () ->
+    Db.query query (List.map snd tests)
+    |> List.map @@ function
+    | Sqlite3.Data.[INT build; INT ok; INT rebuild; BLOB value; TEXT finished; TEXT job_id] ->
+      let value = if ok = 1L then Ok value else Error (`Msg value) in
+      let rebuild = rebuild <> 0L in
+      let finished = float_of_string finished in
+      { build; value; rebuild; finished; job_id }
+    | _ -> Fmt.failwith "Invalid row from query!"
 
   let drop_all builder =
     let t = Lazy.force db in

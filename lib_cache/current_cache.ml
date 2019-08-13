@@ -520,3 +520,5 @@ module Output(Op : S.PUBLISHER) = struct
 end
 
 module S = S
+
+module Db = Db
