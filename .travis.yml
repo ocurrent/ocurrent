@@ -1,7 +1,10 @@
 language: c
-script: docker build .
+script:
+  - sudo ./.travis-docker.sh
+  - docker build --progress=plain .
+dist: bionic
 sudo: required
 services:
   - docker
 env:
-  - OPAMERRLOGLEN=0
+  - DOCKER_BUILDKIT=1 OPAMERRLOGLEN=0

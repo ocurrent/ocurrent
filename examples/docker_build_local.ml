@@ -5,11 +5,13 @@ let pull = false    (* Whether to check for updates using "docker build --pull" 
 
 let () = Logging.init ()
 
+let () = Unix.putenv "DOCKER_BUILDKIT" "1"
+
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
   let image = Docker.build ~pull (`Git src) in
-  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
+  Docker.run image ~args:["docker_build_local"; "--help"]
 
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
