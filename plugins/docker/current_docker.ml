@@ -46,21 +46,21 @@ module Make (Host : S.HOST) = struct
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
-    Current.component "docker-tag@ %a" pp_tag tag |>
+    Current.component "docker-tag@,%a" pp_tag tag |>
     let> image = image in
     TC.set Tag.No_context { Tag.Key.tag; docker_context } { Tag.Value.image }
 
   module Push_cache = Current_cache.Output(Push)
 
   let push ?auth ~tag image =
-    Current.component "docker-push@ %a" pp_tag tag |>
+    Current.component "docker-push@,%a" pp_tag tag |>
     let> image = image in
     Push_cache.set auth { Push.Key.tag; docker_context } { Push.Value.image }
 
   module SC = Current_cache.Output(Service)
 
   let service ~name ~image () =
-    Current.component "docker-service@ %s" name |>
+    Current.component "docker-service@,%s" name |>
     let> image = image in
     SC.set Service.No_context { Service.Key.name; docker_context } { Service.Value.image }
 end
@@ -72,6 +72,6 @@ module Default = Make(struct
 module MC = Current_cache.Output(Push_manifest)
 
 let push_manifest ?auth ~tag manifests =
-  Current.component "docker-push-manifest@ %a" pp_tag tag |>
+  Current.component "docker-push-manifest@,%a" pp_tag tag |>
   let> manifests = Current.list_seq manifests in
   MC.set auth tag { Push_manifest.Value.manifests }
