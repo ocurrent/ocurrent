@@ -4,4 +4,4 @@ type active = [`Ready | `Running]
 type 'a t = ('a, [`Active of active | `Msg of string]) result
   [@@deriving eq]
 
-val pp : 'a Fmt.t -> 'a t Fmt.t
+val pp : 'a Fmt.t -> ('a, [< `Active of active | `Msg of string]) result Fmt.t
