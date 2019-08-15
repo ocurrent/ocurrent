@@ -15,5 +15,6 @@ depends: [
   "fmt"
   "yojson"
   "lwt"
+  "tls"
   "dune" {build}
 ]
