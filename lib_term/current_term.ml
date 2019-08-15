@@ -76,7 +76,7 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (An.of_output ~env x) (Dyn.of_output x)
 
-  let component = Fmt.strf
+  let component fmt = Fmt.strf ("@[<v>" ^^ fmt ^^ "@]")
 
   let bind ?info (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
