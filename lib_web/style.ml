@@ -31,7 +31,7 @@ let css = {|
   nav a {
     color: #ddd;
     text-decoration: none;
-    padding: 1em;
+    padding-right: 1em;
   }
 
   nav a:hover {
