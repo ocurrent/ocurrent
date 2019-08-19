@@ -16,7 +16,7 @@ depends: [
   "bos"
   "lwt"
   "cmdliner"
-  "cohttp-lwt-unix"
+  "cohttp-lwt-unix" {>= "2.2.0"}
   "tyxml"
   "dune" {build}
 ]
