@@ -131,6 +131,11 @@ let handle_request ~engine _conn request body =
     | `GET, ["query"] ->
       let body = Query.render uri in
       Server.respond_string ~status:`OK ~body ()
+    | `GET, ["metrics"] ->
+      let data = Prometheus.CollectorRegistry.(collect default) in
+      let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
+      let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in
+      Server.respond_string ~status:`OK ~headers ~body ()
     | _ ->
       Server.respond_not_found ()
 
