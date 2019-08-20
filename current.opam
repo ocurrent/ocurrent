@@ -18,6 +18,7 @@ depends: [
   "cmdliner"
   "sqlite3"
   "duration"
+  "prometheus"
   "dune" {build}
   "alcotest-lwt" {with-test}
 ]

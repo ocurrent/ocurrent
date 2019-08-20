@@ -4,6 +4,17 @@ type 'a or_error = ('a, [`Msg of string]) result
 
 module Job_map = Map.Make(String)
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "core"
+
+  let evaluations_total =
+    let help = "Total number of evaluations" in
+    Counter.v ~help ~namespace ~subsystem "evaluations_total"
+end
+
 module Config = struct
   type t = {
     mutable confirm : Level.t option;
@@ -193,6 +204,7 @@ module Engine = struct
       Log.debug (fun f -> f "Evaluating...");
       let step = Step.create config in
       let r, an = Executor.run ~env:step f in
+      Prometheus.Counter.inc_one Metrics.evaluations_total;
       let watches = step.Step.watches in
       List.iter (fun w -> w.actions#release) old.watches;
       last_result := {
