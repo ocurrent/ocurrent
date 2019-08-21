@@ -6,6 +6,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Server = Cohttp_lwt_unix.Server
 
+type webhook = string * (Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t)
+
 let dot_to_svg = ("", [| "dot"; "-Tsvg" |])
 
 let errorf fmt =
@@ -86,7 +88,7 @@ let set_confirm config body =
       Current.Config.set_confirm config (Some level);
       Server.respond_redirect ~uri:(Uri.of_string "/") ()
 
-let handle_request ~engine _conn request body =
+let handle_request ~engine ~webhooks _conn request body =
   match Lwt.state (Current.Engine.thread engine) with
   | Lwt.Fail ex ->
     let body = Fmt.strf "Engine has crashed: %a" Fmt.exn ex in
@@ -136,6 +138,11 @@ let handle_request ~engine _conn request body =
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in
       Server.respond_string ~status:`OK ~headers ~body ()
+    | `POST, ["webhooks"; hook] ->
+      begin match List.assoc_opt hook (webhooks : webhook list) with
+        | Some f -> f request body
+        | None -> Server.respond_not_found ()
+      end
     | _ ->
       Server.respond_not_found ()
 
@@ -144,9 +151,13 @@ let pp_mode f mode =
 
 let default_mode = `TCP (`Port 8080)
 
-let run ?(mode=default_mode) engine =
-  let config = Server.make ~callback:(handle_request ~engine) () in
+let show_webhook (name, _) =
+  Logs.info (fun f -> f "Registered webhook at /webhooks/%s" name)
+
+let run ?(mode=default_mode) ?(webhooks=[]) engine =
+  let config = Server.make ~callback:(handle_request ~engine ~webhooks) () in
   Log.info (fun f -> f "Starting web server: %a" pp_mode mode);
+  List.iter show_webhook webhooks;
   Lwt.try_bind
     (fun () -> Server.create ~mode config)
     (fun () -> Lwt.return @@ Error (`Msg "Web-server stopped!"))
