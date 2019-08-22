@@ -16,5 +16,6 @@ depends: [
   "yojson"
   "lwt"
   "tls"
+  "cohttp-lwt-unix"
   "dune" {build}
 ]
