@@ -1,3 +1,5 @@
 (library
   (public_name current_github)
-  (libraries current current.cache current_git yojson cohttp-lwt-unix cmdliner))
+  (libraries current current.cache current_git yojson cohttp-lwt-unix cmdliner
+             nocrypto x509)
+  (preprocess (pps ppx_deriving_yojson)))

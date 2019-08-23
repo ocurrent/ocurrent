@@ -1,5 +1,5 @@
 (executables
-  (names docker_build_local build_matrix docker_service github)
+  (names docker_build_local build_matrix docker_service github github_app)
   (libraries current
              current_web
              current_docker

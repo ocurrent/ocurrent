@@ -1,5 +1,6 @@
-(* This pipeline monitors a GitHub repository and uses Docker to build the
-   latest version on the default branch. *)
+(* This pipeline is GitHub app.
+   It monitors all GitHub repositories the app is asked to handle, and uses
+   Docker to build the latest version on the default branch. *)
 
 open Current.Syntax
 
@@ -21,13 +22,17 @@ let dockerfile ~base =
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
-let pipeline ~github ~repo () =
-  let head = Github.Api.head_commit github repo in
-  let src = Git.fetch head in
+let pipeline ~app () =
   let dockerfile =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
     dockerfile ~base
   in
+  Github.App.installations app |> Current.list_iter ~pp:Github.Installation.pp @@ fun installation ->
+  let github = Current.map Github.Installation.api installation in
+  let repos = Github.Installation.repositories installation in
+  repos |> Current.list_iter ~pp:Github.Repo_id.pp @@ fun repo ->
+  let head = Github.Api.head_commit_dyn github repo in
+  let src = Git.fetch head in
   Docker.build ~pull:false ~dockerfile (`Git src)
   |> Current.ignore_value
 
@@ -35,9 +40,9 @@ let webhooks = [
   "github", Github.input_webhook
 ]
 
-let main config mode github repo =
-  let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
+let main config mode app =
   Logging.run begin
+    let engine = Current.Engine.create ~config (pipeline ~app) in
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode ~webhooks engine;
@@ -48,17 +53,9 @@ let main config mode github repo =
 
 open Cmdliner
 
-let repo =
-  Arg.required @@
-  Arg.pos 0 (Arg.some Github.Repo_id.cmdliner) None @@
-  Arg.info
-    ~doc:"The GitHub repository (owner/name) to monitor."
-    ~docv:"REPO"
-    []
-
 let cmd =
-  let doc = "Monitor a GitHub repository." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo),
+  let doc = "Monitor a GitHub app's repositories." in
+  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner),
   Term.info "github" ~doc
 
 let () = Term.(exit @@ eval cmd)
