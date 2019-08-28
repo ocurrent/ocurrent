@@ -1,9 +1,10 @@
 (executables
-  (names docker_build_local build_matrix docker_service)
+  (names docker_build_local build_matrix docker_service github github_app)
   (libraries current
              current_web
              current_docker
              current_git
+             current_github
              current_fs
              lwt.unix
              logs.fmt
