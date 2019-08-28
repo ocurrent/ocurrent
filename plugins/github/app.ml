@@ -80,7 +80,7 @@ let get_installations app =
     )
 
 let installation t ~account iid =
-  let api = Api.v ~get_token:(fun () -> get_token t iid) in
+  let api = Api.v ~get_token:(fun () -> get_token t iid) ("i-" ^ account) in
   Installation.v ~api ~account ~iid
 
 let monitor_installations t () =

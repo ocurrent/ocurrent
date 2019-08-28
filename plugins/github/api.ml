@@ -15,11 +15,11 @@ module Metrics = struct
 
   let remaining_points =
     let help = "Points remaining at time of last query" in
-    Gauge.v ~help ~namespace ~subsystem "remaining_points"
+    Gauge.v_label ~label_name:"account" ~help ~namespace ~subsystem "remaining_points"
 
   let used_points_total =
     let help = "Total GraphQL query points used" in
-    Counter.v ~help ~namespace ~subsystem "used_points_total"
+    Counter.v_label ~label_name:"account" ~help ~namespace ~subsystem "used_points_total"
 end
 
 let graphql_endpoint = Uri.of_string "https://api.github.com/graphql"
@@ -46,20 +46,21 @@ let no_token = {
 }
 
 type t = {
+  account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
   token_lock : Lwt_mutex.t;
   mutable token : token;
   mutable head_inputs : Current_git.Commit_id.t Current.Input.t Repo_map.t;
 }
 
-let v ~get_token =
+let v ~get_token account =
   let head_inputs = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_inputs }
+  { get_token; token_lock; token = no_token; head_inputs; account }
 
 let of_oauth token =
   let get_token () = Lwt.return { token = Ok token; expiry = None } in
-  v ~get_token
+  v ~get_token "oauth"
 
 let get_token t =
   Lwt_mutex.with_lock t.token_lock @@ fun () ->
@@ -125,14 +126,14 @@ let query_default =
 
 let ( / ) a b = Yojson.Safe.Util.member b a
 
-let handle_rate_limit name json =
+let handle_rate_limit t name json =
   let open Yojson.Safe.Util in
   let cost = json / "cost" |> to_int in
   let remaining = json / "remaining" |> to_int in
   let reset_at = json / "resetAt" |> to_string in
   Log.info (fun f -> f "GraphQL(%s): cost:%d remaining:%d resetAt:%s" name cost remaining reset_at);
-  Prometheus.Counter.inc Metrics.used_points_total (float_of_int cost);
-  Prometheus.Gauge.set Metrics.remaining_points (float_of_int remaining)
+  Prometheus.Counter.inc (Metrics.used_points_total t.account) (float_of_int cost);
+  Prometheus.Gauge.set (Metrics.remaining_points t.account) (float_of_int remaining)
 
 let default_ref t { Repo_id.owner; name } =
     let variables = [
@@ -143,7 +144,7 @@ let default_ref t { Repo_id.owner; name } =
     try
       let open Yojson.Safe.Util in
       let data = json / "data" in
-      handle_rate_limit "default_ref" (data / "rateLimit");
+      handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
       let url = repo / "url" |> to_string in
       let def = repo / "defaultBranchRef" in
