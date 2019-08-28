@@ -4,10 +4,6 @@ type t = {
   iss : string;  (* GitHub App's identifier *)
 } [@@deriving to_yojson]
 
-let v ~iat ?exp ~iss =
-  let exp = Option.value exp ~default:(iat + 10 * 60) in
-  { iat; exp; iss }
-
 let b64encode = Base64.(encode_exn ~pad:false ~alphabet:uri_safe_alphabet)
 
 let header = b64encode {|{"typ":"JWT","alg":"RS256"}|} ^ "."

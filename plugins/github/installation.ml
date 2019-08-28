@@ -10,6 +10,8 @@ type t = {
 
 let installation_repositories_cond = Lwt_condition.create ()
 
+let input_installation_repositories_webhook () = Lwt_condition.broadcast installation_repositories_cond ()
+
 let pp f t = Fmt.string f t.account
 
 let list_repositories_endpoint = Uri.of_string "https://api.github.com/installation/repositories"

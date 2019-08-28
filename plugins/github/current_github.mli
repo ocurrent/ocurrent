@@ -38,23 +38,29 @@ end
 
 module Installation : sig
   type t
+  (** Details about a specific installation of a GitHub app. *)
 
   val api : t -> Api.t
+  (** Provides access to the API as this installation. *)
 
   val pp : t Fmt.t
+  (** The GitHub account that installed the app. *)
 
   val repositories : t Current.t -> Repo_id.t list Current.t
+  (** [repositories t] evaluates to the list of repositories which the user
+      configured for this installation. *)
 end
 
 module App : sig
   type t
+  (** Configuration for a GitHub application. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub app configuration. *)
 
   val installation : t -> account:string -> int -> Installation.t
   (** [installation t ~account id] gives access to the API for installation [id].
-      @param account Label for debugging. *)
+      @param account The GitHub account that installed the application. *)
 
   val installations : t -> Installation.t list Current.t
   (** [installations t] evaluates to the list of installations for this app. *)

@@ -2,7 +2,8 @@ open Current.Syntax
 open Lwt.Infix
 
 let installations_changed_cond = Lwt_condition.create ()    (* Fires when the list should be updated *)
-(* TODO: trigger this on webhook event *)
+
+let input_installation_webhook () = Lwt_condition.broadcast installations_changed_cond ()
 
 let list_installations_endpoint =
   Uri.of_string "https://api.github.com/app/installations"
@@ -54,6 +55,7 @@ let get_token app iid =
   http app post uri >|= fun json ->
   let open Yojson.Safe.Util in
   let token = Ok (json |> member "token" |> to_string) in
+  (* The token is valid for 60 minutes, so request a new one after 50 minutes. *)
   let expiry = Some (now +. 50.0 *. minute) in
   Api.{ token; expiry }
 

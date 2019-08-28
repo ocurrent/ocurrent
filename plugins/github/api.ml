@@ -5,6 +5,8 @@ open Current.Syntax
    Ideally, it would be more fine-grained. *)
 let webhook_cond = Lwt_condition.create ()
 
+let input_webhook () = Lwt_condition.broadcast webhook_cond ()
+
 module Metrics = struct
   open Prometheus
 
