@@ -2,9 +2,9 @@ opam-version: "2.0"
 synopsis: "Git plugin for OCurrent"
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
-homepage: "https://github.com/talex5/ocurrent"
-bug-reports: "https://github.com/talex5/ocurrent/issues"
-dev-repo: "git+https://github.com/talex5/ocurrent.git"
+homepage: "https://github.com/ocaml-ci/current"
+bug-reports: "https://github.com/ocaml-ci/current/issues"
+dev-repo: "git+https://github.com/ocaml-ci/current.git"
 build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
