@@ -7,6 +7,12 @@ module Commit_id : sig
   (** [v ~repo ~gref ~hash] identifies a commit that can be fetched from [repo]
       using [gref] as the reference name and has hash [hash]. *)
 
+  val repo : t -> string
+  (** [repo t] is the Git URI of the repository. *)
+
+  val hash : t -> string
+  (* [hash t] is the Git commit hash. *)
+
   val equal : t -> t -> bool
   val pp : t Fmt.t
   val digest : t -> string
