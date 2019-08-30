@@ -81,6 +81,8 @@ let get_token t =
     t.token <- token;
     token.token
 
+let ( / ) a b = Yojson.Safe.Util.member b a
+
 let exec_graphql ?variables t query =
   let body =
     `Assoc (
@@ -100,7 +102,20 @@ let exec_graphql ?variables t query =
     fun (resp, body) ->
     Cohttp_lwt.Body.to_string body >|= fun body ->
     match Cohttp.Response.status resp with
-    | `OK -> Yojson.Safe.from_string body
+    | `OK ->
+      let json = Yojson.Safe.from_string body in
+      let open Yojson.Safe.Util in
+      begin match json / "errors" with
+        | `Null -> json
+        | errors ->
+          Log.warn (fun f -> f "@[<v2>GitHub returned errors: %a@]" (Yojson.Safe.pretty_print ~std:true) json);
+          match errors with
+          | `List (error :: _) ->
+            let msg = error / "message" |> to_string in
+            Fmt.failwith "Error from GitHub GraphQL: %s" msg;
+          | _ ->
+            Fmt.failwith "Unknown error type from GitHub GraphQL"
+      end
     | err -> Fmt.failwith "@[<v2>Error performing GraphQL query on GitHub: %s@,%s@]"
                (Cohttp.Code.string_of_status err)
                body
@@ -123,8 +138,6 @@ let query_default =
      } \
    } \
  }"
-
-let ( / ) a b = Yojson.Safe.Util.member b a
 
 let handle_rate_limit t name json =
   let open Yojson.Safe.Util in

@@ -406,7 +406,7 @@ module Output(Op : S.PUBLISHER) = struct
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >|= function
               | Ok outcome ->
-                Job.log job "Publish(%t) : succeeded" pp_op;
+                Job.log job "Publish : succeeded";
                 output.current <- Some (Value.digest op.value);
                 output.op <- `Finished outcome;
                 let job_id = Job.id job in
@@ -420,9 +420,9 @@ module Output(Op : S.PUBLISHER) = struct
                 Lwt.wakeup set_finished ()
               | Error (`Msg m as e) ->
                 if op.autocancelled then
-                  Job.log job "Auto-cancel(%t) complete (%s)" pp_op m
+                  Job.log job "Auto-cancel complete (%s)" m
                 else
-                  Job.log job "Publish(%t) failed: %s" pp_op m;
+                  Job.log job "Publish failed: %s" m;
                 let retry =
                   (* If it failed because we cancelled it, don't count that as an error. *)
                   op.autocancelled ||
