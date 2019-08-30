@@ -371,7 +371,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate output;
-        output.op <- `Active (publish ~step output)
+        publish ~step output
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -380,13 +380,14 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate output;
-        output.op <- `Active (publish ~step output)
+        publish ~step output
   and publish ~step output =
     let started, set_started = Lwt.wait () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let op = { value = output.desired; switch; started; finished; autocancelled = false } in
+    output.op <- `Active op;
     Lwt.async
       (fun () ->
          Lwt.finalize
@@ -435,8 +436,7 @@ module Output(Op : S.PUBLISHER) = struct
            (fun () ->
               Current.Switch.turn_off switch @@ Ok ()
            )
-      );
-    op
+      )
 
   (* Create a new in-memory [op], initialising it from the database. *)
   let get_op ~step_id ctx key desired =
