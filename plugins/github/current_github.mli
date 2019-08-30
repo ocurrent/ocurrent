@@ -20,6 +20,9 @@ module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
 
+  type status = [`Error | `Failure | `Pending | `Success ]
+  (** GitHub commit context status type. *)
+
   val of_oauth : string -> t
   (** [of_oauth token] is a configuration that authenticates to GitHub using [token]. *)
 
@@ -31,6 +34,9 @@ module Api : sig
 
   val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Current_git.Commit_id.t Current.t
   (** Like [head_commit], but the inputs are both currents. *)
+
+  val set_commit_status : t -> Current_git.Commit_id.t Current.t -> string -> status Current.t -> unit Current.t
+  (** [set_commit_status t commit context status] sets the status of [commit]/[context] to [status]. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)

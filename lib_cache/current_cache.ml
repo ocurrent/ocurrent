@@ -371,7 +371,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate output;
-        output.op <- `Active (publish ~step output)
+        publish ~step output
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -380,13 +380,14 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate output;
-        output.op <- `Active (publish ~step output)
+        publish ~step output
   and publish ~step output =
     let started, set_started = Lwt.wait () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let op = { value = output.desired; switch; started; finished; autocancelled = false } in
+    output.op <- `Active op;
     Lwt.async
       (fun () ->
          Lwt.finalize
@@ -405,7 +406,7 @@ module Output(Op : S.PUBLISHER) = struct
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >|= function
               | Ok outcome ->
-                Job.log job "Publish(%t) : succeeded" pp_op;
+                Job.log job "Publish : succeeded";
                 output.current <- Some (Value.digest op.value);
                 output.op <- `Finished outcome;
                 let job_id = Job.id job in
@@ -419,9 +420,9 @@ module Output(Op : S.PUBLISHER) = struct
                 Lwt.wakeup set_finished ()
               | Error (`Msg m as e) ->
                 if op.autocancelled then
-                  Job.log job "Auto-cancel(%t) complete (%s)" pp_op m
+                  Job.log job "Auto-cancel complete (%s)" m
                 else
-                  Job.log job "Publish(%t) failed: %s" pp_op m;
+                  Job.log job "Publish failed: %s" m;
                 let retry =
                   (* If it failed because we cancelled it, don't count that as an error. *)
                   op.autocancelled ||
@@ -435,8 +436,7 @@ module Output(Op : S.PUBLISHER) = struct
            (fun () ->
               Current.Switch.turn_off switch @@ Ok ()
            )
-      );
-    op
+      )
 
   (* Create a new in-memory [op], initialising it from the database. *)
   let get_op ~step_id ctx key desired =

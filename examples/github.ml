@@ -21,6 +21,11 @@ let dockerfile ~base =
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
+let github_status_of_state = function
+  | Ok _ -> `Success
+  | Error (`Active _) -> `Pending
+  | Error (`Msg _) -> `Failure
+
 let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
   let src = Git.fetch head in
@@ -29,7 +34,9 @@ let pipeline ~github ~repo () =
     dockerfile ~base
   in
   Docker.build ~pull:false ~dockerfile (`Git src)
-  |> Current.ignore_value
+  |> Current.state
+  |> Current.map github_status_of_state
+  |> Github.Api.set_commit_status github head "ocurrent"
 
 let webhooks = [
   "github", Github.input_webhook

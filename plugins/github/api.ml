@@ -24,6 +24,10 @@ end
 
 let graphql_endpoint = Uri.of_string "https://api.github.com/graphql"
 
+let status_endpoint ~owner ~repo ~commit =
+  Uri.of_string (Fmt.strf "https://api.github.com/repos/%s/%s/statuses/%s"
+                   owner repo commit)
+
 let read_file path =
   let ch = open_in_bin path in
   Fun.protect
@@ -34,6 +38,8 @@ let read_file path =
     ~finally:(fun () -> close_in ch)
 
 module Repo_map = Map.Make(Repo_id)
+
+type status = [`Error | `Failure | `Pending | `Success ]
 
 type token = {
   token : (string, [`Msg of string]) result;
@@ -81,6 +87,8 @@ let get_token t =
     t.token <- token;
     token.token
 
+let ( / ) a b = Yojson.Safe.Util.member b a
+
 let exec_graphql ?variables t query =
   let body =
     `Assoc (
@@ -100,7 +108,20 @@ let exec_graphql ?variables t query =
     fun (resp, body) ->
     Cohttp_lwt.Body.to_string body >|= fun body ->
     match Cohttp.Response.status resp with
-    | `OK -> Yojson.Safe.from_string body
+    | `OK ->
+      let json = Yojson.Safe.from_string body in
+      let open Yojson.Safe.Util in
+      begin match json / "errors" with
+        | `Null -> json
+        | errors ->
+          Log.warn (fun f -> f "@[<v2>GitHub returned errors: %a@]" (Yojson.Safe.pretty_print ~std:true) json);
+          match errors with
+          | `List (error :: _) ->
+            let msg = error / "message" |> to_string in
+            Fmt.failwith "Error from GitHub GraphQL: %s" msg;
+          | _ ->
+            Fmt.failwith "Unknown error type from GitHub GraphQL"
+      end
     | err -> Fmt.failwith "@[<v2>Error performing GraphQL query on GitHub: %s@,%s@]"
                (Cohttp.Code.string_of_status err)
                body
@@ -123,8 +144,6 @@ let query_default =
      } \
    } \
  }"
-
-let ( / ) a b = Yojson.Safe.Util.member b a
 
 let handle_rate_limit t name json =
   let open Yojson.Safe.Util in
@@ -208,6 +227,103 @@ let head_commit_dyn t repo =
     let i = make_head_commit_input t repo in
     t.head_inputs <- Repo_map.add repo i t.head_inputs;
     i
+
+module Set_status = struct
+  let id = "github-set-status"
+
+  type nonrec t = t
+
+  module Key = struct
+    type t = {
+      commit : Current_git.Commit_id.t;
+      context : string;
+    }
+
+    let to_json { commit; context } =
+      `Assoc [
+        "commit", `String (Current_git.Commit_id.digest commit);
+        "context", `String context
+      ]
+
+    let digest t = Yojson.Safe.to_string (to_json t)
+  end
+
+  module Value = struct
+    type t = status
+
+    let to_string = function
+      | `Error   -> "error"
+      | `Failure -> "failure"
+      | `Pending -> "pending"
+      | `Success -> "success"
+
+    let digest = to_string
+
+    let pp f t = Fmt.string f (digest t)
+  end
+
+  module Outcome = Current.Unit
+
+  let level _ _ _ = Current.Level.Above_average
+
+  let auto_cancel = false
+
+  let pp f ({ Key.commit; context }, status) =
+    Fmt.pf f "Set %a/%s to %a"
+      Current_git.Commit_id.pp commit
+      context
+      Value.pp status
+
+  let repo_parts commit_id =
+    let repo = Uri.of_string @@ Current_git.Commit_id.repo commit_id in
+    if Uri.host repo <> Some "github.com" then
+      Fmt.failwith "Host in %a should be github.com!" Uri.pp repo;
+    let path = Uri.path repo in
+    match Astring.String.cuts ~sep:"/" path with
+    | [""; owner; name_git] ->
+      begin match Filename.chop_suffix_opt ~suffix:".git" name_git with
+        | Some name -> owner, name
+        | None -> owner, name_git
+      end
+    | parts -> Fmt.failwith "Invalid repo name %a repo (in %a)" Fmt.(Dump.list string) parts Uri.pp repo
+
+  let publish ~switch:_ t job key status =
+    let {Key.commit; context} = key in
+    let body =
+      `Assoc [
+        "state", `String (Value.to_string status);
+        "context", `String context;
+      ]
+    in
+    get_token t >>= function
+    | Error (`Msg m) -> Lwt.fail_with m
+    | Ok token ->
+      let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
+      let owner, repo = repo_parts commit in
+      let uri = status_endpoint ~owner ~repo ~commit:(Current_git.Commit_id.hash commit) in
+      Current.Job.log job "@[<v2>POST %a:@,%a@]"
+        Uri.pp uri
+        (Yojson.Safe.pretty_print ~std:true) body;
+      let body = body |> Yojson.Safe.to_string |> Cohttp_lwt.Body.of_string in
+      Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
+      Cohttp_lwt.Body.to_string body >|= fun body ->
+      match Cohttp.Response.status resp with
+      | `Created -> Ok ()
+      | err ->
+        Log.warn (fun f -> f "@[<v2>%a failed: %s@,%s@]"
+                     pp (key, status)
+                     (Cohttp.Code.string_of_status err)
+                     body);
+        Error (`Msg "Failed to set GitHub status")
+end
+
+module Set_status_cache = Current_cache.Output(Set_status)
+
+let set_commit_status t commit context status =
+  Current.component "set_status" |>
+  let> commit = commit
+  and> status = status in
+  Set_status_cache.set t {Set_status.Key.commit; context} status
 
 open Cmdliner
 

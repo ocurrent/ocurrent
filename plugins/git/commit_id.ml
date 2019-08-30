@@ -32,3 +32,6 @@ let is_local t =
 let equal = (=)
 let compare = compare
 let digest {repo; gref; hash} = Fmt.strf "%s %s %s" repo gref hash
+
+let repo t = t.repo
+let hash t = t.hash

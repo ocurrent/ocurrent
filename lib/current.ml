@@ -101,10 +101,19 @@ module Input = struct
 
   type env = Step.t
 
-  let of_fn t = t
-
   let metadata ?job_id ?changed actions =
     { job_id; changed; actions }
+
+  let of_fn f step =
+    try f step
+    with ex ->
+      Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
+      Error (`Msg (Printexc.to_string ex)), metadata @@ object
+        method pp f = Fmt.exn f ex
+        method cancel = None
+        method rebuild = None
+        method release = ()
+      end
 
   let const x =
     of_fn @@ fun _env ->
