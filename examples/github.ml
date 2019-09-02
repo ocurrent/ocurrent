@@ -28,7 +28,7 @@ let github_status_of_state = function
 
 let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
-  let src = Git.fetch head in
+  let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   let dockerfile =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
     dockerfile ~base
@@ -36,7 +36,7 @@ let pipeline ~github ~repo () =
   Docker.build ~pull:false ~dockerfile (`Git src)
   |> Current.state
   |> Current.map github_status_of_state
-  |> Github.Api.set_commit_status github head "ocurrent"
+  |> Github.Api.Commit.set_status head "ocurrent"
 
 let webhooks = [
   "github", Github.input_webhook

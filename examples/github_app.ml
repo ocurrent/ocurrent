@@ -22,6 +22,11 @@ let dockerfile ~base =
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
+let github_status_of_state = function
+  | Ok _ -> `Success
+  | Error (`Active _) -> `Pending
+  | Error (`Msg _) -> `Failure
+
 let pipeline ~app () =
   let dockerfile =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
@@ -32,9 +37,11 @@ let pipeline ~app () =
   let repos = Github.Installation.repositories installation in
   repos |> Current.list_iter ~pp:Github.Repo_id.pp @@ fun repo ->
   let head = Github.Api.head_commit_dyn github repo in
-  let src = Git.fetch head in
+  let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   Docker.build ~pull:false ~dockerfile (`Git src)
-  |> Current.ignore_value
+  |> Current.state
+  |> Current.map github_status_of_state
+  |> Github.Api.Commit.set_status head "ocurrent"
 
 let webhooks = [
   "github", Github.input_webhook
