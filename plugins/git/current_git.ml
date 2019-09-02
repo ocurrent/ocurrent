@@ -20,8 +20,9 @@ module Fetch = struct
   let id = "git-fetch"
 
   let build ~switch ~set_running No_context job key =
-    set_running ();
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
+    Lwt_mutex.with_lock (Clone.repo_lock remote_repo) @@ fun () ->
+    set_running ();
     let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin

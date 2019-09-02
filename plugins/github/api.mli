@@ -5,6 +5,7 @@ type status = [`Error | `Failure | `Pending | `Success ]
 module Commit : sig
   type t
   val id : t -> Current_git.Commit_id.t
+  val pp : t Fmt.t
   val set_status : t Current.t -> string -> status Current.t -> unit Current.t
 end
 
@@ -13,6 +14,8 @@ val of_oauth : string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
 val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t Current.t
+val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
+val ci_refs_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
 
 (* Private API *)

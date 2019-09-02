@@ -57,13 +57,16 @@ type t = {
   token_lock : Lwt_mutex.t;
   mutable token : token;
   mutable head_inputs : commit Current.Input.t Repo_map.t;
+  mutable ci_refs_inputs : ci_refs Current.Input.t Repo_map.t;
 }
 and commit = t * Current_git.Commit_id.t
+and ci_refs = commit list
 
 let v ~get_token account =
   let head_inputs = Repo_map.empty in
+  let ci_refs_inputs = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_inputs; account }
+  { get_token; token_lock; token = no_token; head_inputs; ci_refs_inputs; account }
 
 let of_oauth token =
   let get_token () = Lwt.return { token = Ok token; expiry = None } in
@@ -229,6 +232,140 @@ let head_commit_dyn t repo =
     t.head_inputs <- Repo_map.add repo i t.head_inputs;
     i
 
+let query_branches_and_open_prs = {|
+  query($owner: String!, $name: String!) {
+    rateLimit {
+      cost
+      remaining
+      resetAt
+    }
+    repository(owner: $owner, name: $name) {
+      url
+      refs(first: 100, refPrefix:"refs/heads/") {
+        totalCount
+        edges {
+          node {
+            name
+            target {
+              oid
+            }
+          }
+        }
+      }
+      pullRequests(first: 100, states:[OPEN]) {
+        totalCount
+        edges {
+          node {
+            number
+            headRefOid
+          }
+        }
+      }
+    }
+  }
+|}
+
+let parse_ref ~url ~prefix json =
+  let open Yojson.Safe.Util in
+  let node = json / "node" in
+  let name = node / "name" |> to_string in
+  let hash = node / "target" / "oid" |> to_string in
+  Current_git.Commit_id.v
+    ~repo:(url ^ ".git")
+    ~gref:(prefix ^ name)
+    ~hash
+
+let parse_pr ~url json =
+  let open Yojson.Safe.Util in
+  let node = json / "node" in
+  let hash = node / "headRefOid" |> to_string in
+  let pr = node / "number" |> to_int in
+  Current_git.Commit_id.v
+    ~repo:(url ^ ".git")
+    ~gref:(Fmt.strf "refs/pull/%d/head" pr)
+    ~hash
+
+let get_ci_refs t { Repo_id.owner; name } =
+    let variables = [
+      "owner", `String owner;
+      "name", `String name;
+    ] in
+    exec_graphql t ~variables query_branches_and_open_prs >|= fun json ->
+    try
+      let open Yojson.Safe.Util in
+      let data = json / "data" in
+      handle_rate_limit t "default_ref" (data / "rateLimit");
+      let repo = data / "repository" in
+      let url = repo / "url" |> to_string in
+      let refs =
+        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~url ~prefix:"refs/heads/")
+        |> List.map (fun r -> (t, r)) in
+      let prs =
+        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~url)
+        |> List.map (fun r -> (t, r)) in
+      (* TODO: use cursors to get all results.
+         For now, we just take the first 100 and warn if there are more. *)
+      let n_branches = repo / "refs" / "totalCount" |> to_int in
+      let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
+      if List.length refs < n_branches then
+        Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
+      if List.length prs < n_prs then
+        Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
+      refs @ prs
+    with ex ->
+      let pp f j = Yojson.Safe.pretty_print f j in
+      Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
+      raise ex
+
+let make_ci_refs_input t repo =
+  let read () =
+    Lwt.catch
+      (fun () -> get_ci_refs t repo >|= Stdlib.Result.ok)
+      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.strf "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
+  in
+  let watch refresh =
+    let rec aux x =
+      x >>= fun () ->
+      let x = Lwt_condition.wait webhook_cond in
+      refresh ();
+      Lwt_unix.sleep 10.0 >>= fun () ->   (* Limit updates to 1 per 10 seconds *)
+      aux x
+    in
+    let x = Lwt_condition.wait webhook_cond in
+    let thread =
+      Lwt.catch
+        (fun () -> aux x)
+        (function
+          | Lwt.Canceled -> Lwt.return_unit
+          | ex -> Log.err (fun f -> f "ci_refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
+        )
+    in
+    Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+  in
+  let pp f = Fmt.pf f "Watch %a CI refs" Repo_id.pp repo in
+  Current.monitor ~read ~watch ~pp
+
+let ci_refs t repo =
+  Current.component "%a CI refs" Repo_id.pp repo |>
+  let> () = Current.return () in
+  match Repo_map.find_opt repo t.ci_refs_inputs with
+  | Some i -> i
+  | None ->
+    let i = make_ci_refs_input t repo in
+    t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
+    i
+
+let ci_refs_dyn t repo =
+  Current.component "CI refs" |>
+  let> t = t
+  and> repo = repo in
+  match Repo_map.find_opt repo t.ci_refs_inputs with
+  | Some i -> i
+  | None ->
+    let i = make_ci_refs_input t repo in
+    t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
+    i
+
 module Commit = struct
   module Set_status = struct
     let id = "github-set-status"
@@ -323,6 +460,7 @@ module Commit = struct
 
   type t = commit
   let id = snd
+  let pp = Fmt.using id Current_git.Commit_id.pp
 
   let set_status commit context status =
     Current.component "set_status" |>

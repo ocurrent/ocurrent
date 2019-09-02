@@ -1,12 +1,15 @@
 (* This pipeline is GitHub app.
    It monitors all GitHub repositories the app is asked to handle, and uses
-   Docker to build the latest version on the default branch. *)
+   Docker to build the latest version on all branches and PRs. *)
 
 open Current.Syntax
 
 module Git = Current_git
 module Github = Current_github
 module Docker = Current_docker.Default
+
+(* Limit to one build at a time. *)
+let pool = Lwt_pool.create 1 Lwt.return
 
 let () = Logging.init ()
 
@@ -36,9 +39,10 @@ let pipeline ~app () =
   let github = Current.map Github.Installation.api installation in
   let repos = Github.Installation.repositories installation in
   repos |> Current.list_iter ~pp:Github.Repo_id.pp @@ fun repo ->
-  let head = Github.Api.head_commit_dyn github repo in
+  Github.Api.ci_refs_dyn github repo
+  |> Current.list_iter ~pp:Github.Api.Commit.pp @@ fun head ->
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
-  Docker.build ~pull:false ~dockerfile (`Git src)
+  Docker.build ~pool ~pull:false ~dockerfile (`Git src)
   |> Current.state
   |> Current.map github_status_of_state
   |> Github.Api.Commit.set_status head "ocurrent"
