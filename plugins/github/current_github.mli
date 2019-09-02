@@ -31,6 +31,8 @@ module Api : sig
 
     val set_status : t Current.t -> string -> status Current.t -> unit Current.t
     (** [set_status commit context status] sets the status of [commit]/[context] to [status]. *)
+
+    val pp : t Fmt.t
   end
 
   val of_oauth : string -> t
@@ -44,6 +46,12 @@ module Api : sig
 
   val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t Current.t
   (** Like [head_commit], but the inputs are both currents. *)
+
+  val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
+  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo]. *)
+
+  val ci_refs_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t list Current.t
+  (** Like [ci_refs], but the inputs are both currents. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)

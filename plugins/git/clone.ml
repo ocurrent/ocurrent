@@ -15,9 +15,22 @@ end
 
 module Value = Commit
 
+module Repo_map = Map.Make(String)
+
+let repo_locks = ref Repo_map.empty
+
+let repo_lock repo =
+  match Repo_map.find_opt repo !repo_locks with
+  | Some l -> l
+  | None ->
+    let l = Lwt_mutex.create () in
+    repo_locks := Repo_map.add repo l !repo_locks;
+    l
+
 let id = "git-clone"
 
 let build ~switch ~set_running No_context job { Key.repo; gref } =
+  Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
   set_running ();
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
