@@ -1,12 +1,18 @@
 (* Public API; see Current_git.mli for details of these: *)
 
-type t
 type status = [`Error | `Failure | `Pending | `Success ]
+
+module Commit : sig
+  type t
+  val id : t -> Current_git.Commit_id.t
+  val set_status : t Current.t -> string -> status Current.t -> unit Current.t
+end
+
+type t
 val of_oauth : string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
-val head_commit : t -> Repo_id.t -> Current_git.Commit_id.t Current.t
-val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Current_git.Commit_id.t Current.t
-val set_commit_status : t -> Current_git.Commit_id.t Current.t -> string -> status Current.t -> unit Current.t
+val head_commit : t -> Repo_id.t -> Commit.t Current.t
+val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t Current.t
 val cmdliner : t Cmdliner.Term.t
 
 (* Private API *)
