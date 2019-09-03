@@ -263,7 +263,7 @@ module Process : sig
       @param stdin Data to write to stdin before closing it. *)
 
   val check_output :
-    ?switch:Switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    ?switch:Switch.t -> ?cwd:Fpath.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
     string or_error Lwt.t
   (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
 

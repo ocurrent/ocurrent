@@ -94,12 +94,13 @@ let exec ?switch ?(stdin="") ~job cmd =
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?switch ?(stdin="") ~job cmd =
+let check_output ?switch ?cwd ?(stdin="") ~job cmd =
+  let cwd = Option.map Fpath.to_string cwd in
   let log_fd = Job.fd job in
   let stderr = `FD_copy log_fd in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ~stderr cmd in
+  let proc = Lwt_process.open_process ?cwd ~stderr cmd in
   Switch.add_hook_or_exec_opt switch (fun _reason ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
