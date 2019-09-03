@@ -26,7 +26,7 @@ module Api : sig
 
     type state = [`Error | `Failure | `Pending | `Success ]
 
-    val v : state -> t
+    val v : ?description:string -> ?url:Uri.t -> state -> t
   end
 
   module Commit : sig

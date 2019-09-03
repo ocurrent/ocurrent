@@ -9,6 +9,9 @@ module Docker = Current_docker.Default
 
 let () = Logging.init ()
 
+(* Link for GitHub statuses. *)
+let url = Uri.of_string "http://localhost:8080"
+
 (* Generate a Dockerfile for building all the opam packages in the build context. *)
 let dockerfile ~base =
   let open Dockerfile in
@@ -22,9 +25,9 @@ let dockerfile ~base =
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 let github_status_of_state = function
-  | Ok _ -> Github.Api.Status.v `Success
-  | Error (`Active _) -> Github.Api.Status.v `Pending
-  | Error (`Msg _) -> Github.Api.Status.v `Failure
+  | Ok _              -> Github.Api.Status.v ~url `Success ~description:"Passed"
+  | Error (`Active _) -> Github.Api.Status.v ~url `Pending
+  | Error (`Msg m)    -> Github.Api.Status.v ~url `Failure ~description:m
 
 let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
