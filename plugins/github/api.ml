@@ -392,6 +392,19 @@ let ci_refs_dyn t repo =
     i
 
 module Commit = struct
+  let repo_parts commit_id =
+    let repo = Uri.of_string @@ Current_git.Commit_id.repo commit_id in
+    if Uri.host repo <> Some "github.com" then
+      Fmt.failwith "Host in %a should be github.com!" Uri.pp repo;
+    let path = Uri.path repo in
+    match Astring.String.cuts ~sep:"/" path with
+    | [""; owner; name_git] ->
+      begin match Filename.chop_suffix_opt ~suffix:".git" name_git with
+        | Some name -> owner, name
+        | None -> owner, name_git
+      end
+    | parts -> Fmt.failwith "Invalid repo name %a repo (in %a)" Fmt.(Dump.list string) parts Uri.pp repo
+
   module Set_status = struct
     let id = "github-set-status"
 
@@ -426,19 +439,6 @@ module Commit = struct
         context
         Value.pp status
 
-    let repo_parts commit_id =
-      let repo = Uri.of_string @@ Current_git.Commit_id.repo commit_id in
-      if Uri.host repo <> Some "github.com" then
-        Fmt.failwith "Host in %a should be github.com!" Uri.pp repo;
-      let path = Uri.path repo in
-      match Astring.String.cuts ~sep:"/" path with
-      | [""; owner; name_git] ->
-        begin match Filename.chop_suffix_opt ~suffix:".git" name_git with
-          | Some name -> owner, name
-          | None -> owner, name_git
-        end
-      | parts -> Fmt.failwith "Invalid repo name %a repo (in %a)" Fmt.(Dump.list string) parts Uri.pp repo
-
     let publish ~switch:_ t job key status =
       let {Key.commit; context} = key in
       let body = `Assoc (("context", `String context) :: Value.json_items status) in
@@ -468,7 +468,11 @@ module Commit = struct
 
   type t = commit
   let id = snd
-  let pp = Fmt.using id Current_git.Commit_id.pp
+  let pp f (_, commit) =
+    let owner, repo = repo_parts commit in
+    let gref = Current_git.Commit_id.gref commit in
+    let hash = Current_git.Commit_id.hash commit in
+    Fmt.pf f "%s/%s@\n%s@\n%s" owner repo gref (Astring.String.with_range ~len:8 hash)
 
   let set_status commit context status =
     Current.component "set_status" |>
