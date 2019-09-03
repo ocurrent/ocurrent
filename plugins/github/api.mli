@@ -1,12 +1,17 @@
 (* Public API; see Current_git.mli for details of these: *)
 
-type status = [`Error | `Failure | `Pending | `Success ]
+module Status : sig
+  type t
+  type state = [`Error | `Failure | `Pending | `Success ]
+
+  val v : ?description:string -> ?url:Uri.t -> state -> t
+end
 
 module Commit : sig
   type t
   val id : t -> Current_git.Commit_id.t
   val pp : t Fmt.t
-  val set_status : t Current.t -> string -> status Current.t -> unit Current.t
+  val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
 end
 
 type t

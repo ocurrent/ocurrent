@@ -20,8 +20,14 @@ module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
 
-  type status = [`Error | `Failure | `Pending | `Success ]
-  (** GitHub commit context status type. *)
+  module Status : sig
+    type t
+    (** GitHub commit context status type. *)
+
+    type state = [`Error | `Failure | `Pending | `Success ]
+
+    val v : ?description:string -> ?url:Uri.t -> state -> t
+  end
 
   module Commit : sig
     type t
@@ -29,7 +35,7 @@ module Api : sig
     val id : t -> Current_git.Commit_id.t
     (** The commit ID, which can be used to fetch it. *)
 
-    val set_status : t Current.t -> string -> status Current.t -> unit Current.t
+    val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
     (** [set_status commit context status] sets the status of [commit]/[context] to [status]. *)
 
     val pp : t Fmt.t

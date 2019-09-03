@@ -39,7 +39,32 @@ let read_file path =
 
 module Repo_map = Map.Make(Repo_id)
 
-type status = [`Error | `Failure | `Pending | `Success ]
+module Status = struct
+  type state = [`Error | `Failure | `Pending | `Success ]
+
+  type t = {
+    state : state;
+    description : string option;
+    url : Uri.t option;
+  }
+
+  let v ?description ?url state = { state; description; url }
+
+  let state_to_string = function
+    | `Error   -> "error"
+    | `Failure -> "failure"
+    | `Pending -> "pending"
+    | `Success -> "success"
+
+  let json_items { state; description; url } =
+    ["state", `String (state_to_string state)] @
+    (match description with None -> [] | Some x -> ["description", `String x]) @
+    (match url with None -> [] | Some x -> ["target_url", `String (Uri.to_string x)])
+
+  let digest t = Yojson.Safe.to_string @@ `Assoc (json_items t)
+
+  let pp f t = Fmt.string f (digest t)
+end
 
 type token = {
   token : (string, [`Msg of string]) result;
@@ -387,19 +412,7 @@ module Commit = struct
       let digest t = Yojson.Safe.to_string (to_json t)
     end
 
-    module Value = struct
-      type t = status
-
-      let to_string = function
-        | `Error   -> "error"
-        | `Failure -> "failure"
-        | `Pending -> "pending"
-        | `Success -> "success"
-
-      let digest = to_string
-
-      let pp f t = Fmt.string f (digest t)
-    end
+    module Value = Status
 
     module Outcome = Current.Unit
 
@@ -428,12 +441,7 @@ module Commit = struct
 
     let publish ~switch:_ t job key status =
       let {Key.commit; context} = key in
-      let body =
-        `Assoc [
-          "state", `String (Value.to_string status);
-          "context", `String context;
-        ]
-      in
+      let body = `Assoc (("context", `String context) :: Value.json_items status) in
       get_token t >>= function
       | Error (`Msg m) -> Lwt.fail_with m
       | Ok token ->
