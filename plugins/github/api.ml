@@ -39,7 +39,12 @@ let read_file path =
 
 module Repo_map = Map.Make(Repo_id)
 
-type status = [`Error | `Failure | `Pending | `Success ]
+module Status = struct
+  type state = [`Error | `Failure | `Pending | `Success ]
+  type t = state
+
+  let v state = state
+end
 
 type token = {
   token : (string, [`Msg of string]) result;
@@ -388,7 +393,7 @@ module Commit = struct
     end
 
     module Value = struct
-      type t = status
+      type t = Status.t
 
       let to_string = function
         | `Error   -> "error"

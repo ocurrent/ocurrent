@@ -26,9 +26,9 @@ let dockerfile ~base =
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 let github_status_of_state = function
-  | Ok _ -> `Success
-  | Error (`Active _) -> `Pending
-  | Error (`Msg _) -> `Failure
+  | Ok _ -> Github.Api.Status.v `Success
+  | Error (`Active _) -> Github.Api.Status.v `Pending
+  | Error (`Msg _) -> Github.Api.Status.v `Failure
 
 let pipeline ~app () =
   let dockerfile =
