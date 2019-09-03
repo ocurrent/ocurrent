@@ -66,10 +66,10 @@ let clone ~schedule ?(gref="master") repo =
 let with_checkout ~switch ~job commit fn =
   let { Commit.repo; id } = commit in
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
-  Cmd.git_clone ~switch ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
+  Cmd.cp_r ~switch ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
   | Ok () ->
-    Cmd.git_remote_set_url ~job ~repo:tmpdir ~remote:"origin" id.Commit_id.repo >>!= fun () ->
+    Cmd.git_submodule_update ~switch ~job ~repo:tmpdir >>!= fun () ->
     fn tmpdir
   | Error e ->
     Commit.check_cached ~job commit >>= function

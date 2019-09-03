@@ -25,7 +25,7 @@ let git ?switch ~job ?cwd args =
   Current.Process.exec ?switch ~job ("", cmd)
 
 let git_clone ~switch ~job ~src dst =
-  git ~switch ~job ["clone"; "-q"; src; Fpath.to_string dst]
+  git ~switch ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
 
 let git_fetch ~switch ~job ~src ~dst gref =
   git ~switch ~job ~cwd:dst ["fetch"; "-f"; src; gref]
@@ -39,3 +39,10 @@ let git_remote_set_url ~job ~repo ~remote url =
 let git_rev_parse ?switch ~job ~repo x =
   let cmd = ["git"; "-C"; Fpath.to_string repo; "rev-parse"; x] in
   Current.Process.check_output ?switch ~job ("", Array.of_list cmd) >|= Stdlib.Result.map String.trim
+
+let cp_r ~switch ~job ~src ~dst =
+  let cmd = [| "cp"; "-a"; "--"; Fpath.to_string src; Fpath.to_string dst |] in
+  Current.Process.exec ~switch ~job ("", cmd)
+
+let git_submodule_update ~switch ~job ~repo =
+  git ~switch ~job ~cwd:repo ["submodule"; "update"]
