@@ -48,7 +48,9 @@ module Status = struct
     url : Uri.t option;
   }
 
-  let v ?description ?url state = { state; description; url }
+  let v ?description ?url state =
+    let description = Option.map (Astring.String.with_range ~len:140) description in (* Max GitHub allows *)
+    { state; description; url }
 
   let state_to_string = function
     | `Error   -> "error"
