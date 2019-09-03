@@ -34,4 +34,5 @@ let compare = compare
 let digest {repo; gref; hash} = Fmt.strf "%s %s %s" repo gref hash
 
 let repo t = t.repo
+let gref t = t.gref
 let hash t = t.hash

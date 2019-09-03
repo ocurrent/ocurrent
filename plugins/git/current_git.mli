@@ -10,6 +10,8 @@ module Commit_id : sig
   val repo : t -> string
   (** [repo t] is the Git URI of the repository. *)
 
+  val gref : t -> string
+
   val hash : t -> string
   (* [hash t] is the Git commit hash. *)
 
