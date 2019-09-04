@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let ( >>!= ) = Lwt_result.bind
 
 type t = No_context
@@ -30,7 +32,7 @@ let tag_cmd { Key.tag; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
 let publish ~switch No_context job key value =
-  Current.Job.set_running job;
+  Current.Job.start job >>= fun () ->
   Current.Process.exec ~switch ~job (tag_cmd key value)
 
 let pp f (key, value) =

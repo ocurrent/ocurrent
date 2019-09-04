@@ -93,12 +93,13 @@ let pp_id = Fmt.string
 
 let is_running t = Lwt.state t.start_time <> Lwt.Sleep
 
-let set_running ?timeout t =
+let start ?timeout t =
   if is_running t then (
-    Log.warn (fun f -> f "set_running called, but job %a is already running!" Fpath.pp t.log);
-    Fmt.failwith "Job.set_running called twice!"
+    Log.warn (fun f -> f "start called, but job %a is already running!" Fpath.pp t.log);
+    Fmt.failwith "Job.start called twice!"
   );
   Lwt.wakeup t.set_start_time (!timestamp ());
-  Option.iter (Switch.add_timeout t.switch) timeout
+  Option.iter (Switch.add_timeout t.switch) timeout;
+  Lwt.return_unit
 
 let start_time t = t.start_time

@@ -99,8 +99,8 @@ module Make(B : S.BUILDER) = struct
       match Lwt.state (Job.start_time job) with
       | Lwt.Return time -> Some (Unix.gmtime time)
       | Lwt.Sleep when Stdlib.Result.is_ok value ->
-        Log.warn (fun f -> f "Build %a succeeded, but never called set_running!" B.pp build.key);
-        Fmt.failwith "Job.set_running not called!"
+        Log.warn (fun f -> f "Build %a succeeded, but never called start!" B.pp build.key);
+        Fmt.failwith "Job.start not called!"
       | _ -> None
     in
     let end_time = !Job.timestamp () in
@@ -414,7 +414,7 @@ module Output(Op : S.PUBLISHER) = struct
                    confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
                    Op.publish ~switch ctx job output.key (Value.value op.value) >|= fun r ->
                    if Stdlib.Result.is_ok r && Lwt.state (Job.start_time job) = Lwt.Sleep then
-                     Fmt.failwith "Job.set_running not called!";
+                     Fmt.failwith "Job.start not called!";
                    r
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))

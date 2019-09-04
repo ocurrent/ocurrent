@@ -20,7 +20,7 @@ module Build = struct
   let pp = Fmt.string
 
   let build ~switch:_ t job key =
-    Current.Job.set_running job;
+    Current.Job.start job >>= fun () ->
     if Builds.mem key !t then Fmt.failwith "Already building %s!" key;
     let finished, set_finished = Lwt.wait () in
     t := Builds.add key set_finished !t;
@@ -229,7 +229,7 @@ module Publish = struct
     Logs.info (fun f -> f "test_cache.publish");
     assert (key = "foo");
     assert (t.set_finished = None);
-    Current.Job.set_running job;
+    Current.Job.start job >>= fun () ->
     let finished, set_finished = Lwt.wait () in
     t.set_finished <- Some set_finished;
     t.state <- t.state ^ "-changing";

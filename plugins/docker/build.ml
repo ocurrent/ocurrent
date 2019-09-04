@@ -60,7 +60,7 @@ let with_context ~switch ~job context fn =
 
 let build ~switch { pull; pool; timeout } job key =
   use_pool pool @@ fun () ->
-  Current.Job.set_running ?timeout job;
+  Current.Job.start ?timeout job >>= fun () ->
   let { Key.commit; docker_context; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
   begin match dockerfile with

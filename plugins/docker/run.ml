@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 type t = No_context
 
 let id = "docker-run"
@@ -27,7 +29,7 @@ end
 module Value = Current.Unit
 
 let build ~switch No_context job key =
-  Current.Job.set_running job;
+  Current.Job.start job >>= fun () ->
   Current.Process.exec ~switch ~job (Key.cmd key)
 
 let pp = Key.pp

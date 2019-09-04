@@ -241,13 +241,13 @@ module Job : sig
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging). *)
 
-  val set_running : ?timeout:Duration.t -> t -> unit
-  (** [set_running t] marks [t] as running. This can only be called once per job.
+  val start : ?timeout:Duration.t -> t -> unit Lwt.t
+  (** [start t] marks [t] as running. This can only be called once per job.
       @param timeout If given, the job will be cancelled automatically after this period of time. *)
 
   val start_time : t -> float Lwt.t
-  (** [start_time t] is the time when [set_running] was called, or an
-      unresolved promise for it if [set_running] hasn't been called yet. *)
+  (** [start_time t] is the time when [start] was called, or an
+      unresolved promise for it if [start] hasn't been called yet. *)
 
   val write : t -> string -> unit
   (** [write t data] appends [data] to the log. *)
