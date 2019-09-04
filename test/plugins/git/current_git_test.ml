@@ -45,14 +45,12 @@ module Clone = struct
   let pp f key = Fmt.pf f "git clone %S" key.Commit.repo
 
   let build ~switch:_ No_context job (key : Key.t) =
-    Current.Job.start job >>= fun () ->
+    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
     let ready, set_ready = Lwt.wait () in
     state := RepoMap.add key.Commit.repo set_ready !state;
     ready
 
   let auto_cancel = true
-
-  let level _ _ = Current.Level.Average
 end
 
 module C = Current_cache.Make(Clone)

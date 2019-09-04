@@ -46,9 +46,7 @@ module Step : sig
   (** [id t] is a unique value for this evaluation step.
       This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
 
-  val confirmed : Level.t -> t -> unit Lwt.t
-  (** [confirmed l t] is a promise that resolves once we are ready to run
-      an action at level [l] or higher. *)
+  val config : t -> Config.t
 end
 
 module Input : sig
@@ -236,13 +234,14 @@ end
 module Job : sig
   type t
 
-  val create : switch:Switch.t -> label:string -> unit -> t
-  (** [create ~switch ~label ()] is a new job.
+  val create : switch:Switch.t -> label:string -> config:Config.t -> unit -> t
+  (** [create ~switch ~label ~config ()] is a new job.
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging). *)
 
-  val start : ?timeout:Duration.t -> t -> unit Lwt.t
-  (** [start t] marks [t] as running. This can only be called once per job.
+  val start : ?timeout:Duration.t -> level:Level.t -> t -> unit Lwt.t
+  (** [start t ~level] marks [t] as running. This can only be called once per job.
+      If confirmation has been configured for [level], then this will wait for confirmation first.
       @param timeout If given, the job will be cancelled automatically after this period of time. *)
 
   val start_time : t -> float Lwt.t

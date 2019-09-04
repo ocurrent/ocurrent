@@ -60,7 +60,7 @@ let with_context ~switch ~job context fn =
 
 let build ~switch { pull; pool; timeout } job key =
   use_pool pool @@ fun () ->
-  Current.Job.start ?timeout job >>= fun () ->
+  Current.Job.start ?timeout job ~level:Current.Level.Average >>= fun () ->
   let { Key.commit; docker_context; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
   begin match dockerfile with
@@ -87,5 +87,3 @@ let build ~switch { pull; pool; timeout } job key =
 let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key
 
 let auto_cancel = true
-
-let level _ _ = Current.Level.Average

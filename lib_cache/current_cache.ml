@@ -7,16 +7,6 @@ let rebuild_cond = Lwt_condition.create ()
    Ideally this condition would be per-job, but since we currently re-evaluate
    everything anyway, a global is fine. *)
 
-let confirm ~job (confirmed, level) =
-  match Lwt.state confirmed with
-  | Lwt.Return () -> Lwt.return_unit
-  | _ ->
-    Job.log job "Waiting for confirm-threshold > %a" Current.Level.pp level;
-    Log.info (fun f -> f "Waiting for confirm-threshold > %a" Current.Level.pp level);
-    confirmed >|= fun () ->
-    Job.log job "Confirm-threshold now > %a" Current.Level.pp level;
-    Log.info (fun f -> f "Confirm-threshold now > %a" Current.Level.pp level)
-
 module Schedule = struct
   type t = {
     valid_for : Duration.t option;
@@ -86,11 +76,9 @@ module Make(B : S.BUILDER) = struct
 
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
-  let do_build ~step ~job ctx build =
+  let do_build ~job ctx build =
     let ready = !Job.timestamp () |> Unix.gmtime in
     Job.log job "Starting build for %a" B.pp build.key;
-    let level = B.level ctx build.key in
-    confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
     Lwt.catch
       (fun () -> B.build ~switch:build.switch ctx job build.key)
       (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
@@ -156,7 +144,7 @@ module Make(B : S.BUILDER) = struct
         | Some x -> Int64.succ x.Db.Build.build       (* A rebuild was requested *)
       in
       let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
-      let job = Job.create ~switch ~label:B.id () in
+      let job = Job.create ~switch ~label:B.id ~config:(Current.Step.config step) () in
       let build = { job = `Active (job, finished); switch; build_number; key; ref_count = 0; auto_cancelled = false } in
       let finish build_result =
         build.job <- `Finished build_result;
@@ -167,7 +155,7 @@ module Make(B : S.BUILDER) = struct
           Lwt.try_bind
             (fun () ->
                Lwt.finalize
-                 (fun () -> do_build ~step ~job ctx build)
+                 (fun () -> do_build ~job ctx build)
                  (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
             (fun result -> finish result)
@@ -398,7 +386,7 @@ module Output(Op : S.PUBLISHER) = struct
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let job = Job.create ~switch ~label:Op.id () in
+    let job = Job.create ~switch ~label:Op.id ~config:(Current.Step.config step) () in
     let op = { value = output.desired; switch; job; finished; autocancelled = false } in
     output.op <- `Active op;
     Lwt.async
@@ -410,8 +398,6 @@ module Output(Op : S.PUBLISHER) = struct
               Job.log job "Publish: %t" pp_op;
               Lwt.catch
                 (fun () ->
-                   let level = Op.level ctx output.key (Value.value op.value) in
-                   confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
                    Op.publish ~switch ctx job output.key (Value.value op.value) >|= fun r ->
                    if Stdlib.Result.is_ok r && Lwt.state (Job.start_time job) = Lwt.Sleep then
                      Fmt.failwith "Job.start not called!";

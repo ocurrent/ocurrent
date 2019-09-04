@@ -38,7 +38,7 @@ let or_fail = function
   | Error (`Msg x) -> failwith x
 
 let publish ~switch auth job tag value =
-  Current.Job.start job >>= fun () ->
+  Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   Current.Process.with_tmpdir ~prefix:"push-manifest" @@ fun config ->
   Bos.OS.File.write Fpath.(config / "config.json") {|{"experimental": "enabled"}|} |> or_fail;
   Current.Process.exec ~switch ~job (create_cmd ~config ~tag value) >>= function
@@ -57,5 +57,3 @@ let pp f (tag, value) =
   Fmt.pf f "push %s = %s" tag (Value.digest value)
 
 let auto_cancel = true
-
-let level _auth _tag _value = Current.Level.Dangerous
