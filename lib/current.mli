@@ -225,6 +225,10 @@ module Switch : sig
   val is_on : t -> bool
   (** [is_on t] is [true] if [turn_off t] hasn't yet been called. *)
 
+  val add_timeout : t -> Duration.t -> unit
+  (** [add_timeout t duration] adds a timeout that will wait for [duration] and
+      then turn off the switch. *)
+
   val pp : t Fmt.t
   (** Prints the state of the switch (for debugging). *)
 end
@@ -237,8 +241,9 @@ module Job : sig
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging). *)
 
-  val set_running : t -> unit
-  (** [set_running t] marks [t] as running. This can only be called once per job. *)
+  val set_running : ?timeout:Duration.t -> t -> unit
+  (** [set_running t] marks [t] as running. This can only be called once per job.
+      @param timeout If given, the job will be cancelled automatically after this period of time. *)
 
   val start_time : t -> float Lwt.t
   (** [start_time t] is the time when [set_running] was called, or an
