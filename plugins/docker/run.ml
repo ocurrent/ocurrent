@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 type t = No_context
 
 let id = "docker-run"
@@ -26,12 +28,10 @@ end
 
 module Value = Current.Unit
 
-let build ~switch ~set_running No_context job key =
-  set_running ();
+let build ~switch No_context job key =
+  Current.Job.start job ~level:Current.Level.Average >>= fun () ->
   Current.Process.exec ~switch ~job (Key.cmd key)
 
 let pp = Key.pp
 
 let auto_cancel = true
-
-let level _ _ = Current.Level.Average

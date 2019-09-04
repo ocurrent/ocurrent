@@ -3,12 +3,14 @@ module Docker = Current_docker.Default
 
 let pull = false    (* Whether to check for updates using "docker build --pull" *)
 
+let timeout = Duration.of_min 50    (* Max build time *)
+
 let () = Logging.init ()
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let image = Docker.build ~pull (`Git src) in
+  let image = Docker.build ~pull ~timeout (`Git src) in
   Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
 
 let main config mode repo =

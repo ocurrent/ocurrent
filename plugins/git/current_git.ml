@@ -19,10 +19,14 @@ module Fetch = struct
 
   let id = "git-fetch"
 
-  let build ~switch ~set_running No_context job key =
+  let build ~switch No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
     Lwt_mutex.with_lock (Clone.repo_lock remote_repo) @@ fun () ->
-    set_running ();
+    let level =
+      if Commit_id.is_local key then Current.Level.Harmless
+      else Current.Level.Mostly_harmless
+    in
+    Current.Job.start job ~level >>= fun () ->
     let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
@@ -43,10 +47,6 @@ module Fetch = struct
   let pp f key = Fmt.pf f "git fetch %a" Key.pp key
 
   let auto_cancel = false
-
-  let level _ k =
-    if Commit_id.is_local k then Current.Level.Harmless
-    else Current.Level.Mostly_harmless
 end
 
 module Fetch_cache = Current_cache.Make(Fetch)

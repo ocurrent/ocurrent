@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 type t = No_context
 
 let ( >>!= ) = Lwt_result.bind
@@ -29,9 +31,9 @@ let repo_lock repo =
 
 let id = "git-clone"
 
-let build ~switch ~set_running No_context job { Key.repo; gref } =
+let build ~switch No_context job { Key.repo; gref } =
   Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
-  set_running ();
+  Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin
@@ -46,5 +48,3 @@ let build ~switch ~set_running No_context job { Key.repo; gref } =
 let pp f key = Fmt.pf f "git clone %a" Key.pp key
 
 let auto_cancel = false
-
-let level _ _ = Current.Level.Mostly_harmless

@@ -46,9 +46,7 @@ module Step : sig
   (** [id t] is a unique value for this evaluation step.
       This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
 
-  val confirmed : Level.t -> t -> unit Lwt.t
-  (** [confirmed l t] is a promise that resolves once we are ready to run
-      an action at level [l] or higher. *)
+  val config : t -> Config.t
 end
 
 module Input : sig
@@ -225,6 +223,10 @@ module Switch : sig
   val is_on : t -> bool
   (** [is_on t] is [true] if [turn_off t] hasn't yet been called. *)
 
+  val add_timeout : t -> Duration.t -> unit
+  (** [add_timeout t duration] adds a timeout that will wait for [duration] and
+      then turn off the switch. *)
+
   val pp : t Fmt.t
   (** Prints the state of the switch (for debugging). *)
 end
@@ -232,10 +234,19 @@ end
 module Job : sig
   type t
 
-  val create : switch:Switch.t -> label:string -> unit -> t
-  (** [create ~switch ~label ()] is a new job.
+  val create : switch:Switch.t -> label:string -> config:Config.t -> unit -> t
+  (** [create ~switch ~label ~config ()] is a new job.
       @param switch Turning this off will cancel the job.
-      @param label A label to use in the job's filename (for debugging).*)
+      @param label A label to use in the job's filename (for debugging). *)
+
+  val start : ?timeout:Duration.t -> level:Level.t -> t -> unit Lwt.t
+  (** [start t ~level] marks [t] as running. This can only be called once per job.
+      If confirmation has been configured for [level], then this will wait for confirmation first.
+      @param timeout If given, the job will be cancelled automatically after this period of time. *)
+
+  val start_time : t -> float Lwt.t
+  (** [start_time t] is the time when [start] was called, or an
+      unresolved promise for it if [start] hasn't been called yet. *)
 
   val write : t -> string -> unit
   (** [write t data] appends [data] to the log. *)
@@ -252,6 +263,13 @@ module Job : sig
   val fd : t -> Unix.file_descr
 
   val pp_id : job_id Fmt.t
+
+  (**/**)
+
+  (* For unit tests we need our own test clock: *)
+
+  val timestamp : (unit -> float) ref
+  val sleep : (float -> unit Lwt.t) ref
 end
 
 module Process : sig

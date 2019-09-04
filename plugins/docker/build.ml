@@ -3,6 +3,7 @@ open Lwt.Infix
 type t = {
   pull : bool;
   pool : unit Lwt_pool.t option;
+  timeout : Duration.t option;
 }
 
 let id = "docker-build"
@@ -57,17 +58,17 @@ let with_context ~switch ~job context fn =
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
   | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
 
-let build ~switch ~set_running { pull; pool } job key =
-  use_pool pool @@ fun () ->
-  set_running ();
+let build ~switch { pull; pool; timeout } job key =
   let { Key.commit; docker_context; dockerfile; squash } = key in
+  dockerfile |> Option.iter (fun contents ->
+      Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
+    );
+  use_pool pool @@ fun () ->
+  Current.Job.start ?timeout job ~level:Current.Level.Average >>= fun () ->
   with_context ~switch ~job commit @@ fun dir ->
-  begin match dockerfile with
-    | None -> ()
-    | Some contents ->
-      Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
+  dockerfile |> Option.iter (fun contents ->
       Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;
-  end;
+    );
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
@@ -86,5 +87,3 @@ let build ~switch ~set_running { pull; pool } job key =
 let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key
 
 let auto_cancel = true
-
-let level _ _ = Current.Level.Average

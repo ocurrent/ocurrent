@@ -1,5 +1,15 @@
+open Lwt.Infix
+
+(* For unit-tests: *)
+let timestamp = ref Unix.gettimeofday
+let sleep = ref Lwt_unix.sleep
+
 type t = {
+  switch : Switch.t;
+  config : Config.t;
   log : Fpath.t;
+  set_start_time : float Lwt.u;
+  start_time : float Lwt.t;
   mutable ch : out_channel option;
 }
 
@@ -16,7 +26,7 @@ let write t msg =
 
 let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
-    Unix.gettimeofday () |> Unix.gmtime in
+    !timestamp () |> Unix.gmtime in
   let fmt = "%04d-%02d-%02d %02d:%02d.%02d: @[" ^^ fmt ^^ "@]@." in
   Fmt.kstrf (write t) fmt
     (tm_year + 1900) (tm_mon + 1) tm_mday
@@ -50,10 +60,10 @@ let log_path job_id =
     end
   | _ -> Error (`Msg (Fmt.strf "Invalid job ID %S" job_id))
 
-let create ~switch ~label () =
+let create ~switch ~label ~config () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
   let jobs_dir = Lazy.force jobs_dir in
-  let time = Unix.gettimeofday () |> Unix.gmtime in
+  let time = !timestamp () |> Unix.gmtime in
   let date =
     let { Unix.tm_year; tm_mon; tm_mday; _ } = time in
     Fmt.strf "%04d-%02d-%02d" (tm_year + 1900) (tm_mon + 1) tm_mday
@@ -68,7 +78,8 @@ let create ~switch ~label () =
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
-    let t = {log = path; ch = Some ch} in
+    let start_time, set_start_time = Lwt.wait () in
+    let t = { switch; log = path; ch = Some ch; start_time; set_start_time; config } in
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
@@ -82,3 +93,28 @@ let create ~switch ~label () =
     t
 
 let pp_id = Fmt.string
+
+let is_running t = Lwt.state t.start_time <> Lwt.Sleep
+
+let confirm t level =
+  let confirmed = Config.confirmed level t.config in
+  Switch.add_hook_or_fail t.switch (fun _ -> Lwt.cancel confirmed; Lwt.return_unit);
+  match Lwt.state confirmed with
+  | Lwt.Return () -> Lwt.return_unit
+  | _ ->
+    log t "Waiting for confirm-threshold > %a" Level.pp level;
+    Log.info (fun f -> f "Waiting for confirm-threshold > %a" Level.pp level);
+    confirmed >|= fun () ->
+    log t "Confirm-threshold now > %a" Level.pp level;
+    Log.info (fun f -> f "Confirm-threshold now > %a" Level.pp level)
+
+let start ?timeout ~level t =
+  confirm t level >|= fun () ->
+  if is_running t then (
+    Log.warn (fun f -> f "start called, but job %a is already running!" Fpath.pp t.log);
+    Fmt.failwith "Job.start called twice!"
+  );
+  Lwt.wakeup t.set_start_time (!timestamp ());
+  Option.iter (Switch.add_timeout t.switch) timeout
+
+let start_time t = t.start_time

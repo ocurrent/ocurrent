@@ -34,6 +34,7 @@ let tag_cmd { Key.tag; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
 let publish ~switch auth job key value =
+  Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   Current.Process.exec ~switch ~job (tag_cmd key value) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
@@ -58,5 +59,3 @@ let pp f (key, value) =
     key.Key.tag
 
 let auto_cancel = false
-
-let level _auth _tag _value = Current.Level.Dangerous

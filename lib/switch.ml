@@ -88,3 +88,18 @@ let pp f t =
   | `On (label, _) -> Fmt.pf f "on(%S)" label
   | `Off r -> Fmt.pf f "off(%a)" pp_reason r
   | `Turning_off _ -> Fmt.string f "turning-off"
+
+let pp_duration f d =
+  let d = Duration.to_f d in
+  if d > 120.0 then Fmt.pf f "%.1f minutes" (d /. 60.)
+  else if d > 2.0 then Fmt.pf f "%.1f seconds" d
+  else Fmt.pf f "%f seconds" d
+
+let add_timeout t duration =
+  (* We could be smarter about this. e.g. cancel the timeout when the switch is turned off or
+     only keep the nearest timeout. *)
+  Lwt.async (fun () ->
+      Lwt_unix.sleep (Duration.to_f duration) >>= fun () ->
+      if is_on t then turn_off t @@ Error (`Msg (Fmt.strf "Timeout (%a)" pp_duration duration))
+      else Lwt.return_unit
+    )

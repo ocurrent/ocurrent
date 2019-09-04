@@ -8,7 +8,8 @@ module Key = Current.String
 module Value = Current.String
 module Outcome = Current.Unit
 
-let publish ~switch:_ t _job _key message =
+let publish ~switch:_ t job _key message =
+  Current.Job.start job ~level:Current.Level.Above_average >>= fun () ->
   let headers = Cohttp.Header.of_list [
       "Content-type", "application/json";
     ]
@@ -29,5 +30,3 @@ let publish ~switch:_ t _job _key message =
 let pp f (key, value) = Fmt.pf f "Post %s: %s" key value
 
 let auto_cancel = false
-
-let level _t _k _v = Current.Level.Above_average

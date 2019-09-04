@@ -39,11 +39,10 @@ module type BUILDER = sig
 
   val build :
     switch:Current.Switch.t ->
-    set_running:(unit -> unit) ->
     t -> Current.Job.t -> Key.t ->
     Value.t Current.or_error Lwt.t
-  (** [build ~switch ~set_running t j k] builds [k].
-      Call [set_running] once any required resources have been acquired.
+  (** [build ~switch t j k] builds [k].
+      Call [Job.start j] once any required resources have been acquired.
       If the switch is turned off, the build should be cancelled.
       Log messages can be written to [j]. *)
 
@@ -53,10 +52,6 @@ module type BUILDER = sig
   val auto_cancel : bool
   (** [true] if an operation should be cancelled if it is no longer needed, or
       [false] to cancel only when the user explicitly requests it. *)
-
-  val level : t -> Key.t -> Current.Level.t
-  (** [level t k] provides an estimate of how risky / expensive this operation is.
-      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end
 
 module type PUBLISHER = sig
@@ -75,6 +70,7 @@ module type PUBLISHER = sig
     switch:Current.Switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
     Outcome.t Current.or_error Lwt.t
   (** [publish ~switch t j k v] sets output [k] to value [v].
+      Call [Job.start j] once any required resources have been acquired.
       If the switch is turned off, the operation should be cancelled.
       Log messages can be written to [j]. *)
 
@@ -86,8 +82,4 @@ module type PUBLISHER = sig
       then we decide to output a different value instead.
       If [true], the old operation will be cancelled immediately.
       If [false], the old operation will run to completion first. *)
-
-  val level : t -> Key.t -> Value.t -> Current.Level.t
-  (** [level t k v] provides an estimate of how risky / expensive this operation is.
-      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end

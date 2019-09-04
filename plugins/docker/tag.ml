@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let ( >>!= ) = Lwt_result.bind
 
 type t = No_context
@@ -30,11 +32,10 @@ let tag_cmd { Key.tag; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
 let publish ~switch No_context job key value =
+  Current.Job.start job ~level:Current.Level.Average >>= fun () ->
   Current.Process.exec ~switch ~job (tag_cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (tag_cmd key value)
 
 let auto_cancel = false
-
-let level _auth _tag _value = Current.Level.Average
