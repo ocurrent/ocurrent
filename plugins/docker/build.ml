@@ -59,16 +59,16 @@ let with_context ~switch ~job context fn =
   | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
 
 let build ~switch { pull; pool; timeout } job key =
+  let { Key.commit; docker_context; dockerfile; squash } = key in
+  dockerfile |> Option.iter (fun contents ->
+      Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
+    );
   use_pool pool @@ fun () ->
   Current.Job.start ?timeout job ~level:Current.Level.Average >>= fun () ->
-  let { Key.commit; docker_context; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
-  begin match dockerfile with
-    | None -> ()
-    | Some contents ->
-      Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents;
+  dockerfile |> Option.iter (fun contents ->
       Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;
-  end;
+    );
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
