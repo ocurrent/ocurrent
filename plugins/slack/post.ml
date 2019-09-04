@@ -8,7 +8,8 @@ module Key = Current.String
 module Value = Current.String
 module Outcome = Current.Unit
 
-let publish ~switch:_ t _job _key message =
+let publish ~switch:_ t job _key message =
+  Current.Job.set_running job;
   let headers = Cohttp.Header.of_list [
       "Content-type", "application/json";
     ]

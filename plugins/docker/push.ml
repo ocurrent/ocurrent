@@ -34,6 +34,7 @@ let tag_cmd { Key.tag; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
 let publish ~switch auth job key value =
+  Current.Job.set_running job;
   Current.Process.exec ~switch ~job (tag_cmd key value) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->

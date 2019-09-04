@@ -29,9 +29,9 @@ let repo_lock repo =
 
 let id = "git-clone"
 
-let build ~switch ~set_running No_context job { Key.repo; gref } =
+let build ~switch No_context job { Key.repo; gref } =
   Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
-  set_running ();
+  Current.Job.set_running job;
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin

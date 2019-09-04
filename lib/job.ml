@@ -1,5 +1,12 @@
+(* For unit-tests: *)
+let timestamp = ref Unix.gettimeofday
+let sleep = ref Lwt_unix.sleep
+
 type t = {
+  switch : Switch.t;
   log : Fpath.t;
+  set_start_time : float Lwt.u;
+  start_time : float Lwt.t;
   mutable ch : out_channel option;
 }
 
@@ -16,7 +23,7 @@ let write t msg =
 
 let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
-    Unix.gettimeofday () |> Unix.gmtime in
+    !timestamp () |> Unix.gmtime in
   let fmt = "%04d-%02d-%02d %02d:%02d.%02d: @[" ^^ fmt ^^ "@]@." in
   Fmt.kstrf (write t) fmt
     (tm_year + 1900) (tm_mon + 1) tm_mday
@@ -53,7 +60,7 @@ let log_path job_id =
 let create ~switch ~label () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
   let jobs_dir = Lazy.force jobs_dir in
-  let time = Unix.gettimeofday () |> Unix.gmtime in
+  let time = !timestamp () |> Unix.gmtime in
   let date =
     let { Unix.tm_year; tm_mon; tm_mday; _ } = time in
     Fmt.strf "%04d-%02d-%02d" (tm_year + 1900) (tm_mon + 1) tm_mday
@@ -68,7 +75,8 @@ let create ~switch ~label () =
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
-    let t = {log = path; ch = Some ch} in
+    let start_time, set_start_time = Lwt.wait () in
+    let t = { switch; log = path; ch = Some ch; start_time; set_start_time } in
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
@@ -82,3 +90,14 @@ let create ~switch ~label () =
     t
 
 let pp_id = Fmt.string
+
+let is_running t = Lwt.state t.start_time <> Lwt.Sleep
+
+let set_running t =
+  if is_running t then (
+    Log.warn (fun f -> f "set_running called, but job %a is already running!" Fpath.pp t.log);
+    Fmt.failwith "Job.set_running called twice!"
+  );
+  Lwt.wakeup t.set_start_time (!timestamp ())
+
+let start_time t = t.start_time

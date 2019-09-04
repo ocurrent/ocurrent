@@ -19,8 +19,8 @@ module Build = struct
 
   let pp = Fmt.string
 
-  let build ~switch:_ ~set_running t _job key =
-    set_running ();
+  let build ~switch:_ t job key =
+    Current.Job.set_running job;
     if Builds.mem key !t then Fmt.failwith "Already building %s!" key;
     let finished, set_finished = Lwt.wait () in
     t := Builds.add key set_finished !t;
@@ -79,8 +79,8 @@ module Clock = struct
   let create () =
     let cond = Lwt_condition.create () in
     let t = {now = 0.0; cond} in
-    Current_cache.timestamp := (fun () -> t.now);
-    Current_cache.sleep := (fun d ->
+    Current.Job.timestamp := (fun () -> t.now);
+    Current.Job.sleep := (fun d ->
         let end_time = d +. t.now in
         let rec aux () =
           Logs.info (fun f -> f "sleep checking if %.0f >= %.0f yet" t.now end_time);
@@ -225,10 +225,11 @@ module Publish = struct
       t.next <- "unset";
       Lwt.wakeup set_finished v
 
-  let publish ~switch t _job key value =
+  let publish ~switch t job key value =
     Logs.info (fun f -> f "test_cache.publish");
     assert (key = "foo");
     assert (t.set_finished = None);
+    Current.Job.set_running job;
     let finished, set_finished = Lwt.wait () in
     t.set_finished <- Some set_finished;
     t.state <- t.state ^ "-changing";

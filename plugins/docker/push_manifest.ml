@@ -38,6 +38,7 @@ let or_fail = function
   | Error (`Msg x) -> failwith x
 
 let publish ~switch auth job tag value =
+  Current.Job.set_running job;
   Current.Process.with_tmpdir ~prefix:"push-manifest" @@ fun config ->
   Bos.OS.File.write Fpath.(config / "config.json") {|{"experimental": "enabled"}|} |> or_fail;
   Current.Process.exec ~switch ~job (create_cmd ~config ~tag value) >>= function

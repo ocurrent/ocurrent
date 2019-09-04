@@ -235,7 +235,14 @@ module Job : sig
   val create : switch:Switch.t -> label:string -> unit -> t
   (** [create ~switch ~label ()] is a new job.
       @param switch Turning this off will cancel the job.
-      @param label A label to use in the job's filename (for debugging).*)
+      @param label A label to use in the job's filename (for debugging). *)
+
+  val set_running : t -> unit
+  (** [set_running t] marks [t] as running. This can only be called once per job. *)
+
+  val start_time : t -> float Lwt.t
+  (** [start_time t] is the time when [set_running] was called, or an
+      unresolved promise for it if [set_running] hasn't been called yet. *)
 
   val write : t -> string -> unit
   (** [write t data] appends [data] to the log. *)
@@ -252,6 +259,13 @@ module Job : sig
   val fd : t -> Unix.file_descr
 
   val pp_id : job_id Fmt.t
+
+  (**/**)
+
+  (* For unit tests we need our own test clock: *)
+
+  val timestamp : (unit -> float) ref
+  val sleep : (float -> unit Lwt.t) ref
 end
 
 module Process : sig

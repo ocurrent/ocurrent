@@ -47,10 +47,3 @@ module Db : sig
         @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results. *)
   end
 end
-
-(**/**)
-
-(* For unit tests we need our own test clock: *)
-
-val timestamp : (unit -> float) ref
-val sleep : (float -> unit Lwt.t) ref

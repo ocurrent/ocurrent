@@ -57,9 +57,9 @@ let with_context ~switch ~job context fn =
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
   | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
 
-let build ~switch ~set_running { pull; pool } job key =
+let build ~switch { pull; pool } job key =
   use_pool pool @@ fun () ->
-  set_running ();
+  Current.Job.set_running job;
   let { Key.commit; docker_context; dockerfile; squash } = key in
   with_context ~switch ~job commit @@ fun dir ->
   begin match dockerfile with

@@ -42,8 +42,8 @@ module Clone = struct
 
   let pp f key = Fmt.pf f "git clone %S" key.Commit.repo
 
-  let build ~switch:_ ~set_running No_context _job (key : Key.t) =
-    set_running ();
+  let build ~switch:_ No_context job (key : Key.t) =
+    Current.Job.set_running job;
     let ready, set_ready = Lwt.wait () in
     state := RepoMap.add key.Commit.repo set_ready !state;
     ready

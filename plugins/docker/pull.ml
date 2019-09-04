@@ -17,8 +17,8 @@ module Value = Image
 
 let id = "docker-pull"
 
-let build ~switch ~set_running No_context job key =
-  set_running ();
+let build ~switch No_context job key =
+  Current.Job.set_running job;
   Current.Process.exec ~switch ~job (Key.cmd key) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->

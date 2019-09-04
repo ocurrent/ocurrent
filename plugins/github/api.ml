@@ -442,6 +442,7 @@ module Commit = struct
         Value.pp status
 
     let publish ~switch:_ t job key status =
+      Current.Job.set_running job;
       let {Key.commit; context} = key in
       let body = `Assoc (("context", `String context) :: Value.json_items status) in
       get_token t >>= function

@@ -7,12 +7,6 @@ let rebuild_cond = Lwt_condition.create ()
    Ideally this condition would be per-job, but since we currently re-evaluate
    everything anyway, a global is fine. *)
 
-let running_cond = Lwt_condition.create ()
-(** Triggered when a build moves from `ready` to `running`. *)
-
-let timestamp = ref Unix.gettimeofday
-let sleep = ref Lwt_unix.sleep
-
 let confirm ~job (confirmed, level) =
   match Lwt.state confirmed with
   | Lwt.Return () -> Lwt.return_unit
@@ -54,22 +48,30 @@ let pp_duration_rough f d =
 module Make(B : S.BUILDER) = struct
   module Builds = Map.Make(String)
 
-  type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
+  type build_result = {
+    job_id : string;
+    value : B.Value.t Current.or_error;
+    end_time : float;
+  }
 
   type build = {
-    job_id : Current.job_id;
+    mutable job : [
+      | `Active of Current.Job.t * build_result Lwt.t
+      | `Finished of build_result
+    ];
     key : B.Key.t;
     build_number : int64;           (* Increments on rebuild *)
     switch : Current.Switch.t;      (* Turning this off aborts the build. *)
-    finished : build_result Lwt.t;  (* Unresolved if the build is still in progress. *)
     mutable auto_cancelled : bool;  (* Don't record the result (because the build was auto-cancelled). *)
     mutable ref_count : int;        (* The number of watchers waiting for the result (for auto-cancel). *)
-    mutable running : bool;         (* [true] if a build has started running (not waiting for resources or confirmation). *)
   }
 
   let builds : build Builds.t ref = ref Builds.empty
 
-  let is_running build = Lwt.state build.finished = Lwt.Sleep
+  let is_running build =
+    match build.job with
+    | `Active _ -> true
+    | `Finished _ -> false
 
   let force_invalidate key =
     builds := Builds.remove key !builds;
@@ -85,35 +87,30 @@ module Make(B : S.BUILDER) = struct
   (* This thread runs in the background to perform the build.
      When done, it records the result in the database (unless it was auto-cancelled). *)
   let do_build ~step ~job ctx build =
-    let ready = !timestamp () |> Unix.gmtime in
-    let running = ref None in
+    let ready = !Job.timestamp () |> Unix.gmtime in
     Job.log job "Starting build for %a" B.pp build.key;
     let level = B.level ctx build.key in
     confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
-    let set_running () =
-      if not build.running then (
-        build.running <- true;
-        running := Some (!timestamp () |> Unix.gmtime);
-        Lwt_condition.broadcast running_cond ()
-      ) else (
-        Log.warn (fun f -> f "set_running called, but job %a is already running!" B.pp build.key)
-      )
-    in
     Lwt.catch
-      (fun () -> B.build ~switch:build.switch ~set_running ctx job build.key)
+      (fun () -> B.build ~switch:build.switch ctx job build.key)
       (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
-    >|= fun x ->
-    if build.running then
-      build.running <- false
-    else if Stdlib.Result.is_ok x then
-      Log.warn (fun f -> f "Build %a succeeded, but never called set_running!" B.pp build.key);
-    let finished = !timestamp () in
+    >|= fun value ->
+    let start_time =
+      match Lwt.state (Job.start_time job) with
+      | Lwt.Return time -> Some (Unix.gmtime time)
+      | Lwt.Sleep when Stdlib.Result.is_ok value ->
+        Log.warn (fun f -> f "Build %a succeeded, but never called set_running!" B.pp build.key);
+        Fmt.failwith "Job.set_running not called!"
+      | _ -> None
+    in
+    let end_time = !Job.timestamp () in
+    let job_id = Job.id job in
     if build.auto_cancelled then (
       force_invalidate (B.Key.digest build.key);
       (* If anyone started wanting this build again after it got cancelled,
          then they will now recalculate, discover the build doesn't exist, and
          trigger a new one. *)
-      Error (`Msg "Auto-cancelled"), finished
+      { value = Error (`Msg "Auto-cancelled"); end_time; job_id }
     ) else (
       let record result =
         Db.Build.record
@@ -121,21 +118,21 @@ module Make(B : S.BUILDER) = struct
           ~build:build.build_number
           ~key:(B.Key.digest build.key)
           ~job:(Job.id job)
-          ~ready ~running:!running ~finished:(Unix.gmtime finished)
+          ~ready ~running:start_time ~finished:(Unix.gmtime end_time)
           result;
-        finished
+        end_time
       in
       if Current.Switch.is_on build.switch then (
-        match x with
+        match value with
         | Ok v ->
           Job.log job "Success";
-          x, record @@ Ok (B.Value.marshal v)
+          { value; end_time = record @@ Ok (B.Value.marshal v); job_id }
         | Error (`Msg m) as e ->
           Job.log job "Failed: %s" m;
-          x, record e
+          { value; end_time = record e; job_id }
       ) else (
-        let x = Error (`Msg "Cancelled") in
-        x, record x
+        let value = Error (`Msg "Cancelled") in
+        { value; end_time = record value; job_id }
       )
     )
 
@@ -143,20 +140,16 @@ module Make(B : S.BUILDER) = struct
      If there isn't one, start a new build in a background thread. *)
   let get_build ~step ctx key =
     let key_digest = B.Key.digest key in
-    let finished, set_finished = Lwt.wait () in
     let previous = Db.Build.lookup ~builder:B.id key_digest in
     match previous with
-    | Some { Db.Build.rebuild = false; build = build_number; value; finished = fin_time; job_id } ->
+    | Some { Db.Build.rebuild = false; build = build_number; value; finished = end_time; job_id } ->
       Log.info (fun f -> f "@[<hov2>Loaded cached result for@ %a@]" B.pp key);
-      let v =
-        match value with
-        | Ok v -> Ok (B.Value.unmarshal v)
-        | Error _ as e -> e
-      in
-      Lwt.wakeup set_finished (v, fin_time);
+      let value = Stdlib.Result.map B.Value.unmarshal value in
       let switch = Current.Switch.create_off @@ Error (`Msg "Loaded from cache") in
-      { job_id; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false; running = false }
+      let job = `Finished { job_id; value; end_time } in
+      { job; switch; build_number; key; ref_count = 0; auto_cancelled = false }
     | _ ->
+      let finished, set_finished = Lwt.wait () in
       let build_number =
         match previous with
         | None -> 0L
@@ -164,7 +157,12 @@ module Make(B : S.BUILDER) = struct
       in
       let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
       let job = Job.create ~switch ~label:B.id () in
-      let build = { job_id = Job.id job; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false; running = false } in
+      let build = { job = `Active (job, finished); switch; build_number; key; ref_count = 0; auto_cancelled = false } in
+      let finish build_result =
+        build.job <- `Finished build_result;
+        Lwt.wakeup set_finished build_result;
+        Lwt.return_unit
+      in
       Lwt.async (fun () ->
           Lwt.try_bind
             (fun () ->
@@ -172,13 +170,19 @@ module Make(B : S.BUILDER) = struct
                  (fun () -> do_build ~step ~job ctx build)
                  (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
             )
-            (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
-            (fun ex -> Lwt.wakeup_exn set_finished ex; Lwt.return_unit)
+            (fun result -> finish result)
+            (fun ex ->
+               finish {
+                 job_id = Job.id job;
+                 end_time = !Job.timestamp ();
+                 value = Error (`Msg (Printexc.to_string ex))
+               }
+            )
         );
       build
 
   (* The build must be currently running when calling this. *)
-  let input_running build =
+  let input_running ~job ~build_result build =
     build.ref_count <- build.ref_count + 1;
     let cancel ~msg () =
       Lwt.async (fun () -> Current.Switch.turn_off build.switch @@ Error (`Msg msg))
@@ -196,12 +200,22 @@ module Make(B : S.BUILDER) = struct
           )
       end
     in
-    let changed = Lwt.choose [Lwt.map ignore build.finished; Lwt_condition.wait running_cond] in
-    let state = if build.running then `Running else `Ready in
-    Error (`Active state), Current.Input.metadata ~job_id:build.job_id ~changed actions
+    let start_time = Job.start_time job in
+    let state, changed =
+      match Lwt.state start_time with
+      | Lwt.Sleep ->
+        let changed = Lwt.choose [Lwt.map ignore build_result; Lwt.map ignore start_time] in
+        `Ready, changed
+      | Lwt.Return _ ->
+        let changed = Lwt.choose [Lwt.map ignore build_result] in
+        `Running, changed
+      | Lwt.Fail ex -> raise ex
+    in
+    Error (`Active state), Current.Input.metadata ~job_id:(Current.Job.id job) ~changed actions
 
   (* The build must be finished when calling this. *)
-  let input_finished ~schedule build (value, finished) =
+  let input_finished ~build_result ~schedule build =
+    let { job_id; value; end_time } = build_result in
     let rebuild () =
       invalidate build.key;
       Lwt_condition.broadcast rebuild_cond ()
@@ -210,7 +224,7 @@ module Make(B : S.BUILDER) = struct
     match schedule.Schedule.valid_for with
     | None ->
       (value :> B.Value.t Current_term.Output.t),
-      Current.Input.metadata ~job_id:build.job_id ~changed:rebuild_requested @@
+      Current.Input.metadata ~job_id ~changed:rebuild_requested @@
       object
         method pp f = B.pp f build.key
         method cancel = None
@@ -218,19 +232,19 @@ module Make(B : S.BUILDER) = struct
         method release = ()
       end
     | Some duration ->
-      let remaining_time = Duration.to_f duration +. finished -. !timestamp () in
+      let remaining_time = Duration.to_f duration +. end_time -. !Job.timestamp () in
       let changed =
         if remaining_time <= 0.0 then (
           Log.info (fun f -> f "Build result for %a has expired" B.pp build.key);
           invalidate build.key;
           Lwt.return_unit       (* Trigger an immediate recalculation *)
         ) else (
-          !sleep remaining_time
+          !Job.sleep remaining_time
         )
       in
       let changed = Lwt.choose [changed; rebuild_requested] in
       (value :> B.Value.t Current_term.Output.t),
-      Current.Input.metadata ~job_id:build.job_id ~changed @@
+      Current.Input.metadata ~job_id ~changed @@
       object
         method pp f =
           if remaining_time <= 0.0 then
@@ -246,10 +260,9 @@ module Make(B : S.BUILDER) = struct
       end
 
   let input build ~schedule =
-    match Lwt.state build.finished with
-    | Lwt.Sleep -> input_running build
-    | Lwt.Return v -> input_finished build ~schedule v
-    | Lwt.Fail ex -> raise ex
+    match build.job with
+    | `Active (job, build_result) -> input_running ~job ~build_result build
+    | `Finished build_result -> input_finished ~build_result ~schedule build
 
   let get ?(schedule=Schedule.default) ctx key =
     Current.Input.of_fn @@ fun step ->
@@ -298,7 +311,7 @@ module Output(Op : S.PUBLISHER) = struct
   type op = {
     value : Value.t;                (* The value currently being set. *)
     switch : Current.Switch.t;      (* Turning this off aborts the operation. *)
-    started : unit Lwt.t;
+    job : Job.t;
     finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
   }
@@ -382,26 +395,27 @@ module Output(Op : S.PUBLISHER) = struct
         invalidate output;
         publish ~step output
   and publish ~step output =
-    let started, set_started = Lwt.wait () in
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let op = { value = output.desired; switch; started; finished; autocancelled = false } in
+    let job = Job.create ~switch ~label:Op.id () in
+    let op = { value = output.desired; switch; job; finished; autocancelled = false } in
     output.op <- `Active op;
     Lwt.async
       (fun () ->
          Lwt.finalize
            (fun () ->
               let pp_op f = pp_op f (output.key, op.value) in
-              let job = Job.create ~switch ~label:Op.id () in
               output.job_id <- Some (Job.id job);
               Job.log job "Publish: %t" pp_op;
               Lwt.catch
                 (fun () ->
                    let level = Op.level ctx output.key (Value.value op.value) in
                    confirm ~job (Current.Step.confirmed level step, level) >>= fun () ->
-                   Lwt.wakeup set_started ();
-                   Op.publish ~switch ctx job output.key (Value.value op.value)
+                   Op.publish ~switch ctx job output.key (Value.value op.value) >|= fun r ->
+                   if Stdlib.Result.is_ok r && Lwt.state (Job.start_time job) = Lwt.Sleep then
+                     Fmt.failwith "Job.set_running not called!";
+                   r
                 )
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >|= function
@@ -504,7 +518,8 @@ module Output(Op : S.PUBLISHER) = struct
     | `Retry -> resolved (Error (`Msg "(retry)")) (* (probably can't happen) *)
     | `Active op ->
       let a, changed =
-        if Lwt.state op.started = Lwt.Sleep then `Ready, Lwt.choose [op.started; op.finished]
+        let started = Job.start_time op.job in
+        if Lwt.state started = Lwt.Sleep then `Ready, Lwt.choose [Lwt.map ignore started; op.finished]
         else `Running, op.finished in
       Error (`Active a), Current.Input.metadata ?job_id:o.job_id ~changed @@
       object
