@@ -35,7 +35,7 @@ let test_v1 _switch () =
 let test_v1_cancel _switch () =
   Driver.test ~name:"v1c" (with_commit v1) @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\""
+  | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\" (in-progress)"
   | _ -> raise Exit
 
 (* Similar, but here the test step requires both the binary and

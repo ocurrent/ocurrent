@@ -36,37 +36,18 @@ let get ?schedule builds x =
   let> () = Current.return () in
   BC.get ?schedule builds x
 
-let some = function
-  | None -> assert false
-  | Some x -> x
-
-let date = function
-  | None -> -1
-  | Some x -> int_of_string x
+let pp_error f (`Msg m) = Fmt.string f m
 
 let disk_cache () =
-  let db = Lazy.force Current.Db.v in
-  let results = ref [] in
-  let cb (row:Sqlite3.row) _ =
-    match row with
-    | [| key; ok; value; ready; running; finished |] ->
-      let value = some value in
-      let value = match some ok with "1" -> Ok value | "0" -> Error value | _ -> assert false in
-      let row = (some key, value, date ready, date running, date finished) in
-      results := row :: !results
-    | _ -> assert false
-  in
-  match Sqlite3.exec ~cb db "SELECT key, ok, value, strftime('%s', ready), strftime('%s', running), strftime('%s', finished)
-                             FROM build_cache WHERE builder='test-build' AND rebuild = 0" with
-  | Sqlite3.Rc.OK -> List.sort compare !results
-  | x -> Fmt.failwith "disk_cache: %s" (Sqlite3.Rc.to_string x)
+  Current_cache.Db.query ~op:"test-build" ~rebuild:false ()
+  |> List.map (fun { Current_cache.Db.job_id = _; outcome; ready; running; finished; build; value = _; rebuild = _ } ->
+      let running = Option.map truncate running in
+      Fmt.strf "%a %.0f/%a/%.0f +%Ld" Fmt.(result ~ok:string ~error:pp_error) outcome
+        ready Fmt.(option ~none:(unit "-") int) running finished build
+    )
+  |> List.sort compare
 
-let entry =
-  let pp f (key, value, a, b, c) =
-    Fmt.pf f "%s => %a (%d %d %d)" key Fmt.(result ~ok:string ~error:string) value a b c
-  in
-  Alcotest.testable pp (=)
-let database = Alcotest.(list entry)
+let database = Alcotest.(list string)
 
 module Clock = struct
   type t = {
@@ -112,8 +93,8 @@ let basic _switch () =
     Lwt.wakeup b @@ Ok "done"
   | 2 -> 
     Alcotest.(check string) "Result correct" "done" !result;
-    Alcotest.check database "Result stored" ["a", Ok "done", 0, 0, 1] @@ disk_cache ();
-    Driver.rebuild "a";
+    Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
+    Driver.rebuild "a (completed)";
   | 3 ->
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
@@ -145,7 +126,7 @@ let expires _switch () =
     Clock.set clock 1.0;
     Lwt.wakeup b @@ Ok "done"
   | 2 -> 
-    Alcotest.check database "Result stored" ["a", Ok "done", 0, 0, 1] @@ disk_cache ();
+    Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
     Alcotest.(check string) "Result correct" "done,done" !result;
     Clock.set clock 7.0
   | 3 ->
@@ -156,7 +137,7 @@ let expires _switch () =
     Alcotest.check database "Disk store empty again" [] @@ disk_cache ();
     Lwt.wakeup b @@ Ok "rebuild"
   | _ ->
-    Alcotest.check database "Result stored" ["a", Ok "rebuild", 7, 7, 8] @@ disk_cache ();
+    Alcotest.check database "Result stored" ["rebuild 7/7/8 +1"] @@ disk_cache ();
     Alcotest.(check string) "Result correct" "rebuild,rebuild" !result;
     raise Exit
 
@@ -180,20 +161,25 @@ let autocancel _switch () =
   Driver.test ~name:"cache" pipeline @@ function
   | 1 ->
     Alcotest.(check string) "Initially pending" "none" !result;
+    (* This will turn off the switch. However, our test code ignores that. *)
     Bool_var.set wanted @@ Ok false
   | 2 ->
     Alcotest.(check string) "Not wanted" "unwanted" !result;
+    (* Re-enable it before the old build has finished cancelling. *)
     Bool_var.set wanted @@ Ok true
   | 3 ->
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
+    (* The original build completes, but we ignore it as cancelled and start a replacement
+       build. *)
     Lwt.wakeup b @@ Ok "old-build"
   | 4 ->
     Alcotest.(check string) "No update yet" "unwanted" !result;
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
     Clock.set clock 2.0;
+    (* The replacement build completes. *)
     Lwt.wakeup b @@ Ok "new-build"
   | 5 ->
     Alcotest.(check string) "Rebuild done" "new-build" !result;
@@ -352,6 +338,28 @@ let output_retry _switch () =
   | _ ->
     assert false
 
+let output_retry_new _switch () =
+  OC2.reset ();
+  let p = Publish2.create () in
+  V.set input @@ Ok "1";
+  let pipeline () = set p "foo" (V.get input) in
+  Driver.test ~name:"cache.output_retry_new" pipeline @@ function
+  | 1 ->
+    Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
+    (* We change our mind about the value while still setting the old one. *)
+    V.set input @@ Ok "2";
+  | 2 ->
+    (* The original build fails. *)
+    Publish.complete p @@ Error (`Msg "Failed")
+  | 3 ->
+    Alcotest.(check string) "Publish has restarted" "init-changing-changing" p.Publish.state;
+    Publish.complete p @@ Ok ()
+  | 4 ->
+    Alcotest.(check string) "Publish has completed" "2" p.Publish.state;
+    raise Exit
+  | _ ->
+    assert false
+
 let tests =
   [
     Driver.test_case_gc "basic"             basic;
@@ -360,4 +368,5 @@ let tests =
     Driver.test_case_gc "output"            output;
     Driver.test_case_gc "output_autocancel" output_autocancel;
     Driver.test_case_gc "output_retry"      output_retry;
+    Driver.test_case_gc "output_retry_new"  output_retry_new;
   ]

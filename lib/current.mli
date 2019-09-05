@@ -182,6 +182,7 @@ module Unit : sig
   val pp : t Fmt.t
   val compare : t -> t -> int
   val equal : t -> t -> bool
+  val digest : t -> string
   val marshal : t -> string
   val unmarshal : string -> t
 end

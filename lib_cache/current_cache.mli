@@ -25,7 +25,7 @@ module Make (B : S.BUILDER) : sig
 end
 
 module Output (P : S.PUBLISHER) : sig
-  val set : P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Input.t
+  val set : ?schedule:Schedule.t -> P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Input.t
   (** [set p k v] is a term for the result of setting [k] to [v]. *)
 
   val reset : unit -> unit
@@ -33,17 +33,20 @@ module Output (P : S.PUBLISHER) : sig
 end
 
 module Db : sig
-  module Build : sig
-    type entry = {
-      job_id : string;
-      build : int64;      (* Build number (increases for rebuilds). *)
-      value : string Current.or_error;
-      rebuild : bool;     (* If [true], then a rebuild was requested. *)
-      finished : float;   (* When the entry was created. *)
-    }
+  type entry = {
+    job_id : string;
+    build : int64;            (* Build number (increases for rebuilds). *)
+    value : string;
+    outcome : string Current.or_error;
+    ready : float;            (* When the job was ready to begin. *)
+    running : float option;   (* When it actually started running (e.g. after confirmation). *)
+    finished : float;         (* When it finished (successfully or not). *)
+    rebuild : bool;           (* If [true], then a rebuild was requested. *)
+  }
 
-    val query : ?ok:bool -> unit -> entry list
-    (** Search the database for matching records.
-        @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results. *)
-  end
+  val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> unit -> entry list
+  (** Search the database for matching records.
+      @param op : if present, restrict to results from the named builder or publisher
+      @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results.
+      @param rebuild : if present, restrict results to ones where the rebuild flag matches this. *)
 end

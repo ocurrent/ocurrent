@@ -314,6 +314,7 @@ module Unit = struct
 
   let pp f () = Fmt.string f "()"
   let compare () () = 0
+  let digest () = ""
   let equal () () = true
   let marshal () = "()"
   let unmarshal = function
