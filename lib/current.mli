@@ -5,9 +5,10 @@ module Level = Level
 module Config : sig
   type t
 
-  val v : ?confirm:Level.t -> unit -> t
+  val v : ?auto_release:Duration.t -> ?confirm:Level.t -> unit -> t
   (** A new configuration.
-      @param confirm : confirm before performing operations at or above this level. *)
+      @param auto_release Remove confirmation requirement this period (unless changed manually first).
+      @param confirm Confirm before performing operations at or above this level. *)
 
   val set_confirm : t -> Level.t option -> unit
   (** Change the [confirm] setting. Existing jobs waiting for confirmation
