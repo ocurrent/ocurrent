@@ -51,7 +51,9 @@ let db = lazy (
                                           strftime('%s', running), \
                                           strftime('%s', finished), \
                                           rebuild, build \
-                                   FROM cache WHERE op = ? AND key = ?" in
+                                   FROM cache WHERE op = ? AND key = ? \
+                                   ORDER BY build DESC \
+                                   LIMIT 1" in
   let invalidate = Sqlite3.prepare db "UPDATE cache SET rebuild = 1 WHERE op = ? AND key = ?" in
   let drop = Sqlite3.prepare db "DELETE FROM cache WHERE op = ?" in
   { db; record; invalidate; drop; lookup }
