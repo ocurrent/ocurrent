@@ -27,7 +27,7 @@ val record :
     @param finished When the job stopped running (i.e. now). *)
 
 val lookup : op:string -> string -> entry option
-(** [lookup ~op key] returns the previously stored result for [op] and [key], if any. *)
+(** [lookup ~op key] returns the most recently stored result for [op] and [key], if any. *)
 
 val drop_all : string -> unit
 (** [drop_all op] drops all cached entries for [op]. *)
