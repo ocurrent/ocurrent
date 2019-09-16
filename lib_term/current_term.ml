@@ -108,7 +108,7 @@ module Make (Input : S.INPUT) = struct
     | fn -> make x.md fn
     | exception ex ->
       let msg = msg_of_exn ex in
-      make (An.fail ~env msg) (Dyn.fail msg)
+      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
 
   let ignore_value x = map ignore x
 

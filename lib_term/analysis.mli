@@ -23,6 +23,7 @@ module Make (Job : sig type id end) : sig
   val blocked    : env:env -> unit -> t
   val return     : env:env -> string option -> t
   val fail       : env:env -> string -> t
+  val map_failed : env:env -> t -> string -> t
   val state      : env:env -> t -> t
   val catch      : env:env -> t -> t
   val active     : env:env -> Output.active -> t

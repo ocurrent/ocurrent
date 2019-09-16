@@ -38,6 +38,7 @@ module Make (Job : sig type id end) = struct
     | Constant of string option
     | State of t
     | Catch of t
+    | Map_failed of t      (* In [map f t], [f] raised an exception. *)
     | Bind of t * string
     | Bind_input of {x : t; info : string; id : Job.id option}
     | Pair of t * t
@@ -66,6 +67,9 @@ module Make (Job : sig type id end) = struct
 
   let fail ~env msg =
     make ~env (Constant None) (Fail msg)
+
+  let map_failed ~env t msg =
+    make ~env (Map_failed t) (Fail msg)
 
   let state ~env t =
     make ~env (State t) Pass
@@ -176,6 +180,7 @@ module Make (Job : sig type id end) = struct
         | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
         | State x -> Fmt.pf f "state(@[%a@])" aux x
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x
+        | Map_failed x -> aux f x
       )
     in
     aux f x
@@ -262,6 +267,13 @@ module Make (Job : sig type id end) = struct
           | Catch x ->
             let inputs = aux x in
             node i "catch";
+            inputs |> List.iter (fun input -> input ==> i);
+            [i]
+          | Map_failed x ->
+            (* Normally, we don't show separate boxes for map functions.
+               But we do if one fails. *)
+            let inputs = aux x in
+            node i "map";
             inputs |> List.iter (fun input -> input ==> i);
             [i]
           | List_map { items; fn } ->
