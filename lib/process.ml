@@ -21,10 +21,10 @@ let pp_signal f x =
 
 let check_status cmd = function
   | Unix.WEXITED 0 -> Ok ()
-  | Unix.WEXITED x -> failf "Command %a exited with status %d" pp_cmd cmd x
-  | Unix.WSIGNALED x -> failf "Command %a failed with signal %d" pp_cmd cmd x
+  | Unix.WEXITED x -> failf "%t exited with status %d" cmd x
+  | Unix.WSIGNALED x -> failf "%t failed with signal %d" cmd x
   | Unix.WSTOPPED x ->
-      failf "Command %a stopped with signal %a" pp_cmd cmd pp_signal x
+      failf "%t stopped with signal %a" cmd pp_signal x
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
@@ -74,7 +74,10 @@ let send_to ch contents =
     (fun () -> Lwt.return (Ok ()))
     (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
 
-let exec ?switch ?(stdin="") ~job cmd =
+let pp_command cmd f = Fmt.pf f "Command %a" pp_cmd cmd
+
+let exec ?switch ?(stdin="") ?pp_error_command ~job cmd =
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   let log_fd = Job.fd job in
   let stdout = `FD_copy log_fd in
   let stderr = `FD_copy log_fd in
@@ -90,12 +93,13 @@ let exec ?switch ?(stdin="") ~job cmd =
     ) >>= fun () ->
   send_to proc#stdin stdin >>= fun stdin_result ->
   proc#status >|= fun status ->
-  match check_status cmd status with
+  match check_status pp_error_command status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?switch ?cwd ?(stdin="") ~job cmd =
+let check_output ?switch ?cwd ?(stdin="") ?pp_error_command ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   let log_fd = Job.fd job in
   let stderr = `FD_copy log_fd in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
@@ -112,7 +116,7 @@ let check_output ?switch ?cwd ?(stdin="") ~job cmd =
   send_to proc#stdin stdin >>= fun stdin_result ->
   reader >>= fun stdout ->
   proc#status >|= fun status ->
-  match check_status cmd status with
+  match check_status pp_error_command status with
   | Error _ as e -> e
   | Ok () ->
     match stdin_result with

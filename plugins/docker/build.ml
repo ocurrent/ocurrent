@@ -77,7 +77,8 @@ let build ~switch { pull; pool; timeout } job key =
                                           ["--iidfile";
                                            Fpath.to_string iidfile; "--";
                                            Fpath.to_string dir] in
-  Current.Process.exec ~switch ?stdin:dockerfile ~job cmd >|= function
+  let pp_error_command f = Fmt.string f "Docker build" in
+  Current.Process.exec ~switch ?stdin:dockerfile ~pp_error_command ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
     Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->
