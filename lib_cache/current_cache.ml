@@ -198,7 +198,7 @@ module Output(Op : S.PUBLISHER) = struct
            (fun () ->
               let pp_op f = pp_op f (output.key, op.value) in
               output.job_id <- Some (Job.id job);
-              Job.log job "Publish: %t" pp_op;
+              Job.log job "New job: %t" pp_op;
               Lwt.catch
                 (fun () -> Op.publish ~switch ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
@@ -220,8 +220,8 @@ module Output(Op : S.PUBLISHER) = struct
                 let outcome =
                   if Current.Switch.is_on op.switch then (
                     begin match outcome with
-                      | Ok _ -> Job.log job "Publish : succeeded"
-                      | Error (`Msg m) -> Job.log job "Publish failed: %s" m;
+                      | Ok _ -> Job.log job "Job succeeded"
+                      | Error (`Msg m) -> Job.log job "Job failed: %s" m;
                     end;
                     outcome
                   ) else Error (`Msg "Cancelled")
