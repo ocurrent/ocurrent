@@ -24,9 +24,9 @@ end
 
 let graphql_endpoint = Uri.of_string "https://api.github.com/graphql"
 
-let status_endpoint ~owner ~repo ~commit =
-  Uri.of_string (Fmt.strf "https://api.github.com/repos/%s/%s/statuses/%s"
-                   owner repo commit)
+let status_endpoint ~owner_name ~commit =
+  Uri.of_string (Fmt.strf "https://api.github.com/repos/%s/statuses/%s"
+                   owner_name commit)
 
 let read_file path =
   let ch = open_in_bin path in
@@ -78,6 +78,30 @@ let no_token = {
   expiry = Some (-1.0);
 }
 
+module Commit_id = struct
+  type t = {
+    owner_name : string;    (* e.g. "owner/name" *)
+    id : [ `Ref of string | `PR of int ];
+    hash : string;
+  }
+
+  let to_git { owner_name; id; hash } =
+    let repo = Fmt.strf "https://github.com/%s.git" owner_name in
+    let gref =
+      match id with
+      | `Ref head -> head
+      | `PR id -> Fmt.strf "refs/pull/%d/head" id
+    in
+    Current_git.Commit_id.v ~repo ~gref ~hash
+
+  let pp_id f = function
+    | `Ref r -> Fmt.string f r
+    | `PR pr -> Fmt.pf f "PR %d" pr
+
+  let pp f { owner_name; id; hash } =
+    Fmt.pf f "@[<v>%s@,%a@,%s@]" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
+end
+
 type t = {
   account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
@@ -86,7 +110,7 @@ type t = {
   mutable head_inputs : commit Current.Input.t Repo_map.t;
   mutable ci_refs_inputs : ci_refs Current.Input.t Repo_map.t;
 }
-and commit = t * Current_git.Commit_id.t
+and commit = t * Commit_id.t
 and ci_refs = commit list
 
 let v ~get_token account =
@@ -165,7 +189,7 @@ let query_default =
      resetAt \
    } \
    repository(owner: $owner, name: $name) { \
-     url \n
+     nameWithOwner \n
      defaultBranchRef { \
        prefix \
        name \
@@ -196,15 +220,12 @@ let default_ref t { Repo_id.owner; name } =
       let data = json / "data" in
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
-      let url = repo / "url" |> to_string in
+      let owner_name = repo / "nameWithOwner" |> to_string in
       let def = repo / "defaultBranchRef" in
       let prefix = def / "prefix" |> to_string in
       let name = def / "name" |> to_string in
       let hash = def / "target" / "oid" |> to_string in
-      Current_git.Commit_id.v
-        ~repo:(url ^ ".git")
-        ~gref:(prefix ^ name)
-        ~hash
+      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -267,7 +288,7 @@ let query_branches_and_open_prs = {|
       resetAt
     }
     repository(owner: $owner, name: $name) {
-      url
+      nameWithOwner
       refs(first: 100, refPrefix:"refs/heads/") {
         totalCount
         edges {
@@ -292,25 +313,19 @@ let query_branches_and_open_prs = {|
   }
 |}
 
-let parse_ref ~url ~prefix json =
+let parse_ref ~owner_name ~prefix json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let name = node / "name" |> to_string in
   let hash = node / "target" / "oid" |> to_string in
-  Current_git.Commit_id.v
-    ~repo:(url ^ ".git")
-    ~gref:(prefix ^ name)
-    ~hash
+  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
 
-let parse_pr ~url json =
+let parse_pr ~owner_name json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let hash = node / "headRefOid" |> to_string in
   let pr = node / "number" |> to_int in
-  Current_git.Commit_id.v
-    ~repo:(url ^ ".git")
-    ~gref:(Fmt.strf "refs/pull/%d/head" pr)
-    ~hash
+  { Commit_id.owner_name; id = `PR pr; hash }
 
 let get_ci_refs t { Repo_id.owner; name } =
     let variables = [
@@ -323,12 +338,12 @@ let get_ci_refs t { Repo_id.owner; name } =
       let data = json / "data" in
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
-      let url = repo / "url" |> to_string in
+      let owner_name = repo / "nameWithOwner" |> to_string in
       let refs =
-        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~url ~prefix:"refs/heads/")
+        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/")
         |> List.map (fun r -> (t, r)) in
       let prs =
-        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~url)
+        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name)
         |> List.map (fun r -> (t, r)) in
       (* TODO: use cursors to get all results.
          For now, we just take the first 100 and warn if there are more. *)
@@ -394,19 +409,6 @@ let ci_refs_dyn t repo =
     i
 
 module Commit = struct
-  let repo_parts commit_id =
-    let repo = Uri.of_string @@ Current_git.Commit_id.repo commit_id in
-    if Uri.host repo <> Some "github.com" then
-      Fmt.failwith "Host in %a should be github.com!" Uri.pp repo;
-    let path = Uri.path repo in
-    match Astring.String.cuts ~sep:"/" path with
-    | [""; owner; name_git] ->
-      begin match Filename.chop_suffix_opt ~suffix:".git" name_git with
-        | Some name -> owner, name
-        | None -> owner, name_git
-      end
-    | parts -> Fmt.failwith "Invalid repo name %a repo (in %a)" Fmt.(Dump.list string) parts Uri.pp repo
-
   module Set_status = struct
     let id = "github-set-status"
 
@@ -414,13 +416,13 @@ module Commit = struct
 
     module Key = struct
       type t = {
-        commit : Current_git.Commit_id.t;
+        commit : Commit_id.t;
         context : string;
       }
 
       let to_json { commit; context } =
         `Assoc [
-          "commit", `String (Current_git.Commit_id.digest commit);
+          "commit", `String (commit.hash);
           "context", `String context
         ]
 
@@ -435,7 +437,7 @@ module Commit = struct
 
     let pp f ({ Key.commit; context }, status) =
       Fmt.pf f "Set %a/%s to %a"
-        Current_git.Commit_id.pp commit
+        Commit_id.pp commit
         context
         Value.pp status
 
@@ -447,8 +449,10 @@ module Commit = struct
       | Error (`Msg m) -> Lwt.fail_with m
       | Ok token ->
         let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
-        let owner, repo = repo_parts commit in
-        let uri = status_endpoint ~owner ~repo ~commit:(Current_git.Commit_id.hash commit) in
+        let uri = status_endpoint
+            ~owner_name:commit.Commit_id.owner_name
+            ~commit:commit.Commit_id.hash
+        in
         Current.Job.log job "@[<v2>POST %a:@,%a@]"
           Uri.pp uri
           (Yojson.Safe.pretty_print ~std:true) body;
@@ -468,12 +472,10 @@ module Commit = struct
   module Set_status_cache = Current_cache.Output(Set_status)
 
   type t = commit
-  let id = snd
-  let pp f (_, commit) =
-    let owner, repo = repo_parts commit in
-    let gref = Current_git.Commit_id.gref commit in
-    let hash = Current_git.Commit_id.hash commit in
-    Fmt.pf f "%s/%s@\n%s@\n%s" owner repo gref (Astring.String.with_range ~len:8 hash)
+
+  let id (_, commit_id) = Commit_id.to_git commit_id
+
+  let pp = Fmt.using snd Commit_id.pp
 
   let set_status commit context status =
     Current.component "set_status" |>
