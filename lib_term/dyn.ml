@@ -18,7 +18,9 @@ let bind x f =
 let map f x =
   match x with
   | Error _ as e -> e
-  | Ok y -> Ok (f y)
+  | Ok y ->
+    try Ok (f y)
+    with ex -> Error (`Msg (Printexc.to_string ex))
 
 let pair a b =
   match a, b with
