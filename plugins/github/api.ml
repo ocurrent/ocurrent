@@ -83,7 +83,7 @@ module Commit_id = struct
     owner_name : string;    (* e.g. "owner/name" *)
     id : [ `Ref of string | `PR of int ];
     hash : string;
-  }
+  } [@@deriving to_yojson]
 
   let to_git { owner_name; id; hash } =
     let repo = Fmt.strf "https://github.com/%s.git" owner_name in
@@ -100,6 +100,8 @@ module Commit_id = struct
 
   let pp f { owner_name; id; hash } =
     Fmt.pf f "@[<v>%s@,%a@,%s@]" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
+
+  let digest t = Yojson.Safe.to_string (to_yojson t)
 end
 
 type t = {
@@ -423,7 +425,7 @@ module Commit = struct
 
       let to_json { commit; context } =
         `Assoc [
-          "commit", `String (commit.hash);
+          "commit", `String (Commit_id.digest commit);
           "context", `String context
         ]
 
