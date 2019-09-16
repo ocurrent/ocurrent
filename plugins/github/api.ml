@@ -341,6 +341,7 @@ let get_ci_refs t { Repo_id.owner; name } =
       let owner_name = repo / "nameWithOwner" |> to_string in
       let refs =
         repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/")
+        |> List.filter (fun c -> c.Commit_id.id <> `Ref "refs/heads/gh-pages")
         |> List.map (fun r -> (t, r)) in
       let prs =
         repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name)
