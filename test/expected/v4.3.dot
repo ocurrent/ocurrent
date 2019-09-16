@@ -4,12 +4,12 @@ digraph pipeline {
   n3 [label="head",fillcolor="#90ee90",style="filled"]
   n2 [label="fetch",fillcolor="#90ee90",style="filled"]
   n3 -> n2
-  n1 [label="custom-build",fillcolor="#ff4500",style="filled"]
+  n1 [label="custom-build",fillcolor="#ff4500",style="filled",tooltip="Failed"]
   n2 -> n1
   n4 [label="build",fillcolor="#90ee90",style="filled"]
   n1 -> n4
   n1 -> n4
-  n0 [label="docker run make test",fillcolor="#ff4500",style="filled"]
+  n0 [label="docker run make test",fillcolor="#ff4500",style="filled",tooltip="Failed"]
   n4 -> n0
   n1 -> n0
   }
