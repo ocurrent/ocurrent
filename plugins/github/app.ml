@@ -83,6 +83,12 @@ let installation t ~account iid =
   let api = Api.v ~get_token:(fun () -> get_token t iid) ("i-" ^ account) in
   Installation.v ~api ~account ~iid
 
+module Int_set = Set.Make(Int)
+
+let remove_stale_installations new_ids =
+  let new_ids = new_ids |> List.map fst |> Int_set.of_list in
+  Int_map.filter (fun key _ -> Int_set.mem key new_ids)
+
 let monitor_installations t () =
   let rec aux () =
     let update = Lwt_condition.wait installations_changed_cond in
@@ -96,8 +102,8 @@ let monitor_installations t () =
                 if Int_map.mem iid acc then acc
                 else Int_map.add iid (installation t iid ~account) acc
               )
+            |> remove_stale_installations ids
             |> Stdlib.Result.ok
-            (* Could remove old ones here too... *)
           );
       | Error (`Msg m) ->
         Log.warn (fun f -> f "Failed to update list of installations: %s" m)
