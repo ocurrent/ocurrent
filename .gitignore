@@ -5,3 +5,5 @@ svg
 var
 pipeline.dot
 pipeline.svg
+engine.capnp
+secret-key.pem

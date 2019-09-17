@@ -30,9 +30,9 @@ let reporter =
   in
   { Logs.report = report }
 
-let init () =
+let init ?(level=Logs.Info) () =
   Fmt_tty.setup_std_outputs ();
-  Logs.(set_level (Some Info));
+  Logs.set_level (Some level);
   Logs.set_reporter reporter
 
 let with_dot ~dotfile f () =
@@ -48,7 +48,7 @@ let with_dot ~dotfile f () =
 
 let run x =
   match Lwt_main.run x with
-  | Ok _ as r -> r
+  | Ok () -> Ok ()
   | Error (`Msg m) as e ->
     Logs.err (fun f -> f "%a" Fmt.lines m);
     e
