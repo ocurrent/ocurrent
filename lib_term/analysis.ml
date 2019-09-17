@@ -25,7 +25,7 @@ module Make (Job : sig type id end) = struct
     | Blocked
     | Active of Output.active
     | Pass
-    | Fail
+    | Fail of string
 
   type t = {
     id : Id.t;
@@ -38,6 +38,7 @@ module Make (Job : sig type id end) = struct
     | Constant of string option
     | State of t
     | Catch of t
+    | Map_failed of t      (* In [map f t], [f] raised an exception. *)
     | Bind of t * string
     | Bind_input of {x : t; info : string; id : Job.id option}
     | Pair of t * t
@@ -64,14 +65,21 @@ module Make (Job : sig type id end) = struct
   let return ~env label =
     make ~env (Constant label) Pass
 
-  let fail ~env () =
-    make ~env (Constant None) Fail
+  let fail ~env msg =
+    make ~env (Constant None) (Fail msg)
+
+  let map_failed ~env t msg =
+    make ~env (Map_failed t) (Fail msg)
 
   let state ~env t =
     make ~env (State t) Pass
 
   let catch ~env t =
-    let state = if t.state = Fail then Pass else t.state in
+    let state =
+      match t.state with
+      | Fail _ -> Pass
+      | _  -> t.state
+    in
     make ~env (Catch t) state
 
   let active ~env a =
@@ -79,7 +87,7 @@ module Make (Job : sig type id end) = struct
 
   let of_output ~env = function
     | Ok _ -> return ~env None
-    | Error `Msg _ -> fail ~env ()
+    | Error `Msg m -> fail ~env m
     | Error (`Active a) -> active ~env a
 
   let ( =? ) a b =
@@ -95,8 +103,8 @@ module Make (Job : sig type id end) = struct
 
   let pair_state a b =
     match a.state, b.state with
-    | _, Fail
-    | Fail, _ -> Fail
+    | _, Fail m
+    | Fail m, _ -> Fail m
     | _, (Blocked | Active _)
     | (Blocked | Active _), _ -> Blocked
     | Pass, Pass -> Pass
@@ -121,7 +129,7 @@ module Make (Job : sig type id end) = struct
       let ty = Bind (x, info) in
       let state =
         match x.state with
-        | Blocked | Active _ | Fail -> Blocked
+        | Blocked | Active _ | Fail _ -> Blocked
         | Pass -> state
       in
       make ~env:parent ty state
@@ -131,7 +139,7 @@ module Make (Job : sig type id end) = struct
     let ty = Bind_input {x; info; id = None} in
     let state =
       match x.state with
-      | Blocked | Active _ | Fail -> Blocked
+      | Blocked | Active _ | Fail _ -> Blocked
       | Pass -> state
     in
     make ~env:parent ty state
@@ -172,6 +180,7 @@ module Make (Job : sig type id end) = struct
         | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
         | State x -> Fmt.pf f "state(@[%a@])" aux x
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x
+        | Map_failed x -> aux f x
       )
     in
     aux f x
@@ -203,11 +212,16 @@ module Make (Job : sig type id end) = struct
           | Active `Ready -> "#ffff00"
           | Active `Running -> "#ffa500"
           | Pass -> "#90ee90"
-          | Fail -> "#ff4500"
+          | Fail _ -> "#ff4500"
+        in
+        let tooltip =
+          match md.state with
+          | Fail msg -> Some msg
+          | _ -> None
         in
         let node ?id =
           let url = match id with None -> None | Some id -> url id in
-          Dot.node ~style:"filled" ~bg ?url f in
+          Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match md.ty with
           | Constant (Some l) -> node i l; [i]
@@ -253,6 +267,13 @@ module Make (Job : sig type id end) = struct
           | Catch x ->
             let inputs = aux x in
             node i "catch";
+            inputs |> List.iter (fun input -> input ==> i);
+            [i]
+          | Map_failed x ->
+            (* Normally, we don't show separate boxes for map functions.
+               But we do if one fails. *)
+            let inputs = aux x in
+            node i "map";
             inputs |> List.iter (fun input -> input ==> i);
             [i]
           | List_map { items; fn } ->

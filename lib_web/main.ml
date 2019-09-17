@@ -2,14 +2,6 @@ open Tyxml.Html
 
 let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
 
-let string_of_watches = Fmt.to_to_string Current.Engine.pp_metadata
-
-let render_watches w =
-  li [txt (string_of_watches w)]
-
-let render_job (id, _) =
-  li [txt (Fmt.to_to_string Current.Job.pp_id id)]
-
 let render_result = function
   | Ok () -> [txt "Success!"]
   | Error (`Active `Ready) -> [txt "Ready..."]
@@ -56,7 +48,7 @@ let settings config =
 
 let dashboard engine =
   let config = Current.Engine.config engine in
-  let { Current.Engine.value; analysis = _; watches; jobs } = Current.Engine.state engine in
+  let { Current.Engine.value; analysis = _; watches = _; jobs = _ } = Current.Engine.state engine in
   template [
     div [
       object_ ~a:[a_data "/pipeline.svg"] [txt "Pipeline diagram"];
@@ -65,11 +57,4 @@ let dashboard engine =
     p (render_result value);
     h2 [txt "Settings"];
     settings config;
-    h2 [txt "Debugging"];
-    details (summary [txt "Debugging information"]) [
-      h2 [txt "Jobs"];
-      ul (List.map render_job (Current.Job_map.bindings jobs));
-      h2 [txt "Watches"];
-      ul (List.map render_watches watches);
-    ];
   ]

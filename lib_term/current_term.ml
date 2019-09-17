@@ -60,7 +60,7 @@ module Make (Input : S.INPUT) = struct
 
   let fail msg =
     cache @@ fun ~env _ctx ->
-    make (An.fail ~env ()) (Dyn.fail msg)
+    make (An.fail ~env msg) (Dyn.fail msg)
 
   let state t =
     cache @@ fun ~env ctx ->
@@ -83,7 +83,7 @@ module Make (Input : S.INPUT) = struct
     let x = x ctx in
     let md = An.bind ~env ?info x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
+    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
     | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
@@ -91,17 +91,24 @@ module Make (Input : S.INPUT) = struct
       let r = f2 ctx in
       An.set_state md (
         match Dyn.run r.fn with
-        | Error (`Msg _) -> An.Fail
+        | Error (`Msg e) -> An.Fail e
         | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
       r
 
+  let msg_of_exn = function
+    | Failure m -> m
+    | ex -> Printexc.to_string ex
+
   let map f x =
-    cache @@ fun ~env:_ ctx ->
+    cache @@ fun ~env ctx ->
     let x = x ctx in
-    let fn = Dyn.map f x.fn in
-    make x.md fn
+    match Dyn.map f x.fn with
+    | fn -> make x.md fn
+    | exception ex ->
+      let msg = msg_of_exn ex in
+      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
 
   let ignore_value x = map ignore x
 
@@ -118,7 +125,7 @@ module Make (Input : S.INPUT) = struct
     let x = x ctx in
     let md = An.bind_input ~env ~info x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
+    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
     | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
@@ -126,7 +133,7 @@ module Make (Input : S.INPUT) = struct
       let v, id = Input.get ctx.user_env input in
       An.set_state md ?id (
         match v with
-        | Error (`Msg _) -> An.Fail
+        | Error (`Msg e) -> An.Fail e
         | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
@@ -214,8 +221,9 @@ module Make (Input : S.INPUT) = struct
         let x = f () ctx in
         Dyn.run x.fn, x.md
       with ex ->
-        let fn = Dyn.fail (Printexc.to_string ex) |> Dyn.run in
-        let md = An.fail ~env:default_env () in
+        let msg = Printexc.to_string ex in
+        let fn = Dyn.fail msg |> Dyn.run in
+        let md = An.fail ~env:default_env msg in
         fn, md
   end
 

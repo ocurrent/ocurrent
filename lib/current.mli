@@ -276,14 +276,20 @@ end
 
 module Process : sig
   val exec :
-    ?switch:Switch.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    ?switch:Switch.t -> ?stdin:string ->
+    ?pp_error_command:(Format.formatter -> unit) ->
+    job:Job.t -> Lwt_process.command ->
     unit or_error Lwt.t
   (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
       @param switch If this is turned off, the process is terminated.
-      @param stdin Data to write to stdin before closing it. *)
+      @param stdin Data to write to stdin before closing it.
+      @param pp_error_command Format the command for an error message.
+        The default is to print "Command $cmd". *)
 
   val check_output :
-    ?switch:Switch.t -> ?cwd:Fpath.t -> ?stdin:string -> job:Job.t -> Lwt_process.command ->
+    ?switch:Switch.t -> ?cwd:Fpath.t -> ?stdin:string ->
+    ?pp_error_command:(Format.formatter -> unit) ->
+    job:Job.t -> Lwt_process.command ->
     string or_error Lwt.t
   (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
 
