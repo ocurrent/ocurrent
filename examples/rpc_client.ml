@@ -5,16 +5,16 @@
 
    If run without further arguments, it queries the server and displays a list of active jobs, e.g.
 
-   $ rpc_client.exe ./engine.capnp
-   2019-09-18/155957-docker-build-37304d.log
-   2019-09-18/160916-docker-run-ac2ac8.log
+   $ dune exec -- rpc_client ./engine.capnp
+   2019-09-19/103850-docker-build-11b894
+   2019-09-19/104747-docker-run-01a31e
 
    With a job ID, it shows information about that job:
 
-   $ rpc_client.exe ./engine.capnp 2019-09-18/155957-docker-build-37304d.log
-   Job "2019-09-18/155957-docker-build-37304d.log":
+   $ dune exec -- rpc_client ./engine.capnp 2019-09-19/103850-docker-build-11b894
+   Job "2019-09-19/103850-docker-build-11b894":
      Description: docker build {
-                                 "commit": "d28bfc9f7af4ebbf9b349b04ee5cb96bfa71e108",
+                                 "commit": "946ce0334a15251459d1821c2b63e240d2760106",
                                  "dockerfile": null,
                                  "docker_context": null,
                                  "squash": false
@@ -24,7 +24,7 @@
 
    You can also pass the method as a further argument, e.g.
 
-   $ rpc_client.exe ./engine.capnp 2019-09-18/155957-docker-build-37304d.log rebuild
+   $ dune exec -- rpc_client ./engine.capnp 2019-09-19/103850-docker-build-11b894 rebuild
    Rebuild scheduled
 *)
 
