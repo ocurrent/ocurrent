@@ -198,6 +198,8 @@ module Engine = struct
 
   let state t = !(t.last_result)
 
+  let jobs s = s.jobs
+
   let config t = t.config
 
   let thread t = t.thread

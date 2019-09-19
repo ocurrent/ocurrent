@@ -134,6 +134,8 @@ module Engine : sig
   val state : t -> results
   (** The most recent results from evaluating the pipeline. *)
 
+  val jobs : results -> actions Job_map.t
+
   val thread : t -> 'a Lwt.t
   (** [thread t] is the engine's thread.
       Use this to monitor the engine (in case it crashes). *)

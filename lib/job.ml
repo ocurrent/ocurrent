@@ -7,7 +7,7 @@ let sleep = ref Lwt_unix.sleep
 type t = {
   switch : Switch.t;
   config : Config.t;
-  log : Fpath.t;
+  id : string;
   set_start_time : float Lwt.u;
   start_time : float Lwt.t;
   mutable ch : out_channel option;
@@ -19,7 +19,7 @@ let open_temp_file ~dir ~prefix ~suffix =
 
 let write t msg =
   match t.ch with
-  | None -> Log.err (fun f -> f "Job.write(%a, %S) called on closed job" Fpath.pp t.log msg)
+  | None -> Log.err (fun f -> f "Job.write(%s, %S) called on closed job" t.id msg)
   | Some ch ->
     output_string ch msg;
     flush ch
@@ -32,14 +32,11 @@ let log t fmt =
     (tm_year + 1900) (tm_mon + 1) tm_mday
     tm_hour tm_min tm_sec
 
-let id t =
-  match Fpath.split_base t.log with
-  | parent_dir, leaf ->
-    Fpath.(base parent_dir // leaf) |> Fpath.to_string
+let id t = t.id
 
 let fd t =
   match t.ch with
-  | None -> Fmt.failwith "Job.fd(%a) called on closed job" Fpath.pp t.log
+  | None -> Fmt.failwith "Job.fd(%s) called on closed job" t.id
   | Some ch -> Unix.descr_of_out_channel ch
 
 let jobs_dir = lazy (Disk_store.state_dir "job")
@@ -50,15 +47,19 @@ let log_path job_id =
   match String.cuts ~sep:"/" job_id with
   | [date; file] when
       not (String.is_prefix ~affix:"." date) &&
-      not (String.is_prefix ~affix:"." file) &&
-      String.is_suffix ~affix:".log" file ->
-    let path = Fpath.(jobs_dir / date / file) in
+      not (String.is_prefix ~affix:"." file) ->
+    let path = Fpath.(jobs_dir / date / (file ^ ".log")) in
     begin match Bos.OS.File.exists path with
       | Ok true -> Ok path
       | Ok false -> Error (`Msg (Fmt.strf "Job log %a does not exist" Fpath.pp path))
       | Error _ as e -> e
     end
   | _ -> Error (`Msg (Fmt.strf "Invalid job ID %S" job_id))
+
+let id_of_path path =
+  match Fpath.split_base path with
+  | parent_dir, leaf ->
+    Fpath.(base parent_dir // leaf) |> Fpath.to_string |> Filename.chop_extension
 
 let create ~switch ~label ~config () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
@@ -78,8 +79,9 @@ let create ~switch ~label ~config () =
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
+    let id = id_of_path path in
     let start_time, set_start_time = Lwt.wait () in
-    let t = { switch; log = path; ch = Some ch; start_time; set_start_time; config } in
+    let t = { switch; id; ch = Some ch; start_time; set_start_time; config } in
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
@@ -111,7 +113,7 @@ let confirm t level =
 let start ?timeout ~level t =
   confirm t level >|= fun () ->
   if is_running t then (
-    Log.warn (fun f -> f "start called, but job %a is already running!" Fpath.pp t.log);
+    Log.warn (fun f -> f "start called, but job %s is already running!" t.id);
     Fmt.failwith "Job.start called twice!"
   );
   Lwt.wakeup t.set_start_time (!timestamp ());
