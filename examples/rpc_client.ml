@@ -37,13 +37,19 @@ let list_jobs engine =
   Current_rpc.Engine.active_jobs engine |> Lwt_result.map @@ fun jobs ->
   List.iter print_endline jobs
 
-let print_ensure_endline s =
-  let l = String.length s in
-  if l > 0 && s.[l - 1] <> '\n' then print_endline s
-  else print_string s
-
 let show_log job =
-  Current_rpc.Job.log job |> Lwt_result.map print_ensure_endline
+  let rec aux start =
+    Current_rpc.Job.log ~start job >>= function
+    | Error _ as e -> Lwt.return e
+    | Ok (data, next) ->
+      if data = "" then Lwt_result.return ()
+      else (
+        output_string stdout data;
+        flush stdout;
+        aux next
+      )
+  in
+  aux 0L
 
 let show_status job =
   Current_rpc.Job.status job |> Lwt_result.map @@

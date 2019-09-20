@@ -14,11 +14,12 @@ type status = {
 
 module Job = Api.Client.Job
 
-let log t =
+let log ~start t =
   let open Job.Log in
-  let request = Capability.Request.create_no_args () in
+  let request, params = Capability.Request.create Params.init_pointer in
+  Params.start_set params start;
   Capability.call_for_value t method_id request >|= function
-  | Ok x -> Ok (Results.log_get x)
+  | Ok x -> Ok (Results.log_get x, Results.next_get x)
   | Error e -> Error (`Capnp e)
 
 let status t =
