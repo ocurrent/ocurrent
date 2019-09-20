@@ -34,11 +34,6 @@ let log t fmt =
 
 let id t = t.id
 
-let fd t =
-  match t.ch with
-  | None -> Fmt.failwith "Job.fd(%s) called on closed job" t.id
-  | Some ch -> Unix.descr_of_out_channel ch
-
 let jobs_dir = lazy (Disk_store.state_dir "job")
 
 let log_path job_id =

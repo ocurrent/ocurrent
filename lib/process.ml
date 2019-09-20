@@ -76,14 +76,24 @@ let send_to ch contents =
 
 let pp_command cmd f = Fmt.pf f "Command %a" pp_cmd cmd
 
+let copy_to_log ~job src =
+  let rec aux () =
+    Lwt_io.read ~count:4096 src >>= function
+    | "" -> Lwt.return_unit
+    | data -> Job.write job data; aux ()
+  in
+  Lwt.catch aux
+    (fun ex ->
+       Log.warn (fun f -> f "copy_to_log: %a" Fmt.exn ex);
+       Lwt.return_unit
+    )
+
 let exec ?switch ?(stdin="") ?pp_error_command ~job cmd =
   let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
-  let log_fd = Job.fd job in
-  let stdout = `FD_copy log_fd in
-  let stderr = `FD_copy log_fd in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process_out ~stdout ~stderr cmd in
+  let proc = Lwt_process.open_process ~stderr:(`FD_copy Unix.stdout) cmd in
+  Lwt.async (fun () -> copy_to_log ~job proc#stdout);
   Switch.add_hook_or_exec_opt switch (fun _reason ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
@@ -100,11 +110,10 @@ let exec ?switch ?(stdin="") ?pp_error_command ~job cmd =
 let check_output ?switch ?cwd ?(stdin="") ?pp_error_command ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
   let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
-  let log_fd = Job.fd job in
-  let stderr = `FD_copy log_fd in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ?cwd ~stderr cmd in
+  let proc = Lwt_process.open_process_full ?cwd cmd in
+  Lwt.async (fun () -> copy_to_log ~job proc#stderr);
   Switch.add_hook_or_exec_opt switch (fun _reason ->
       if proc#state = Lwt_process.Running then (
         Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);

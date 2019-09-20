@@ -264,8 +264,6 @@ module Job : sig
   val log_path : job_id -> Fpath.t or_error
   (** [log_path id] is the path of the log for job [id], if valid. *)
 
-  val fd : t -> Unix.file_descr
-
   val pp_id : job_id Fmt.t
 
   (**/**)
