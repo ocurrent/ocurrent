@@ -153,7 +153,7 @@ module Output(Op : S.PUBLISHER) = struct
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. Only call this if the output is currently
      wanted. *)
-  let rec maybe_start ~step output =
+  let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
     | `Active _ when not Op.auto_cancel ->
@@ -174,7 +174,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate_output output;
-        publish ~step output
+        publish ~config output
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -183,12 +183,12 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate_output output;
-        publish ~step output
-  and publish ~step output =
+        publish ~config output
+  and publish ~config output =
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let job = Job.create ~switch ~label:Op.id ~config:(Current.Step.config step) () in
+    let job = Job.create ~switch ~label:Op.id ~config () in
     let op = { value = output.desired; switch; job; finished; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
     output.op <- `Active op;
@@ -207,7 +207,7 @@ module Output(Op : S.PUBLISHER) = struct
               if op.autocancelled then (
                 output.op <- `Retry;
                 invalidate_output output;
-                if output.ref_count > 0 then maybe_start ~step output;
+                if output.ref_count > 0 then maybe_start ~config output;
                 Lwt.wakeup set_finished ()
               ) else (
                 (* Record the result *)
@@ -247,7 +247,7 @@ module Output(Op : S.PUBLISHER) = struct
                 output.build_number <- Int64.succ output.build_number;
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                if output.ref_count > 0 then maybe_start ~step output;
+                if output.ref_count > 0 then maybe_start ~config output;
                 Lwt.wakeup set_finished ()
               )
            )
@@ -358,7 +358,7 @@ module Output(Op : S.PUBLISHER) = struct
         o
     in
     (* Ensure a build is in progress if we need one: *)
-    maybe_start ~step o;
+    maybe_start ~config:(Current.Step.config step) o;
     (* Return the current state: *)
     match o.op with
     | `Finished x -> Ok x, resolved ~schedule ~value o
