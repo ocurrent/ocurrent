@@ -20,6 +20,22 @@ module Make (Current : S.CURRENT) = struct
   module Job = struct
     let job_cache = ref Current.Job_map.empty
 
+    let stream_log_data ~job_id ~start =
+      match Current.Job.log_path job_id with
+      | Error `Msg m -> Lwt_result.fail (`Exception (Capnp_rpc.Exception.v m))
+      | Ok path ->
+        let rec aux () =
+          match read ~start path with
+          | ("", _) as x ->
+            begin match Current.Job.lookup_running job_id with
+              | None -> Lwt_result.return x
+              | Some job ->
+                Current.Job.wait_for_log_data job >>= aux
+            end
+          | x -> Lwt_result.return x
+        in
+        aux ()
+
     let rec local engine job_id =
       let module Job = Api.Service.Job in
       match Current.Job_map.find_opt job_id !job_cache with
@@ -40,16 +56,14 @@ module Make (Current : S.CURRENT) = struct
               release_param_caps ();
               let start = Params.start_get params in
               Log.info (fun f -> f "log(%S, %Ld)" job_id start);
-              let response, results = Service.Response.create Results.init_pointer in
-              match Current.Job.log_path job_id with
-              | Error `Msg m -> Service.fail "%s" m
-              | Ok path ->
-                match read ~start path with
-                | exception ex -> Service.fail "ERROR reading log: %a" Fmt.exn ex
-                | log, next ->
-                  Results.log_set results log;
-                  Results.next_set results next;
-                  Service.return response
+              Service.return_lwt @@ fun () ->
+              stream_log_data ~job_id ~start >|= function
+              | Error _ as e -> e
+              | Ok (log, next) ->
+                let response, results = Service.Response.create Results.init_pointer in
+                Results.log_set results log;
+                Results.next_set results next;
+                Ok response
 
             method rebuild_impl _params release_param_caps =
               release_param_caps ();

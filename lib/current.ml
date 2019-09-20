@@ -4,7 +4,7 @@ type 'a or_error = ('a, [`Msg of string]) result
 
 module Config = Config
 
-module Job_map = Map.Make(String)
+module Job_map = Job.Map
 
 module Metrics = struct
   open Prometheus

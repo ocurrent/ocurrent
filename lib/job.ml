@@ -1,5 +1,7 @@
 open Lwt.Infix
 
+module Map = Map.Make(String)
+
 (* For unit-tests: *)
 let timestamp = ref Unix.gettimeofday
 let sleep = ref Lwt_unix.sleep
@@ -11,7 +13,10 @@ type t = {
   set_start_time : float Lwt.u;
   start_time : float Lwt.t;
   mutable ch : out_channel option;
+  log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
 }
+
+let jobs = ref Map.empty
 
 let open_temp_file ~dir ~prefix ~suffix =
   let path, ch = Filename.open_temp_file ~temp_dir:(Fpath.to_string dir) prefix suffix in
@@ -22,7 +27,8 @@ let write t msg =
   | None -> Log.err (fun f -> f "Job.write(%s, %S) called on closed job" t.id msg)
   | Some ch ->
     output_string ch msg;
-    flush ch
+    flush ch;
+    Lwt_condition.broadcast t.log_cond ()
 
 let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
@@ -76,7 +82,9 @@ let create ~switch ~label ~config () =
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
     let id = id_of_path path in
     let start_time, set_start_time = Lwt.wait () in
-    let t = { switch; id; ch = Some ch; start_time; set_start_time; config } in
+    let log_cond = Lwt_condition.create () in
+    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond } in
+    jobs := Map.add id t !jobs;
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
           | Ok () -> ()
@@ -85,6 +93,8 @@ let create ~switch ~label ~config () =
         end;
         close_out ch;
         t.ch <- None;
+        jobs := Map.remove id !jobs;
+        Lwt_condition.broadcast t.log_cond ();
         Lwt.return_unit
       );
     t
@@ -115,3 +125,7 @@ let start ?timeout ~level t =
   Option.iter (Switch.add_timeout t.switch) timeout
 
 let start_time t = t.start_time
+
+let wait_for_log_data t = Lwt_condition.wait t.log_cond
+
+let lookup_running id = Map.find_opt id !jobs

@@ -266,6 +266,16 @@ module Job : sig
 
   val pp_id : job_id Fmt.t
 
+  val is_running : t -> bool
+  (** [is_running t] is true if the log file is still open. *)
+
+  val wait_for_log_data : t -> unit Lwt.t
+  (** [wait_for_log_data t] is a promise that resolves the next time log data
+      is written or the log is closed. *)
+
+  val lookup_running : job_id -> t option
+  (** If [lookup_running job_id] is the job [j] with id [job_id], if [is_running j]. *)
+
   (**/**)
 
   (* For unit tests we need our own test clock: *)

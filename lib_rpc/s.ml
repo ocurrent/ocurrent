@@ -15,6 +15,8 @@ module type CURRENT = sig
   module Job : sig
     type t
     val log_path : string -> (Fpath.t, [`Msg of string]) result
+    val lookup_running : string -> t option
+    val wait_for_log_data : t -> unit Lwt.t
   end
 
   module Engine : sig

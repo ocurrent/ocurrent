@@ -16,6 +16,8 @@ interface Job {
   # Return a chunk of log data starting at byte offset "start" and the
   # value to use for "start" in the next call to continue reading.
   # Returns 0 bytes of data to indicate end-of-file.
+  # If the log is incomplete and there is no data currently available,
+  # it waits until something changes before returning.
   # If "start" is negative then it is relative to the end of the log.
 }
 
