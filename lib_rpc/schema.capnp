@@ -10,7 +10,7 @@ struct JobStatus {
 interface Job {
   status  @0 () -> JobStatus;
   cancel  @1 () -> ();
-  rebuild @2 () -> ();
+  rebuild @2 () -> (job :Job);
   log     @3 () -> (log :Text);
 }
 

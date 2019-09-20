@@ -29,9 +29,9 @@ class type actions = object
   (** A function to call if the user explicitly requests the operation be cancelled,
       or [None] if it is not something that can be cancelled. *)
 
-  method rebuild : (unit -> unit) option
+  method rebuild : (unit -> job_id) option
   (** A function to call if the user explicitly requests the operation be done again,
-      or [None] if it is not something that can be repeated. *)
+      or [None] if it is not something that can be repeated. Returns the new job ID. *)
 
   method release : unit
   (** Called to release the caller's reference to the watch (reduce the

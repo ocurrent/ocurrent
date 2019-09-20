@@ -62,8 +62,9 @@ let cancel job =
   Fmt.pr "Cancelled@."
 
 let rebuild job =
-  Current_rpc.Job.rebuild job |> Lwt_result.map @@ fun () ->
-  Fmt.pr "Rebuild scheduled@."
+  Fmt.pr "Requesting rebuild...@.";
+  let new_job = Current_rpc.Job.rebuild job in
+  show_status new_job
 
 let main ?job_id ~job_op engine_url =
   let vat = Capnp_rpc_unix.client_only_vat () in

@@ -13,8 +13,10 @@ module Job : sig
 
   val log : t -> (string, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
   val cancel : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
-  val rebuild : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
   val status : t -> (status, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+
+  val rebuild : t -> t
+  (** [rebuild t] requests a rebuild of [t] and returns the new job. *)
 end
 
 module Engine : sig

@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let read path =
   let ch = open_in_bin (Fpath.to_string path) in
   Fun.protect ~finally:(fun () -> close_in ch) @@ fun () ->
@@ -9,7 +11,7 @@ module Make (Current : S.CURRENT) = struct
   module Job = struct
     let job_cache = ref Current.Job_map.empty
 
-    let local engine job_id =
+    let rec local engine job_id =
       let module Job = Api.Service.Job in
       match Current.Job_map.find_opt job_id !job_cache with
       | Some job ->
@@ -47,8 +49,16 @@ module Make (Current : S.CURRENT) = struct
                 match job#rebuild with
                 | None -> Service.fail "Job cannot be rebuilt at the moment"
                 | Some rebuild ->
-                  rebuild ();
-                  Service.return_empty ()
+                  let open Job.Rebuild in
+                  let response, results = Service.Response.create Results.init_pointer in
+                  let new_job = local engine (rebuild ()) in
+                  Results.job_set results (Some new_job);
+                  Capability.dec_ref new_job;
+                  Service.return_lwt @@ fun () ->
+                  (* Allow the engine to re-evaluate, so the job will appear
+                     active to the caller immediately. *)
+                  Lwt.pause () >|= fun () ->
+                  Ok response
 
             method cancel_impl _params release_param_caps =
               release_param_caps ();

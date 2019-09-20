@@ -44,6 +44,4 @@ let cancel t =
 let rebuild t =
   let open Job.Rebuild in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_unit t method_id request >|= function
-  | Error e -> Error (`Capnp e)
-  | Ok () -> Ok ()
+  Capability.call_for_caps t method_id request Results.job_get_pipelined

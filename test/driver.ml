@@ -67,7 +67,7 @@ let cancel msg =
 let rebuild msg =
   match (actions_of msg)#rebuild with
   | None -> Fmt.failwith "Job %S cannot be rebuilt!" msg
-  | Some rebuild -> rebuild ()
+  | Some rebuild -> rebuild () |> ignore
 
 let ready i = Current.Engine.is_stale i
 
