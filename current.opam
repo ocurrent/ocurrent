@@ -19,6 +19,6 @@ depends: [
   "sqlite3"
   "duration"
   "prometheus"
-  "dune" {build}
+  "dune"
   "alcotest-lwt" {with-test}
 ]

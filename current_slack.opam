@@ -17,5 +17,5 @@ depends: [
   "lwt"
   "tls"
   "cohttp-lwt-unix"
-  "dune" {build}
+  "dune"
 ]
