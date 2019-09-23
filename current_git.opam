@@ -18,5 +18,5 @@ depends: [
   "irmin-watcher"
   "ppx_deriving_yojson" {>= "3.5.1"}
   "yojson"
-  "dune" {build}
+  "dune"
 ]
