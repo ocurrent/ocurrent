@@ -7,7 +7,7 @@
       --capnp-secret-key-file=secret-key.pem \
       --capnp-listen-address=unix:/tmp/ocurrent.sock
 
-   This will write out a "./engine.capnp" file, which clients
+   This will write out a "./engine.cap" file, which clients
    can use to connect. See rpc_client.ml for an example. *)
 
 open Lwt.Infix
@@ -20,7 +20,7 @@ let () = Logging.init ()
 
 (* Where we write the connection details containing the connection address and
    authorisation token. *)
-let cap_file = "engine.capnp"
+let cap_file = "engine.cap"
 
 let pull = false    (* Whether to check for updates using "docker build --pull" *)
 

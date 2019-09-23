@@ -1,17 +1,17 @@
 (* Run this to connect to the server in "rpc_server.ml".
 
-   The first argument is the path to the engine.capnp file written by the server.
+   The first argument is the path to the engine.cap file written by the server.
    This file tells the client how to connect and gives it the secret token to allow access.
 
    If run without further arguments, it queries the server and displays a list of active jobs, e.g.
 
-   $ dune exec -- rpc_client ./engine.capnp
+   $ dune exec -- rpc_client ./engine.cap
    2019-09-19/103850-docker-build-11b894
    2019-09-19/104747-docker-run-01a31e
 
    With a job ID, it shows information about that job:
 
-   $ dune exec -- rpc_client ./engine.capnp 2019-09-19/103850-docker-build-11b894
+   $ dune exec -- rpc_client ./engine.cap 2019-09-19/103850-docker-build-11b894
    Job "2019-09-19/103850-docker-build-11b894":
      Description: docker build {
                                  "commit": "946ce0334a15251459d1821c2b63e240d2760106",
@@ -24,7 +24,7 @@
 
    You can also pass the method as a further argument, e.g.
 
-   $ dune exec -- rpc_client ./engine.capnp 2019-09-19/103850-docker-build-11b894 rebuild
+   $ dune exec -- rpc_client ./engine.cap 2019-09-19/103850-docker-build-11b894 rebuild
    Rebuild scheduled
 *)
 
@@ -92,7 +92,7 @@ let cap =
   Arg.required @@
   Arg.pos 0 Arg.(some Capnp_rpc_unix.sturdy_uri) None @@
   Arg.info
-    ~doc:"The engine.capnp file."
+    ~doc:"The engine.cap file."
     ~docv:"CAP"
     []
 
