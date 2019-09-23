@@ -125,4 +125,5 @@ let () =
     ];
     "cache", Test_cache.tests;
     "monitor", Test_monitor.tests;
+    "job", Test_job.tests;
   ]

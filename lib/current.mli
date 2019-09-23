@@ -264,9 +264,17 @@ module Job : sig
   val log_path : job_id -> Fpath.t or_error
   (** [log_path id] is the path of the log for job [id], if valid. *)
 
-  val fd : t -> Unix.file_descr
-
   val pp_id : job_id Fmt.t
+
+  val is_running : t -> bool
+  (** [is_running t] is true if the log file is still open. *)
+
+  val wait_for_log_data : t -> unit Lwt.t
+  (** [wait_for_log_data t] is a promise that resolves the next time log data
+      is written or the log is closed. *)
+
+  val lookup_running : job_id -> t option
+  (** If [lookup_running job_id] is the job [j] with id [job_id], if [is_running j]. *)
 
   (**/**)
 
