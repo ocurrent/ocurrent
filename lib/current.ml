@@ -22,7 +22,7 @@ type job_id = string
 class type actions = object
   method pp : Format.formatter -> unit
   method cancel : (unit -> unit) option
-  method rebuild : (unit -> unit) option
+  method rebuild : (unit -> job_id) option
   method release : unit
 end
 

@@ -8,7 +8,7 @@ module type CURRENT = sig
   class type actions = object
     method pp : Format.formatter -> unit
     method cancel : (unit -> unit) option
-    method rebuild : (unit -> unit) option
+    method rebuild : (unit -> string) option
     method release : unit
   end
 

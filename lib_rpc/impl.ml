@@ -1,7 +1,18 @@
-let read path =
+open Lwt.Infix
+
+let max_log_chunk_size = 102400L  (* 100K at a time *)
+
+let read ~start path =
   let ch = open_in_bin (Fpath.to_string path) in
   Fun.protect ~finally:(fun () -> close_in ch) @@ fun () ->
-  really_input_string ch (in_channel_length ch)
+  let len = LargeFile.in_channel_length ch in
+  let (+) = Int64.add in
+  let (-) = Int64.sub in
+  let start = if start < 0L then len + start else start in
+  let start = if start < 0L then 0L else if start > len then len else start in
+  LargeFile.seek_in ch start;
+  let len = min max_log_chunk_size (len - start) in
+  really_input_string ch (Int64.to_int len), start + len
 
 module Make (Current : S.CURRENT) = struct
   open Capnp_rpc_lwt
@@ -9,7 +20,7 @@ module Make (Current : S.CURRENT) = struct
   module Job = struct
     let job_cache = ref Current.Job_map.empty
 
-    let local engine job_id =
+    let rec local engine job_id =
       let module Job = Api.Service.Job in
       match Current.Job_map.find_opt job_id !job_cache with
       | Some job ->
@@ -24,18 +35,20 @@ module Make (Current : S.CURRENT) = struct
           Job.local @@ object
             inherit Job.service
 
-            method log_impl _params release_param_caps =
+            method log_impl params release_param_caps =
               let open Job.Log in
               release_param_caps ();
-              Log.info (fun f -> f "log(%S)" job_id);
+              let start = Params.start_get params in
+              Log.info (fun f -> f "log(%S, %Ld)" job_id start);
               let response, results = Service.Response.create Results.init_pointer in
               match Current.Job.log_path job_id with
               | Error `Msg m -> Service.fail "%s" m
               | Ok path ->
-                match read path with
+                match read ~start path with
                 | exception ex -> Service.fail "ERROR reading log: %a" Fmt.exn ex
-                | log ->
+                | log, next ->
                   Results.log_set results log;
+                  Results.next_set results next;
                   Service.return response
 
             method rebuild_impl _params release_param_caps =
@@ -47,8 +60,16 @@ module Make (Current : S.CURRENT) = struct
                 match job#rebuild with
                 | None -> Service.fail "Job cannot be rebuilt at the moment"
                 | Some rebuild ->
-                  rebuild ();
-                  Service.return_empty ()
+                  let open Job.Rebuild in
+                  let response, results = Service.Response.create Results.init_pointer in
+                  let new_job = local engine (rebuild ()) in
+                  Results.job_set results (Some new_job);
+                  Capability.dec_ref new_job;
+                  Service.return_lwt @@ fun () ->
+                  (* Allow the engine to re-evaluate, so the job will appear
+                     active to the caller immediately. *)
+                  Lwt.pause () >|= fun () ->
+                  Ok response
 
             method cancel_impl _params release_param_caps =
               release_param_caps ();

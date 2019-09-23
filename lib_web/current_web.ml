@@ -18,7 +18,7 @@ let respond_error status body =
   Server.respond_error ~status ~headers ~body ()
 
 type actions = <
-  rebuild : (unit -> unit) option;
+  rebuild : (unit -> string) option;
   cancel : (unit -> unit) option;
 >
 
@@ -58,8 +58,8 @@ let rebuild_job ~actions _job_id =
   match actions#rebuild with
   | None -> respond_error `Bad_request "Job does not support rebuild"
   | Some rebuild ->
-    rebuild ();
-    Server.respond_redirect ~uri:(Uri.of_string "/") ()
+    let new_id = rebuild () in
+    Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ new_id)) ()
 
 let render_svg a =
   let url id = Some (Fmt.strf "/job/%s" id) in

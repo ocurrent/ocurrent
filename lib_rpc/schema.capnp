@@ -10,8 +10,13 @@ struct JobStatus {
 interface Job {
   status  @0 () -> JobStatus;
   cancel  @1 () -> ();
-  rebuild @2 () -> ();
-  log     @3 () -> (log :Text);
+  rebuild @2 () -> (job :Job);
+
+  log     @3 (start :Int64) -> (log :Data, next :Int64);
+  # Return a chunk of log data starting at byte offset "start" and the
+  # value to use for "start" in the next call to continue reading.
+  # Returns 0 bytes of data to indicate end-of-file.
+  # If "start" is negative then it is relative to the end of the log.
 }
 
 interface Engine {

@@ -153,7 +153,7 @@ module Output(Op : S.PUBLISHER) = struct
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. Only call this if the output is currently
      wanted. *)
-  let rec maybe_start ~step output =
+  let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
     | `Active _ when not Op.auto_cancel ->
@@ -174,7 +174,7 @@ module Output(Op : S.PUBLISHER) = struct
         );
     | `Retry ->
         invalidate_output output;
-        publish ~step output
+        publish ~config output
     | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
@@ -183,22 +183,22 @@ module Output(Op : S.PUBLISHER) = struct
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
         invalidate_output output;
-        publish ~step output
-  and publish ~step output =
+        publish ~config output
+  and publish ~config output =
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let job = Job.create ~switch ~label:Op.id ~config:(Current.Step.config step) () in
+    let job = Job.create ~switch ~label:Op.id ~config () in
+    output.job_id <- Some (Job.id job);
     let op = { value = output.desired; switch; job; finished; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
     output.op <- `Active op;
+    let pp_op f = pp_op f (output.key, op.value) in
+    Job.log job "New job: %t" pp_op;
     Lwt.async
       (fun () ->
          Lwt.finalize
            (fun () ->
-              let pp_op f = pp_op f (output.key, op.value) in
-              output.job_id <- Some (Job.id job);
-              Job.log job "New job: %t" pp_op;
               Lwt.catch
                 (fun () -> Op.publish ~switch ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
@@ -207,7 +207,7 @@ module Output(Op : S.PUBLISHER) = struct
               if op.autocancelled then (
                 output.op <- `Retry;
                 invalidate_output output;
-                if output.ref_count > 0 then maybe_start ~step output;
+                if output.ref_count > 0 then maybe_start ~config output;
                 Lwt.wakeup set_finished ()
               ) else (
                 (* Record the result *)
@@ -247,7 +247,7 @@ module Output(Op : S.PUBLISHER) = struct
                 output.build_number <- Int64.succ output.build_number;
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                if output.ref_count > 0 then maybe_start ~step output;
+                if output.ref_count > 0 then maybe_start ~config output;
                 Lwt.wakeup set_finished ()
               )
            )
@@ -273,7 +273,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   (* Return the input metadata for a resolved (non-active) output.
      Report it as changed when a rebuild is requested (manually or via the schedule). *)
-  let resolved o ~schedule ~value =
+  let resolved o ~schedule ~value ~config =
     let key = o.key in
     match o.job_id with
     | None -> assert false
@@ -282,11 +282,12 @@ module Output(Op : S.PUBLISHER) = struct
         match o.op with
         | `Finished _ | `Error _ | `Retry ->
           o.op <- `Retry;
-          invalidate_output o;
-          Lwt_condition.broadcast rebuild_cond ()
+          maybe_start ~config o;
+          Lwt_condition.broadcast rebuild_cond ();
+          Option.get o.job_id
         | `Active _ ->
           Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
-          ()
+          Option.get o.job_id
       in
       let rebuild_requested = Lwt_condition.wait rebuild_cond in
       match schedule.Schedule.valid_for with
@@ -358,12 +359,13 @@ module Output(Op : S.PUBLISHER) = struct
         o
     in
     (* Ensure a build is in progress if we need one: *)
-    maybe_start ~step o;
+    let config = Current.Step.config step in
+    maybe_start ~config o;
     (* Return the current state: *)
     match o.op with
-    | `Finished x -> Ok x, resolved ~schedule ~value o
-    | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), resolved ~schedule ~value o
-    | `Retry -> Error (`Msg "(retry)"), resolved ~schedule ~value o  (* (probably can't happen) *)
+    | `Finished x -> Ok x, resolved ~schedule ~value ~config o
+    | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), resolved ~schedule ~value ~config o
+    | `Retry -> Error (`Msg "(retry)"), resolved ~schedule ~value ~config o  (* (probably can't happen) *)
     | `Active op ->
       let a, changed =
         let started = Job.start_time op.job in

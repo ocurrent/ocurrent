@@ -11,10 +11,14 @@ module Job : sig
     can_rebuild : bool;
   }
 
-  val log : t -> (string, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  val log : start:int64 -> t -> (string * int64, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  (** [log ~start t] returns bytes from the log starting at offset [start]. *)
+
   val cancel : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
-  val rebuild : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
   val status : t -> (status, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+
+  val rebuild : t -> t
+  (** [rebuild t] requests a rebuild of [t] and returns the new job. *)
 end
 
 module Engine : sig
