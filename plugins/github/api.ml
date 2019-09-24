@@ -478,6 +478,10 @@ module Commit = struct
 
   let id (_, commit_id) = Commit_id.to_git commit_id
 
+  let owner_name (_, id) = id.Commit_id.owner_name
+
+  let hash (_, id) = id.Commit_id.hash
+
   let pp = Fmt.using snd Commit_id.pp
 
   let set_status commit context status =

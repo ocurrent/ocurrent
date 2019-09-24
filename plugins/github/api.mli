@@ -10,6 +10,8 @@ end
 module Commit : sig
   type t
   val id : t -> Current_git.Commit_id.t
+  val owner_name : t -> string
+  val hash : t -> string
   val pp : t Fmt.t
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
 end

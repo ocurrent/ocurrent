@@ -38,6 +38,12 @@ module Api : sig
     val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
     (** [set_status commit context status] sets the status of [commit]/[context] to [status]. *)
 
+    val owner_name : t -> string
+    (** [owner_name t] is the "owner/name" string identifying the repository. *)
+
+    val hash : t -> string
+    (** [hash t] is the Git commit hash of [t]. *)
+
     val pp : t Fmt.t
   end
 
