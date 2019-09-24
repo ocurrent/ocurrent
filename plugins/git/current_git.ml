@@ -63,8 +63,24 @@ let clone ~schedule ?(gref="master") repo =
   let> () = Current.return () in
   Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 
+(* git-clone doesn't like the "refs/heads" prefix. *)
+let strip_heads gref =
+  let prefix = "refs/heads/" in
+  let open Astring in
+  if String.is_prefix ~affix:prefix gref then
+    String.with_index_range ~first:(String.length prefix) gref
+  else
+    gref
+
 let with_checkout ~switch ~job commit fn =
   let { Commit.repo; id } = commit in
+  let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
+  Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,git clone %S -b %S && cd %S && git reset --hard %s@]"
+    short_hash
+    id.Commit_id.repo
+    (strip_heads id.Commit_id.gref)
+    (Filename.basename id.Commit_id.repo)
+    short_hash;
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
   Cmd.cp_r ~switch ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
