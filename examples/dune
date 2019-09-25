@@ -12,7 +12,7 @@
              current_docker
              current_git
              current_github
-             current_fs
+             current.fs
              current_rpc
              capnp-rpc-unix
              lwt.unix
