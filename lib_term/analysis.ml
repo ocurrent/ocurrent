@@ -298,4 +298,9 @@ module Make (Job : sig type id end) = struct
   let booting =
     let env = make_env () in
     active ~env `Running
+
+  let job_id t =
+    match t.ty with
+    | Bind_input i -> i.id
+    | _ -> None
 end

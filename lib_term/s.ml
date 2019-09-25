@@ -34,6 +34,9 @@ module type ANALYSIS = sig
 
   val get : _ term -> t term
 
+  val job_id : t -> job_id option
+  (** [job_id t] is the job ID of [t], if any. *)
+
   val pp : t Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 

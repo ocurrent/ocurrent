@@ -38,6 +38,8 @@ module Make (Job : sig type id end) : sig
 
   val set_state : t -> ?id:Job.id -> state -> unit
 
+  val job_id : t -> Job.id option
+
   val pp : t Fmt.t
   val pp_dot : url:(Job.id -> string option) -> t Fmt.t
 end
