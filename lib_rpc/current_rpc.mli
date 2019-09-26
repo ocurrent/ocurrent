@@ -42,6 +42,9 @@ module Impl (Current : S.CURRENT) : sig
       We use a functor here just to avoid having Current_rpc depend on Current,
       which would be annoying for RPC clients. *)
 
+  val job : engine:Current.Engine.t -> Job.id -> Job.t
+  (** [job ~engine id] is a Cap'n Proto job service backed by [engine]. *)
+
   val engine : Current.Engine.t -> Engine.t
   (** [engine e] is a Cap'n Proto engine service backed by [e]. *)
 end
