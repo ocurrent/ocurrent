@@ -6,12 +6,14 @@ val input_webhook : Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Respons
 module Repo_id : sig
   (** Identifies a repository hosted on GitHub. *)
 
-  type t = private {
+  type t = {
     owner : string;
     name : string;
   }
 
   val pp : t Fmt.t
+
+  val compare : t -> t -> int
 
   val cmdliner : t Cmdliner.Arg.conv
 end
