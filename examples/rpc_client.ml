@@ -106,21 +106,29 @@ let job =
 
 let job_op =
   let ops = [
-    "log", show_log;
-    "status", show_status;
-    "cancel", cancel;
-    "rebuild", rebuild;
+    "log", `Show_log;
+    "status", `Show_status;
+    "cancel", `Cancel;
+    "rebuild", `Rebuild;
   ] in
   Arg.value @@
-  Arg.pos 2 Arg.(enum ops) show_status @@
+  Arg.pos 2 Arg.(enum ops) `Show_status @@
   Arg.info
     ~doc:"The operation to perform (log, status, cancel or rebuild)."
     ~docv:"METHOD"
     []
 
+(* (cmdliner's [enum] can't cope with functions) *)
+let to_fn = function
+  | `Cancel -> cancel
+  | `Rebuild -> rebuild
+  | `Show_log -> show_log
+  | `Show_status -> show_status
+
 let cmd =
   let doc = "Client for rpc_server.ml" in
   let main engine job_id job_op =
+    let job_op = to_fn job_op in
     match Lwt_main.run (main ?job_id ~job_op engine) with
     | Ok () -> ()
     | Error `Capnp ex -> Fmt.epr "%a@." Capnp_rpc.Error.pp ex; exit 1
