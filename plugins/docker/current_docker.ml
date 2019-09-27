@@ -38,8 +38,8 @@ module Make (Host : S.HOST) = struct
 
   module RC = Current_cache.Make(Run)
 
-  let run image ~args =
-    Current.component "run" |>
+  let run ?label image ~args =
+    Current.component "run%a" pp_sp_label label |>
     let> image = image in
     RC.get Run.No_context { Run.Key.image; args; docker_context }
 
