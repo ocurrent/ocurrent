@@ -125,6 +125,8 @@ module Make (Current : S.CURRENT) = struct
       | Ok _ -> Ok (local engine job_id)
   end
 
+  let job ~engine id = Job.local engine id
+
   let engine engine =
     let module Engine = Api.Service.Engine in
     Engine.local @@ object
