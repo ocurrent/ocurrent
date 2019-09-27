@@ -36,7 +36,7 @@ module type DOCKER = sig
       @param pull If [true], always check for updates and pull the latest version.
       @param pool Rate limit builds by requiring a resource from the pool. *)
 
-  val run : Image.t Current.t -> args:string list -> unit Current.t
+  val run : ?label:string -> Image.t Current.t -> args:string list -> unit Current.t
   (** [run image ~args] runs [image args] with Docker. *)
 
   val tag : tag:string -> Image.t Current.t -> unit Current.t
