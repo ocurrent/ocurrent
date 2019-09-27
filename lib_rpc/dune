@@ -7,4 +7,4 @@
 (rule
  (targets schema.ml schema.mli)
  (deps schema.capnp)
- (action (run capnpc -o ocaml %{deps})))
+ (action (run capnpc -o %{bin:capnpc-ocaml} %{deps})))
