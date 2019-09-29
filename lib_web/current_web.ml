@@ -134,6 +134,11 @@ let handle_request ~engine ~webhooks _conn request body =
     | `GET, ["pipeline.svg"] ->
       begin
         let state = Current.Engine.state engine in
+        let () = Logs.debug (fun m ->
+          let a = state.Current.Engine.analysis in
+          m "rendered pipeline: \n%a" Current.Analysis.pp a
+        )
+        in
         render_svg state.Current.Engine.analysis >>= function
         | Ok body ->
           let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in

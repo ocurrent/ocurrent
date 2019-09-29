@@ -1,0 +1,4 @@
+(library
+ (public_name current_lint)
+ (name current_lint)
+ (libraries current.cache current_docker re))

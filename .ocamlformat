@@ -1,0 +1,4 @@
+version = 0.11.0
+profile = conventional
+parse-docstrings = true
+disable = true
