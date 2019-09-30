@@ -91,7 +91,7 @@ let basic _switch () =
     builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
     Lwt.wakeup b @@ Ok "done"
-  | 2 -> 
+  | 2 ->
     Alcotest.(check string) "Result correct" "done" !result;
     Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
     Driver.rebuild "a (completed)";
@@ -125,7 +125,7 @@ let expires _switch () =
     builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
     Lwt.wakeup b @@ Ok "done"
-  | 2 -> 
+  | 2 ->
     Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
     Alcotest.(check string) "Result correct" "done,done" !result;
     Clock.set clock 7.0

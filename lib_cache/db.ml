@@ -126,10 +126,10 @@ let query ?op ?ok ?rebuild () =
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (
-      Fmt.strf "SELECT build, ok, outcome, rebuild, value, 
-                strftime('%%s', ready), 
-                strftime('%%s', running), 
-                strftime('%%s', finished), 
+      Fmt.strf "SELECT build, ok, outcome, rebuild, value,
+                strftime('%%s', ready),
+                strftime('%%s', running),
+                strftime('%%s', finished),
                 job_id \
                 FROM cache \
                 %a \

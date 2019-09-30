@@ -30,6 +30,6 @@ let values =
 let of_string x =
   match List.find_opt (fun l -> to_string l = x) values with
   | Some x -> Ok x
-  | None -> 
+  | None ->
     Error (`Msg (Fmt.strf "Unknown level %S; expected one of %a" x
                    Fmt.(list ~sep:(unit ", ") pp) values))
