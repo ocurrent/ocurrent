@@ -25,7 +25,7 @@ module Key = struct
   let digest_dockerfile = function
     | None -> None
     | Some contents -> Some (Digest.string contents |> Digest.to_hex)
-                         
+
   let source_to_json = function
     | `No_context -> `Null
     | `Git commit -> `String (Current_git.Commit.id commit)
