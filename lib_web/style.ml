@@ -61,7 +61,7 @@ let css = {|
   form {
     padding: 0.2em;
   }
-|}
+|} ^ Current_ansi.css
 
 let get () =
   let headers = Cohttp.Header.init_with "Content-Type" "text/css" in
