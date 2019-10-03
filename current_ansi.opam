@@ -1,0 +1,18 @@
+opam-version: "2.0"
+synopsis: "ANSI escape sequence parser"
+maintainer: "talex5@gmail.com"
+authors: "talex5@gmail.com"
+homepage: "https://github.com/ocaml-ci/current"
+bug-reports: "https://github.com/ocaml-ci/current/issues"
+dev-repo: "git+https://github.com/ocaml-ci/current.git"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+depends: [
+  "ocaml" {>= "4.08.0"}
+  "astring"
+  "fmt"
+  "tyxml"
+  "dune"
+]

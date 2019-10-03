@@ -4,6 +4,7 @@ open Astring
 let sep = "@@LOG@@"
 
 let render ~actions ~job_id ~log =
+  let ansi = Current_ansi.create () in
   let action op = a_action (Fmt.strf "/job/%s/%s" job_id op) in
   let rebuild_button =
     if actions#rebuild = None then []
@@ -34,7 +35,7 @@ let render ~actions ~job_id ~log =
       Lwt_stream.from_direct (fun () ->
           match !i with
           | `Pre -> i := `Log; Some pre
-          | `Log -> i := `Post; Some (Xml_print.encode_unsafe_char log)
+          | `Log -> i := `Post; Some (Current_ansi.process ansi log)
           | `Post -> i := `Done; Some post
           | `Done -> None
         )

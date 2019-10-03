@@ -1,0 +1,3 @@
+(library
+ (public_name current_ansi)
+ (libraries astring fmt tyxml))

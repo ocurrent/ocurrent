@@ -1,3 +1,10 @@
 (library
   (public_name current_web)
-  (libraries current current.cache lwt.unix cohttp-lwt-unix tyxml prometheus-app))
+  (libraries
+    current
+    current.cache
+    current_ansi
+    lwt.unix
+    cohttp-lwt-unix
+    tyxml
+    prometheus-app))
