@@ -26,7 +26,13 @@ Larger uses of OCurrent include the
 [OCaml Docker base image builder][docker-base-images] and the CI that tests
 this repository itself.
 
+# Licensing
+
+OCurrent is licensed under the Apache License, Version 2.0.
+See [LICENSE][] for the full license text.
+
 [docker-base-images]: https://github.com/ocaml-ci/docker-base-images
 [writing-plugins]: https://github.com/ocaml-ci/current/wiki/Writing-plugins
 [example pipelines]: https://github.com/ocaml-ci/current/wiki/Example-pipelines
 [OCurrent wiki]: https://github.com/ocaml-ci/current/wiki
+[LICENSE]: ./LICENSE
