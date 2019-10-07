@@ -276,6 +276,11 @@ module Job : sig
   val lookup_running : job_id -> t option
   (** If [lookup_running job_id] is the job [j] with id [job_id], if [is_running j]. *)
 
+  val approve_early_start : t -> unit
+  (** [approve_early_start t] marks the job as approved to start even if the
+      global confirmation threshold would otherwise prevent it. Calling this
+      more than once has no effect. *)
+
   (**/**)
 
   (* For unit tests we need our own test clock: *)

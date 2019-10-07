@@ -19,6 +19,10 @@ interface Job {
   # If the log is incomplete and there is no data currently available,
   # it waits until something changes before returning.
   # If "start" is negative then it is relative to the end of the log.
+
+  approveEarlyStart @4 () -> ();
+  # Mark the job as approved to start even if the global confirmation threshold
+  # would otherwise prevent it. Calling this more than once has no effect.
 }
 
 interface Engine {

@@ -14,6 +14,8 @@ type t = {
   start_time : float Lwt.t;
   mutable ch : out_channel option;
   log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
+  explicit_confirm : unit Lwt.t;
+  set_explicit_confirm : unit Lwt.u; (* Resolve this to override the global confirmation threshold. *)
 }
 
 let jobs = ref Map.empty
@@ -83,7 +85,9 @@ let create ~switch ~label ~config () =
     let id = id_of_path path in
     let start_time, set_start_time = Lwt.wait () in
     let log_cond = Lwt_condition.create () in
-    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond } in
+    let explicit_confirm, set_explicit_confirm = Lwt.wait () in
+    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond;
+              explicit_confirm; set_explicit_confirm } in
     jobs := Map.add id t !jobs;
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
@@ -111,9 +115,14 @@ let confirm t level =
   | _ ->
     log t "Waiting for confirm-threshold > %a" Level.pp level;
     Log.info (fun f -> f "Waiting for confirm-threshold > %a" Level.pp level);
-    confirmed >|= fun () ->
-    log t "Confirm-threshold now > %a" Level.pp level;
-    Log.info (fun f -> f "Confirm-threshold now > %a" Level.pp level)
+    Lwt.choose [confirmed; t.explicit_confirm] >|= fun () ->
+    if Lwt.state confirmed <> Lwt.Sleep then (
+      log t "Confirm-threshold now > %a" Level.pp level;
+      Log.info (fun f -> f "Confirm-threshold now > %a" Level.pp level)
+    );
+    if Lwt.state t.explicit_confirm <> Lwt.Sleep then (
+      log t "Explicit approval received for this job"
+    )
 
 let start ?timeout ~level t =
   confirm t level >|= fun () ->
@@ -129,3 +138,9 @@ let start_time t = t.start_time
 let wait_for_log_data t = Lwt_condition.wait t.log_cond
 
 let lookup_running id = Map.find_opt id !jobs
+
+let approve_early_start t =
+  match Lwt.state t.explicit_confirm with
+  | Lwt.Sleep -> Lwt.wakeup t.set_explicit_confirm ()
+  | Lwt.Return () -> ()
+  | Lwt.Fail ex -> raise ex

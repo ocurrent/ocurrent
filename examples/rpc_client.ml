@@ -67,6 +67,13 @@ let cancel job =
   Current_rpc.Job.cancel job |> Lwt_result.map @@ fun () ->
   Fmt.pr "Cancelled@."
 
+let start job =
+  Current_rpc.Job.approve_early_start job >>= function
+  | Error _ as e -> Lwt.return e
+  | Ok () ->
+    Fmt.pr "Job is now approved to start without waiting for confirmation.@.";
+    show_log job
+
 let rebuild job =
   Fmt.pr "Requesting rebuild...@.";
   let new_job = Current_rpc.Job.rebuild job in
@@ -116,11 +123,12 @@ let job_op =
     "status", `Show_status;
     "cancel", `Cancel;
     "rebuild", `Rebuild;
+    "start", `Start;
   ] in
   Arg.value @@
   Arg.pos 2 Arg.(enum ops) `Show_status @@
   Arg.info
-    ~doc:"The operation to perform (log, status, cancel or rebuild)."
+    ~doc:"The operation to perform (log, status, cancel, rebuild or start)."
     ~docv:"METHOD"
     []
 
@@ -130,6 +138,7 @@ let to_fn = function
   | `Rebuild -> rebuild
   | `Show_log -> show_log
   | `Show_status -> show_status
+  | `Start -> start
 
 let cmd =
   let doc = "Client for rpc_server.ml" in
