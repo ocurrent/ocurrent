@@ -76,13 +76,19 @@ let main ?job_id ~job_op engine_url =
   let vat = Capnp_rpc_unix.client_only_vat () in
   let sr = Capnp_rpc_unix.Vat.import_exn vat engine_url in
   Sturdy_ref.connect_exn sr >>= fun engine ->
-  match job_id with
-  | None -> list_jobs engine
-  | Some job_id ->
-    let job = Current_rpc.Engine.job engine job_id in
-    Lwt.finalize
-      (fun () -> job_op job)
-      (fun () -> Capability.dec_ref job; Lwt.return_unit)
+  Lwt.finalize (fun () ->
+      match job_id with
+      | None -> list_jobs engine
+      | Some job_id ->
+        let job = Current_rpc.Engine.job engine job_id in
+        Lwt.finalize
+          (fun () -> job_op job)
+          (fun () -> Capability.dec_ref job; Lwt.return_unit)
+    )
+    (fun () ->
+       Capability.dec_ref engine;
+       Lwt.return_unit
+    )
 
 (* Command-line parsing *)
 

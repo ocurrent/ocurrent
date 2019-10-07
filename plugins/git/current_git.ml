@@ -79,7 +79,7 @@ let with_checkout ~switch ~job commit fn =
     short_hash
     id.Commit_id.repo
     (strip_heads id.Commit_id.gref)
-    (Filename.basename id.Commit_id.repo |> Filename.chop_extension)
+    (Filename.basename id.Commit_id.repo |> Filename.remove_extension)
     short_hash;
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
   Cmd.cp_r ~switch ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
