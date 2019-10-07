@@ -436,7 +436,7 @@ module Commit = struct
 
     module Outcome = Current.Unit
 
-    let auto_cancel = false
+    let auto_cancel = true
 
     let pp f ({ Key.commit; context }, status) =
       Fmt.pf f "Set %a/%s to %a"
