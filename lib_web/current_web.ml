@@ -61,6 +61,11 @@ let rebuild_job ~actions _job_id =
     let new_id = rebuild () in
     Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ new_id)) ()
 
+let start_job j =
+  Current.Job.approve_early_start j;
+  let id = Current.Job.id j in
+  Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ id)) ()
+
 let render_svg a =
   let url id = Some (Fmt.strf "/job/%s" id) in
   let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~url) a in
@@ -115,6 +120,12 @@ let handle_request ~engine ~webhooks _conn request body =
       let job_id = Fmt.strf "%s/%s" date log in
       let actions = lookup_actions ~engine job_id in
       cancel_job ~actions job_id
+    | `POST, ["job"; date; log; "start"] ->
+      let job_id = Fmt.strf "%s/%s" date log in
+      begin match Current.Job.lookup_running job_id with
+        | Some j -> start_job j
+        | None -> respond_error `Bad_request "Job is not awaiting confirmation"
+      end
     | `POST, ["set"; "confirm"] ->
       Cohttp_lwt.Body.to_string body >>= fun body ->
       set_confirm (Current.Engine.config engine) body

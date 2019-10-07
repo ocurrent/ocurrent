@@ -20,10 +20,19 @@ let render ~actions ~job_id ~log =
          [ input ~a:[a_input_type `Submit; a_value "Cancel"] () ]
       ]
   in
+  let start_button =
+    match Current.Job.lookup_running job_id with
+    | Some job when Current.Job.is_waiting_for_confirmation job ->
+      [form ~a:[action "start"; a_method `Post]
+         [ input ~a:[a_input_type `Submit; a_value "Start now"] () ]
+      ]
+    | _ -> []
+  in
   let tmpl =
     Main.template (
       rebuild_button @
       cancel_button @
+      start_button @
       [pre [txt sep]]
     )
   in
