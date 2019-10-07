@@ -292,6 +292,9 @@ module Job : sig
       global confirmation threshold would otherwise prevent it. Calling this
       more than once has no effect. *)
 
+  val is_waiting_for_confirmation : t -> bool
+  (** Indicates whether the job would benefit from [approve_early_start] being called. *)
+
   (**/**)
 
   (* For unit tests we need our own test clock: *)

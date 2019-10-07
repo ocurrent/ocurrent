@@ -16,6 +16,7 @@ type t = {
   log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
   explicit_confirm : unit Lwt.t;
   set_explicit_confirm : unit Lwt.u; (* Resolve this to override the global confirmation threshold. *)
+  mutable waiting_for_confirmation : bool;  (* Is calling [approve_early_start] useful? *)
 }
 
 let jobs = ref Map.empty
@@ -87,7 +88,7 @@ let create ~switch ~label ~config () =
     let log_cond = Lwt_condition.create () in
     let explicit_confirm, set_explicit_confirm = Lwt.wait () in
     let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond;
-              explicit_confirm; set_explicit_confirm } in
+              explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false } in
     jobs := Map.add id t !jobs;
     Switch.add_hook_or_fail switch (fun reason ->
         begin match reason with
@@ -116,7 +117,9 @@ let confirm t ?pool level =
     | _ ->
       log t "Waiting for confirm-threshold > %a" Level.pp level;
       Log.info (fun f -> f "Waiting for confirm-threshold > %a" Level.pp level);
+      t.waiting_for_confirmation <- true;
       Lwt.choose [confirmed; t.explicit_confirm] >>= fun () ->
+      t.waiting_for_confirmation <- false;
       if Lwt.state confirmed <> Lwt.Sleep then (
         log t "Confirm-threshold now > %a" Level.pp level;
         Log.info (fun f -> f "Confirm-threshold now > %a" Level.pp level)
@@ -151,6 +154,8 @@ let start_time t = t.start_time
 let wait_for_log_data t = Lwt_condition.wait t.log_cond
 
 let lookup_running id = Map.find_opt id !jobs
+
+let is_waiting_for_confirmation t = t.waiting_for_confirmation
 
 let approve_early_start t =
   match Lwt.state t.explicit_confirm with
