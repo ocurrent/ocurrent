@@ -235,6 +235,15 @@ module Switch : sig
   (** Prints the state of the switch (for debugging). *)
 end
 
+module Pool : sig
+  type t
+  (** A pool of resources, to control how many jobs can use a resource at a time. *)
+
+  val create : label:string -> int -> t
+  (** [create ~label n] is a pool with [n] resources.
+      @param label Used for metric reporting and logging. *)
+end
+
 module Job : sig
   type t
 
@@ -243,10 +252,12 @@ module Job : sig
       @param switch Turning this off will cancel the job.
       @param label A label to use in the job's filename (for debugging). *)
 
-  val start : ?timeout:Duration.t -> level:Level.t -> t -> unit Lwt.t
+  val start : ?timeout:Duration.t -> ?pool:Pool.t -> level:Level.t -> t -> unit Lwt.t
   (** [start t ~level] marks [t] as running. This can only be called once per job.
       If confirmation has been configured for [level], then this will wait for confirmation first.
-      @param timeout If given, the job will be cancelled automatically after this period of time. *)
+      @param timeout If given, the job will be cancelled automatically after this period of time.
+      @param pool If given, the job cannot start until a pool resource is available.
+                  The resource is freed when the job finishes. *)
 
   val start_time : t -> float Lwt.t
   (** [start_time t] is the time when [start] was called, or an

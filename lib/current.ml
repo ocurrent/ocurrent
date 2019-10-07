@@ -330,3 +330,4 @@ module Db = Db
 module Job = Job
 module Process = Process
 module Switch = Switch
+module Pool = Pool

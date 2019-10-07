@@ -62,9 +62,43 @@ let cancel _switch () =
                                  1970-01-01 00:00.00: Timeout\n" (read path);
   Lwt.return_unit
 
+let pp_lwt_state f = function
+  | Lwt.Sleep -> Fmt.string f "Sleep"
+  | Lwt.Return () -> Fmt.string f "Returned"
+  | Lwt.Fail ex -> Fmt.exn f ex
+
+let lwt_state = Alcotest.testable pp_lwt_state (=)
+
+let pool _switch () =
+  let config = Current.Config.v () in
+  let pool = Current.Pool.create ~label:"test" 1 in
+  let sw1 = Current.Switch.create ~label:"cancel-1" () in
+  let sw2 = Current.Switch.create ~label:"cancel-2" () in
+  let job1 = Job.create ~switch:sw1 ~label:"job-1" ~config () in
+  let job2 = Job.create ~switch:sw2 ~label:"job-2" ~config () in
+  let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
+  let s2 = Job.start ~pool ~level:Current.Level.Harmless job2 in
+  Alcotest.(check lwt_state) "First job started" Lwt.(Return ()) (Lwt.state s1);
+  Alcotest.(check lwt_state) "Second job queued" Lwt.Sleep (Lwt.state s2);
+  Current.Switch.turn_off sw1 @@ Ok () >>= fun () ->
+  Alcotest.(check lwt_state) "Second job ready" Lwt.(Return ()) (Lwt.state s2);
+  Current.Switch.turn_off sw2 @@ Ok ()
+
+let pool_cancel _switch () =
+  let config = Current.Config.v () in
+  let pool = Current.Pool.create ~label:"test" 0 in
+  let sw1 = Current.Switch.create ~label:"cancel-1" () in
+  let job1 = Job.create ~switch:sw1 ~label:"job-1" ~config () in
+  let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
+  Alcotest.(check lwt_state) "Job queued" Lwt.Sleep (Lwt.state s1);
+  Current.Switch.turn_off sw1 @@ Error (`Msg "Cancel") >|= fun () ->
+  Alcotest.(check lwt_state) "Job cancelled" Lwt.(Fail Canceled) (Lwt.state s1)
+
 let tests =
   [
     Alcotest_lwt.test_case "streams" `Quick streams;
     Alcotest_lwt.test_case "output" `Quick output;
     Alcotest_lwt.test_case "cancel" `Quick cancel;
+    Alcotest_lwt.test_case "pool" `Quick pool;
+    Alcotest_lwt.test_case "pool_cancel" `Quick pool_cancel;
   ]
