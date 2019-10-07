@@ -19,6 +19,10 @@ module Job : sig
 
   val rebuild : t -> t
   (** [rebuild t] requests a rebuild of [t] and returns the new job. *)
+
+  val approve_early_start : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  (* Mark the job as approved to start even if the global confirmation threshold
+     would otherwise prevent it. Calling this more than once has no effect. *)
 end
 
 module Engine : sig

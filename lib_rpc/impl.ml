@@ -112,6 +112,16 @@ module Make (Current : S.CURRENT) = struct
               end;
               Service.return response
 
+            method approve_early_start_impl _params release_param_caps =
+              release_param_caps ();
+              Log.info (fun f -> f "approveEarlyStart(%S)" job_id);
+              match Current.Job.lookup_running job_id with
+              | None -> Service.fail "Job is not running (cannot approve early start)"
+              | Some job ->
+                let response = Service.Response.create_empty () in
+                Current.Job.approve_early_start job;
+                Service.return response
+
             method! release =
               job_cache := Current.Job_map.remove job_id !job_cache
           end

@@ -9,7 +9,7 @@ module Github = Current_github
 module Docker = Current_docker.Default
 
 (* Limit to one build at a time. *)
-let pool = Lwt_pool.create 1 Lwt.return
+let pool = Current.Pool.create ~label:"docker" 1
 
 let () = Logging.init ()
 

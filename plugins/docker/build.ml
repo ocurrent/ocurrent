@@ -2,7 +2,7 @@ open Lwt.Infix
 
 type t = {
   pull : bool;
-  pool : unit Lwt_pool.t option;
+  pool : Current.Pool.t option;
   timeout : Duration.t option;
 }
 
@@ -63,8 +63,7 @@ let build ~switch { pull; pool; timeout } job key =
   dockerfile |> Option.iter (fun contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
     );
-  use_pool pool @@ fun () ->
-  Current.Job.start ?timeout job ~level:Current.Level.Average >>= fun () ->
+  Current.Job.start ?timeout ?pool job ~level:Current.Level.Average >>= fun () ->
   with_context ~switch ~job commit @@ fun dir ->
   dockerfile |> Option.iter (fun contents ->
       Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;

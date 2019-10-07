@@ -25,7 +25,7 @@ module type DOCKER = sig
     ?squash:bool ->
     ?label:string ->
     ?dockerfile:Dockerfile.t Current.t ->
-    ?pool:unit Lwt_pool.t ->
+    ?pool:Current.Pool.t ->
     pull:bool ->
     source ->
     Image.t Current.t
