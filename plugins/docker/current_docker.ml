@@ -66,7 +66,7 @@ module Make (Host : S.HOST) = struct
 end
 
 module Default = Make(struct
-    let docker_context = Sys.getenv_opt "DOCKER_HOST"
+    let docker_context = Sys.getenv_opt "DOCKER_CONTEXT"
   end)
 
 module MC = Current_cache.Output(Push_manifest)
