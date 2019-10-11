@@ -353,4 +353,7 @@ module Db : sig
   val exec_literal : t -> string -> unit
   (** [exec_literal t sql] executes [sql] on [t].
       Raises an exception on error. *)
+
+  val dump_row : Sqlite3.Data.t list Fmt.t
+  (** Useful for debugging. *)
 end
