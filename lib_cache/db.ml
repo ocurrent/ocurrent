@@ -43,6 +43,8 @@ let db = lazy (
                    running   DATETIME, \
                    finished  DATETIME NOT NULL, \
                    PRIMARY KEY (op, key, build))" |> or_fail "create table";
+  Sqlite3.exec db "CREATE INDEX IF NOT EXISTS cache_job_id \
+                   ON cache (job_id)" |> or_fail "create index";
   let record = Sqlite3.prepare db "INSERT OR REPLACE INTO cache \
                                    (op, key, job_id, value, ok, outcome, ready, running, finished, build) \
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" in
