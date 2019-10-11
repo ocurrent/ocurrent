@@ -60,3 +60,6 @@ let v =
     exec_literal db "PRAGMA synchronous=NORMAL";
     db
   )
+
+let dump_item = Fmt.of_to_string Sqlite3.Data.to_string_debug
+let dump_row = Fmt.(Dump.list dump_item)
