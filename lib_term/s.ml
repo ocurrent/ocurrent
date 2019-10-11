@@ -79,29 +79,16 @@ module type TERM = sig
   val of_output : 'a Output.t -> 'a t
   (** [of_output x] is a returned, failed or active term. *)
 
+  (** {1 Sequencing terms} *)
+
+  (** {2 Applicative operations} *)
+
   val map : ('a -> 'b) -> 'a t -> 'b t
   (** [map f x] is a term that runs [x] and then transforms the result using [f]. *)
 
   val pair : 'a t -> 'b t -> ('a * 'b) t
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
-
-  val component : ('a, Format.formatter, unit, description) format4 -> 'a
-  (** [component name] is used to annotate binds, so that the system can show a
-      name for the operations hidden inside the bind's function. [name] is used
-      as the label for the bind in the generated dot diagrams.
-      For convenience, [name] can also be a format string. *)
-
-  val bind : ?info:description -> ('a -> 'b t) -> 'a t -> 'b t
-  (** [bind f x] is a term that first runs [x] to get [y] and then behaves as
-      the term [f y]. Static analysis cannot look inside the [f] function until
-      [x] is ready, so using [bind] makes static analysis less useful. You can
-      use the [info] argument to provide some information here. *)
-
-  val bind_input : info:description -> ('a -> 'b input) -> 'a t -> 'b t
-  (** [bind_input ~info f x] is a term that first runs [x] to get [y] and then
-      behaves as the input [f y]. [info] is used to describe the operation
-      in the analysis result. *)
 
   val list_map : pp:'a Fmt.t -> ('a t -> 'b t) -> 'a list t -> 'b list t
   (** [list_map ~pp f xs] adds [f] to the end of each input term
@@ -126,36 +113,68 @@ module type TERM = sig
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
+  (** {2 Monadic operations} *)
+
+  (** {b N.B.} these operations create terms that cannot be statically
+      analysed until after they are executed. *)
+
+  val bind : ?info:description -> ('a -> 'b t) -> 'a t -> 'b t
+  (** [bind f x] is a term that first runs [x] to get [y] and then behaves as
+      the term [f y]. Static analysis cannot look inside the [f] function until
+      [x] is ready, so using [bind] makes static analysis less useful. You can
+      use the [info] argument to provide some information here. *)
+
+  val bind_input : info:description -> ('a -> 'b input) -> 'a t -> 'b t
+  (** [bind_input ~info f x] is a term that first runs [x] to get [y] and then
+      behaves as the input [f y]. [info] is used to describe the operation
+      in the analysis result. *)
+
+  val component : ('a, Format.formatter, unit, description) format4 -> 'a
+  (** [component name] is used to annotate binds, so that the system can show a
+      name for the operations hidden inside the bind's function. [name] is used
+      as the label for the bind in the generated dot diagrams.
+      For convenience, [name] can also be a format string. *)
+
   module Syntax : sig
+    (** {1 Applicative syntax} *)
+
     val (let+) : 'a t -> ('a -> 'b) -> 'b t
-    (** Syntax for [map]. Use this to process the result of a term without
+    (** Syntax for {!map}. Use this to process the result of a term without
         using any special effects. *)
 
     val (and+) : 'a t -> 'b t -> ('a * 'b) t
-    (** Syntax for [pair]. Use this to depend on multiple terms. *)
+    (** Syntax for {!pair}. Use this to depend on multiple terms. *)
+
+    (** {1 Monadic syntax } *)
 
     val (let*) : 'a t -> ('a -> 'b t) -> 'b t
-    (** Monadic [bind]. Use this if the next part of your pipeline can only
+    (** Monadic {!bind}. Use this if the next part of your pipeline can only
         be determined at runtime by looking at the concrete value. Static
         analysis cannot predict what this will do until the input is ready. *)
 
     val (let>) : 'a t -> ('a -> 'b input) -> description -> 'b t
-    (** [let>] is used to define a component.
-        e.g. [component "my-op" |>
-              let> x = fetch uri in
-              ...] *)
+    (** [let>] is used to define a component. e.g.:
+        {[
+          component "my-op" |>
+            let> x = fetch uri in
+            ...
+        ]} *)
 
     val (let**) : 'a t -> ('a -> 'b t) -> description -> 'b t
-    (** Like [let*], but allows you to name the operation.
-        e.g. [component "my-op" |> let** x = fetch uri in ...] *)
-
-    val (and>) : 'a t -> 'b t -> ('a * 'b) t
-    (** Syntax for [pair]. Use this to depend on multiple terms.
-        Note: this is the same as [and+]. *)
+    (** Like {!let*}, but allows you to name the operation. e.g.:
+        {[
+          component "my-op" |>
+            let** x = fetch uri in
+            ...
+        ]} *)
 
     val (and*) : 'a t -> 'b t -> ('a * 'b) t
-    (** Syntax for [pair]. Use this to depend on multiple terms.
-        Note: this is the same as [and+]. *)
+    (** Syntax for {!pair}. Use this to depend on multiple terms.
+        Note: this is the same as {!and+}. *)
+
+    val (and>) : 'a t -> 'b t -> ('a * 'b) t
+    (** Syntax for {!pair}. Use this to depend on multiple terms.
+        Note: this is the same as {!and+}. *)
   end
 end
 
