@@ -22,7 +22,7 @@ module Make (Current : S.CURRENT) = struct
 
     let stream_log_data ~job_id ~start =
       match Current.Job.log_path job_id with
-      | Error `Msg m -> Lwt_result.fail (`Exception (Capnp_rpc.Exception.v m))
+      | Error `Msg m -> Lwt_result.fail (`Capnp (`Exception (Capnp_rpc.Exception.v m)))
       | Ok path ->
         let rec aux () =
           match read ~start path with

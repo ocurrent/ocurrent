@@ -1,4 +1,3 @@
-open Lwt.Infix
 open Capnp_rpc_lwt
 
 type t = Api.Service.Engine.t Capability.t
@@ -8,9 +7,7 @@ module Engine = Api.Client.Engine
 let active_jobs t =
   let open Engine.ActiveJobs in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_value t method_id request >|= function
-  | Error ex -> Error (`Capnp ex)
-  | Ok x -> Ok (Results.ids_get_list x)
+  Capability.call_for_value t method_id request |> Lwt_result.map Results.ids_get_list
 
 let job t id =
   let open Engine.Job in

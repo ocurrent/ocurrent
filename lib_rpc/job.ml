@@ -1,4 +1,3 @@
-open Lwt.Infix
 open Capnp_rpc_lwt
 
 type t = Api.Service.Job.t Capability.t
@@ -18,29 +17,24 @@ let log ~start t =
   let open Job.Log in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.start_set params start;
-  Capability.call_for_value t method_id request >|= function
-  | Ok x -> Ok (Results.log_get x, Results.next_get x)
-  | Error e -> Error (`Capnp e)
+  Capability.call_for_value t method_id request |> Lwt_result.map @@ fun x ->
+  (Results.log_get x, Results.next_get x)
 
 let status t =
   let open Job.Status in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_value t method_id request >|= function
-  | Error e -> Error (`Capnp e)
-  | Ok x ->
-    Ok {
-      id = Results.id_get x;
-      description = Results.description_get x;
-      can_cancel = Results.can_cancel_get x;
-      can_rebuild = Results.can_rebuild_get x;
-    }
+  Capability.call_for_value t method_id request |> Lwt_result.map @@ fun x ->
+  {
+    id = Results.id_get x;
+    description = Results.description_get x;
+    can_cancel = Results.can_cancel_get x;
+    can_rebuild = Results.can_rebuild_get x;
+  }
 
 let cancel t =
   let open Job.Cancel in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_unit t method_id request >|= function
-  | Error e -> Error (`Capnp e)
-  | Ok () -> Ok ()
+  Capability.call_for_unit t method_id request
 
 let rebuild t =
   let open Job.Rebuild in
@@ -50,6 +44,4 @@ let rebuild t =
 let approve_early_start t =
   let open Job.ApproveEarlyStart in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_unit t method_id request >|= function
-  | Error e -> Error (`Capnp e)
-  | Ok () -> Ok ()
+  Capability.call_for_unit t method_id request

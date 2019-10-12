@@ -11,7 +11,7 @@ build: [
 ]
 depends: [
   "ocaml" {>= "4.08.0"}
-  "capnp-rpc-lwt" {>= "0.3.3"}
+  "capnp-rpc-lwt" {>= "0.4"}
   "fpath"
   "dune"
 ]
