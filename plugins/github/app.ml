@@ -1,6 +1,18 @@
 open Current.Syntax
 open Lwt.Infix
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "github"
+
+  let installations_total =
+    let help = "Total number of active app installations" in
+    Gauge.v ~help ~namespace ~subsystem "installations_total"
+end
+
+
 let installations_changed_cond = Lwt_condition.create ()    (* Fires when the list should be updated *)
 
 let input_installation_webhook () = Lwt_condition.broadcast installations_changed_cond ()
@@ -95,6 +107,7 @@ let monitor_installations t () =
     get_installations t >>= fun ids ->
     begin match ids with
       | Ok ids ->
+        Prometheus.Gauge.set Metrics.installations_total (float_of_int (List.length ids));
         Installs.update t.installations (fun old_map ->
             let old_map = match old_map with Ok x -> x | Error _ -> Int_map.empty in
             (* Merge in new installations. Reuse existing Apis so we don't keep refreshing tokens, etc. *)
