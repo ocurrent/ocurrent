@@ -1,6 +1,17 @@
 open Current.Syntax
 open Lwt.Infix
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "github"
+
+  let repositories_total =
+    let help = "Total number of active repositories" in
+    Gauge.v_label ~label_name:"account" ~help ~namespace ~subsystem "repositories_total"
+end
+
 type t = {
   iid : int;
   account : string;
@@ -28,7 +39,9 @@ let list_repositories ~token ~account =
     let json = Yojson.Safe.from_string body in
     Log.debug (fun f -> f "@[<v2>Got response:@,%a@]" Yojson.Safe.pp json);
     let open Yojson.Safe.Util in
-    json |> member "repositories" |> to_list |> List.map @@ fun r ->
+    let repos = json |> member "repositories" |> to_list in
+    Prometheus.Gauge.set (Metrics.repositories_total account) (float_of_int (List.length repos));
+    repos |> List.map @@ fun r ->
     let name = r |> member "name" |> to_string in
     Repo_id.{ owner = account; name }
   | err -> Fmt.failwith "@[<v2>Error accessing GitHub installation API at %a: %s@,%s@]"

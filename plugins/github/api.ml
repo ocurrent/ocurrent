@@ -20,6 +20,14 @@ module Metrics = struct
   let used_points_total =
     let help = "Total GraphQL query points used" in
     Counter.v_label ~label_name:"account" ~help ~namespace ~subsystem "used_points_total"
+
+  let refs_total =
+    let help = "Total number of monitored branches" in
+    Gauge.v_labels ~label_names:["account"; "name"] ~help ~namespace ~subsystem "refs_total"
+
+  let prs_total =
+    let help = "Total number of monitored PRs" in
+    Gauge.v_labels ~label_names:["account"; "name"] ~help ~namespace ~subsystem "prs_total"
 end
 
 let graphql_endpoint = Uri.of_string "https://api.github.com/graphql"
@@ -351,6 +359,8 @@ let get_ci_refs t { Repo_id.owner; name } =
          For now, we just take the first 100 and warn if there are more. *)
       let n_branches = repo / "refs" / "totalCount" |> to_int in
       let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
+      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
+      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.prs_total [owner; name]) (float_of_int n_prs);
       if List.length refs < n_branches then
         Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
       if List.length prs < n_prs then
@@ -381,7 +391,7 @@ let make_ci_refs_input t repo =
       Lwt.catch
         (fun () -> aux x)
         (function
-          | Lwt.Canceled -> Lwt.return_unit
+          | Lwt.Canceled -> Lwt.return_unit  (* (could clear metrics here) *)
           | ex -> Log.err (fun f -> f "ci_refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
         )
     in
