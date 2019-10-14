@@ -185,9 +185,11 @@ module Make (Job : sig type id end) = struct
     in
     aux f x
 
+  module Node_set = Set.Make(struct type t = int let compare = compare end)
+
   type out_node = {
     i : int;
-    outputs : int list;
+    outputs : Node_set.t;
   }
 
   let pp_dot ~url f x =
@@ -203,7 +205,7 @@ module Make (Job : sig type id end) = struct
         incr next;
         let ctx =
           match md.bind with
-          | None -> []
+          | None -> Node_set.empty
           | Some c -> aux c
         in
         let bg =
@@ -224,66 +226,66 @@ module Make (Job : sig type id end) = struct
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match md.ty with
-          | Constant (Some l) -> node i l; [i]
-          | Constant None when ctx = [] ->
+          | Constant (Some l) -> node i l; Node_set.singleton i
+          | Constant None when Node_set.is_empty ctx ->
             node i (if md.state = Blocked then "(input)" else "(const)");
-            [i]
+            Node_set.singleton i
           | Constant None -> ctx
           | Bind (x, name) ->
             let inputs =
               match x.ty with
-              | Constant None -> []
+              | Constant None -> Node_set.empty
               | _ -> aux x
             in
             node i name;
-            inputs |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            inputs |> Node_set.iter (fun input -> input ==> i);
+            ctx |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | Bind_input {x; info; id} ->
             let inputs =
               match x.ty with
-              | Constant None -> []
+              | Constant None -> Node_set.empty
               | _ -> aux x
             in
             node ?id i info;
-            inputs |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            inputs |> Node_set.iter (fun input -> input ==> i);
+            ctx |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | Pair (x, y) ->
-            aux x @ aux y @ ctx
+            Node_set.union (aux x) (aux y) |> Node_set.union ctx
           | Gate_on { ctrl; value } ->
             let ctrls = aux ctrl in
             let values = aux value in
             node i "" ~shape:"circle";
-            ctrls |> List.iter (fun input -> edge input i ~style:"dashed");
-            values |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            ctrls |> Node_set.iter (fun input -> edge input i ~style:"dashed");
+            values |> Node_set.iter (fun input -> input ==> i);
+            ctx |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | State x ->
             let inputs = aux x in
             node i "state";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            inputs |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | Catch x ->
             let inputs = aux x in
             node i "catch";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            inputs |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | Map_failed x ->
             (* Normally, we don't show separate boxes for map functions.
                But we do if one fails. *)
             let inputs = aux x in
             node i "map";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            inputs |> Node_set.iter (fun input -> input ==> i);
+            Node_set.singleton i
           | List_map { items; fn } ->
             let items = aux items in
             Dot.begin_cluster f i;
             Dot.node f ~shape:"none" i "map";
-            ctx |> List.iter (fun input -> input ==> i);
+            ctx |> Node_set.iter (fun input -> input ==> i);
             let outputs = aux fn in
             Dot.end_cluster f;
-            items |> List.iter (fun input -> edge input i);
+            items |> Node_set.iter (fun input -> edge input i);
             outputs
         in
         seen := Id.Map.add md.id { i; outputs } !seen;

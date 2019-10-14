@@ -17,23 +17,23 @@ digraph pipeline {
   n12 [label="docker run make test",fillcolor="#90ee90",style="filled"]
   n13 -> n12
   n3 [label="",fillcolor="#ff4500",style="filled",shape="circle",tooltip="Missing DLL"]
-  n12 -> n3 [style="dashed"]
-  n10 -> n3 [style="dashed"]
   n6 -> n3 [style="dashed"]
+  n10 -> n3 [style="dashed"]
+  n12 -> n3 [style="dashed"]
   n7 -> n3
   n2 [label="docker push foo/win",fillcolor="#d3d3d3",style="filled"]
   n3 -> n2
   n15 [label="",fillcolor="#ff4500",style="filled",shape="circle",tooltip="Missing DLL"]
-  n12 -> n15 [style="dashed"]
-  n10 -> n15 [style="dashed"]
   n6 -> n15 [style="dashed"]
+  n10 -> n15 [style="dashed"]
+  n12 -> n15 [style="dashed"]
   n11 -> n15
   n14 [label="docker push foo/mac",fillcolor="#d3d3d3",style="filled"]
   n15 -> n14
   n17 [label="",fillcolor="#ff4500",style="filled",shape="circle",tooltip="Missing DLL"]
-  n12 -> n17 [style="dashed"]
-  n10 -> n17 [style="dashed"]
   n6 -> n17 [style="dashed"]
+  n10 -> n17 [style="dashed"]
+  n12 -> n17 [style="dashed"]
   n13 -> n17
   n16 [label="docker push foo/lin",fillcolor="#d3d3d3",style="filled"]
   n17 -> n16
