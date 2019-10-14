@@ -3,7 +3,7 @@ digraph pipeline {
   rankdir=LR
   n2 [label="head",fillcolor="#90ee90",style="filled"]
   n1 [label="fetch",fillcolor="#ffa500",style="filled"]
-  n2 -> n1
   n0 [label="custom-build",fillcolor="#d3d3d3",style="filled"]
   n1 -> n0
+  n2 -> n1
   }

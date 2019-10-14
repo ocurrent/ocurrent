@@ -46,10 +46,6 @@ module Make (Input : S.INPUT) = struct
         last := Some (ctx, r);
         r
 
-  let blocked r =
-    cache @@ fun ~env _ctx ->
-    make (An.blocked ~env ()) (Dyn.of_output r)
-
   let active s =
     cache @@ fun ~env _ctx ->
     make (An.active ~env s) (Dyn.active s)
@@ -57,6 +53,14 @@ module Make (Input : S.INPUT) = struct
   let return ?label x =
     cache @@ fun ~env _ctx ->
     make (An.return ~env label) (Dyn.return x)
+
+  let map_input ~label source x =
+    cache @@ fun ~env _ctx ->
+    make (An.map_input ~env source (Ok label)) (Dyn.return x)
+
+  let map_input_blocked source r =
+    cache @@ fun ~env _ctx ->
+    make (An.map_input ~env source (Error `Blocked)) (Dyn.of_output r)
 
   let fail msg =
     cache @@ fun ~env _ctx ->
@@ -162,26 +166,26 @@ module Make (Input : S.INPUT) = struct
       and+ () = all xs in
       ()
 
-  let list_map ~pp f xs =
+  let list_map ~pp f input =
     cache @@ fun ~env ctx ->
-    let xs = xs ctx in
-    match Dyn.run xs.fn with
+    let input = input ctx in
+    match Dyn.run input.fn with
     | Error _ as r ->
       (* Not ready; use static version of map. *)
-      let f = f (blocked r) ctx in
-      let md = An.list_map ~env ~f:f.md xs.md in
+      let f = f (map_input_blocked input.md r) ctx in
+      let md = An.list_map ~env ~f:f.md input.md in
       make md (Dyn.of_output r)
     | Ok items ->
       (* Ready. Expand inputs. *)
       let rec aux = function
         | [] -> return []
         | x :: xs ->
-          let+ y = f (return ~label:(Fmt.to_to_string pp x) x)
+          let+ y = f (map_input ~label:(Fmt.to_to_string pp x) input.md x)
           and+ ys = aux xs in
           y :: ys
       in
       let results = aux items ctx in
-      { results with md = An.list_map ~env ~f:results.md xs.md }
+      { results with md = An.list_map ~env ~f:results.md input.md }
 
   let list_iter ~pp f xs =
     let+ (_ : unit list) = list_map ~pp f xs in
