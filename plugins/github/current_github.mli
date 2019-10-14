@@ -43,6 +43,9 @@ module Api : sig
     val owner_name : t -> string
     (** [owner_name t] is the "owner/name" string identifying the repository. *)
 
+    val repo_id : t -> Repo_id.t
+    (** Like [owner_name], but as a [Repo_id.t]. *)
+
     val hash : t -> string
     (** [hash t] is the Git commit hash of [t]. *)
 
