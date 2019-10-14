@@ -188,7 +188,6 @@ module Make (Job : sig type id end) = struct
   module Node_set = Set.Make(struct type t = int let compare = compare end)
 
   type out_node = {
-    i : int;
     outputs : Node_set.t;
   }
 
@@ -288,7 +287,7 @@ module Make (Job : sig type id end) = struct
             items |> Node_set.iter (fun input -> edge input i);
             outputs
         in
-        seen := Id.Map.add md.id { i; outputs } !seen;
+        seen := Id.Map.add md.id { outputs } !seen;
         outputs
     in
     Fmt.pf f "@[<v2>digraph pipeline {@,\
