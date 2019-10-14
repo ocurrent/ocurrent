@@ -49,6 +49,19 @@ module Api : sig
     val pp : t Fmt.t
   end
 
+  module Repo : sig
+    type nonrec t = t * Repo_id.t
+
+    val id : t -> Repo_id.t
+    val pp : t Fmt.t
+
+    val ci_refs : t Current.t -> Commit.t list Current.t
+    (** [ci_refs t] evaluates to the list of branches and open PRs in [t]. *)
+
+    val head_commit : t Current.t -> Commit.t Current.t
+    (** [head_commit t] evaluates to the commit at the head of the default branch in [t]. *)
+  end
+
   val of_oauth : string -> t
   (** [of_oauth token] is a configuration that authenticates to GitHub using [token]. *)
 
@@ -58,14 +71,8 @@ module Api : sig
   val head_commit : t -> Repo_id.t -> Commit.t Current.t
   (** [head_commit t repo] evaluates to the commit at the head of the default branch in [repo]. *)
 
-  val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t Current.t
-  (** Like [head_commit], but the inputs are both currents. *)
-
   val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo]. *)
-
-  val ci_refs_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t list Current.t
-  (** Like [ci_refs], but the inputs are both currents. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)
@@ -81,7 +88,7 @@ module Installation : sig
   val pp : t Fmt.t
   (** The GitHub account that installed the app. *)
 
-  val repositories : t Current.t -> Repo_id.t list Current.t
+  val repositories : t Current.t -> Api.Repo.t list Current.t
   (** [repositories t] evaluates to the list of repositories which the user
       configured for this installation. *)
 end

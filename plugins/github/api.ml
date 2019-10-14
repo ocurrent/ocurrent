@@ -279,17 +279,6 @@ let head_commit t repo =
     t.head_inputs <- Repo_map.add repo i t.head_inputs;
     i
 
-let head_commit_dyn t repo =
-  Current.component "head" |>
-  let> t = t
-  and> repo = repo in
-  match Repo_map.find_opt repo t.head_inputs with
-  | Some i -> i
-  | None ->
-    let i = make_head_commit_input t repo in
-    t.head_inputs <- Repo_map.add repo i t.head_inputs;
-    i
-
 let query_branches_and_open_prs = {|
   query($owner: String!, $name: String!) {
     rateLimit {
@@ -410,17 +399,6 @@ let ci_refs t repo =
     t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
     i
 
-let ci_refs_dyn t repo =
-  Current.component "CI refs" |>
-  let> t = t
-  and> repo = repo in
-  match Repo_map.find_opt repo t.ci_refs_inputs with
-  | Some i -> i
-  | None ->
-    let i = make_ci_refs_input t repo in
-    t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
-    i
-
 module Commit = struct
   module Set_status = struct
     let id = "github-set-status"
@@ -499,6 +477,33 @@ module Commit = struct
     let> (t, commit) = commit
     and> status = status in
     Set_status_cache.set t {Set_status.Key.commit; context} status
+end
+
+module Repo = struct
+  type nonrec t = t * Repo_id.t
+
+  let id = snd
+  let pp = Fmt.using id Repo_id.pp
+
+  let head_commit t =
+    Current.component "head" |>
+    let> (api, repo) = t in
+    match Repo_map.find_opt repo api.head_inputs with
+    | Some i -> i
+    | None ->
+      let i = make_head_commit_input api repo in
+      api.head_inputs <- Repo_map.add repo i api.head_inputs;
+      i
+
+  let ci_refs t =
+    Current.component "CI refs" |>
+    let> (api, repo) = t in
+    match Repo_map.find_opt repo api.ci_refs_inputs with
+    | Some i -> i
+    | None ->
+      let i = make_ci_refs_input api repo in
+      api.ci_refs_inputs <- Repo_map.add repo i api.ci_refs_inputs;
+      i
 end
 
 open Cmdliner

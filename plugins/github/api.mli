@@ -20,10 +20,17 @@ type t
 val of_oauth : string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
-val head_commit_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t Current.t
 val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
-val ci_refs_dyn : t Current.t -> Repo_id.t Current.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
+
+module Repo : sig
+  type nonrec t = t * Repo_id.t
+
+  val id : t -> Repo_id.t
+  val ci_refs : t Current.t -> Commit.t list Current.t
+  val head_commit : t Current.t -> Commit.t Current.t
+  val pp : t Fmt.t
+end
 
 (* Private API *)
 
