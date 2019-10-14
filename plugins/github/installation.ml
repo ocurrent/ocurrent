@@ -16,7 +16,7 @@ type t = {
   iid : int;
   account : string;
   api : Api.t;
-  repos : Repo_id.t list Current.Input.t;
+  repos : Api.Repo.t list Current.Input.t;
 }
 
 let installation_repositories_cond = Lwt_condition.create ()
@@ -27,7 +27,7 @@ let pp f t = Fmt.string f t.account
 
 let list_repositories_endpoint = Uri.of_string "https://api.github.com/installation/repositories"
 
-let list_repositories ~token ~account =
+let list_repositories ~api ~token ~account =
   let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
   let headers = Cohttp.Header.add headers "accept" "application/vnd.github.machine-man-preview+json" in
   let uri = list_repositories_endpoint  in
@@ -43,7 +43,7 @@ let list_repositories ~token ~account =
     Prometheus.Gauge.set (Metrics.repositories_total account) (float_of_int (List.length repos));
     repos |> List.map @@ fun r ->
     let name = r |> member "name" |> to_string in
-    Repo_id.{ owner = account; name }
+    api, Repo_id.{ owner = account; name }
   | err -> Fmt.failwith "@[<v2>Error accessing GitHub installation API at %a: %s@,%s@]"
              Uri.pp uri
              (Cohttp.Code.string_of_status err)
@@ -54,7 +54,7 @@ let v ~iid ~account ~api =
     Api.get_token api >>= function
     | Error (`Msg m) -> Lwt.fail_with m
     | Ok token ->
-      list_repositories ~token ~account >|= Stdlib.Result.ok
+      list_repositories ~api ~token ~account >|= Stdlib.Result.ok
   in
   let watch refresh =
     let rec aux event =

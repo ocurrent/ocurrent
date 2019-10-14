@@ -39,10 +39,9 @@ let pipeline ~app () =
     dockerfile ~base
   in
   Github.App.installations app |> Current.list_iter ~pp:Github.Installation.pp @@ fun installation ->
-  let github = Current.map Github.Installation.api installation in
   let repos = Github.Installation.repositories installation in
-  repos |> Current.list_iter ~pp:Github.Repo_id.pp @@ fun repo ->
-  Github.Api.ci_refs_dyn github repo
+  repos |> Current.list_iter ~pp:Github.Api.Repo.pp @@ fun repo ->
+  Github.Api.Repo.ci_refs repo
   |> Current.list_iter ~pp:Github.Api.Commit.pp @@ fun head ->
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   Docker.build ~pool ~pull:false ~dockerfile (`Git src)

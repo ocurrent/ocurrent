@@ -3,7 +3,8 @@
 type t
 val api : t -> Api.t
 val pp : t Fmt.t
-val repositories : t Current.t -> Repo_id.t list Current.t
+
+val repositories : t Current.t -> Api.Repo.t list Current.t
 
 (* Private API *)
 
