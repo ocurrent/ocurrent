@@ -36,6 +36,7 @@ module Make (Job : sig type id end) = struct
   }
   and metadata_ty =
     | Constant of string option
+    | Map_input of { source : t; info : (string, [`Blocked]) result }
     | State of t
     | Catch of t
     | Map_failed of t      (* In [map f t], [f] raised an exception. *)
@@ -59,11 +60,14 @@ module Make (Job : sig type id end) = struct
     incr env.next;
     { id = Id.mint (); ty; bind = env.bind; state }
 
-  let blocked ~env () =
-    make ~env (Constant None) Blocked
-
   let return ~env label =
     make ~env (Constant label) Pass
+
+  let map_input ~env source info =
+    make ~env (Map_input {source; info})
+      (match info with
+       | Ok _ -> Pass
+       | Error `Blocked -> Blocked)
 
   let fail ~env msg =
     make ~env (Constant None) (Fail msg)
@@ -173,6 +177,8 @@ module Make (Job : sig type id end) = struct
             | None -> Fmt.string f (if md.state = Blocked then "(input)" else "(const)")
           end
         | Constant (Some l) -> Fmt.string f l
+        | Map_input { source = _; info = Ok label } -> Fmt.string f label
+        | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
         | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
         | Bind_input {x; info; id = _} -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
@@ -185,25 +191,85 @@ module Make (Job : sig type id end) = struct
     in
     aux f x
 
-  type out_node = {
-    i : int;
-    outputs : int list;
-  }
+  module Node_set = Set.Make(struct type t = int let compare = compare end)
+
+  module Out_node = struct
+    (* Information about one node in the OCurrent graph. *)
+
+    type t = {
+      outputs : Node_set.t;
+      (* Normally, this will be a singleton set containing just the node being
+         considered. However, sometimes we choose to hide nodes. For example,
+         if we have a node C representing the pair of A and B then we don't bother
+         adding a dot node for C. Instead, C is represented by an `Out_node` with
+         `outputs = {A, B}`. Anything that takes input from C will instead take
+         input directly from both A and B. *)
+
+      trans : Node_set.t;
+      (** The set of nodes which must be resolved for this node to be resolved.
+          For example, in the graph `A -> B -> C`:
+
+          trans(A) = {A}
+          trans(B) = {A, B}
+          trans(C) = {A, B, C}
+
+          This is used to hide edges that are implied by other edges, to simplify
+          the output. *)
+    }
+
+    let empty = {
+      outputs = Node_set.empty;
+      trans = Node_set.empty;
+    }
+
+    let is_empty t = Node_set.is_empty t.outputs
+
+    (* The union of A and B's outputs and transitive dependencies,
+       except that we remove outputs that are already dependencies
+       of the other branch. *)
+    let union a b =
+      let outputs =
+        Node_set.union
+          (Node_set.filter (fun x -> not (Node_set.mem x b.trans)) a.outputs)
+          (Node_set.filter (fun x -> not (Node_set.mem x a.trans)) b.outputs)
+      in
+      let outputs =
+        if Node_set.is_empty outputs then a.outputs
+        else outputs
+      in {
+        outputs;
+        trans = Node_set.union a.trans b.trans;
+      }
+
+    (* Connect [t]'s outputs using [make_edge] to connect to something. *)
+    let connect make_edge t =
+      Node_set.iter make_edge t.outputs
+
+    (* An ordinary node, represented by a single box in the diagram. *)
+    let singleton ~deps i = {
+      outputs = Node_set.singleton i;
+      trans = Node_set.add i deps;
+    }
+  end
 
   let pp_dot ~url f x =
     let next = ref 0 in
-    let seen : out_node Id.Map.t ref = ref Id.Map.empty in
-    let edge ?style ?color a b = Dot.edge f ?style ?color a b in
-    let ( ==> ) a b = edge a b in
+    let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
+    let pending_edges = ref [] in
+    let edge_to ?style ?color b a = pending_edges := (style, color, a, b) :: !pending_edges in
+    let flush_pending () =
+      !pending_edges |> List.iter (fun (style, color, a, b) -> Dot.edge f ?style ?color a b);
+      pending_edges := []
+    in
     let rec aux md =
       match Id.Map.find_opt md.id !seen with
-      | Some x -> x.outputs
+      | Some x -> x
       | None ->
         let i = !next in
         incr next;
         let ctx =
           match md.bind with
-          | None -> []
+          | None -> Out_node.empty
           | Some c -> aux c
         in
         let bg =
@@ -224,75 +290,93 @@ module Make (Job : sig type id end) = struct
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match md.ty with
-          | Constant (Some l) -> node i l; [i]
-          | Constant None when ctx = [] ->
+          | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx.Out_node.trans i
+          | Constant None when Out_node.is_empty ctx ->
             node i (if md.state = Blocked then "(input)" else "(const)");
-            [i]
+            Out_node.singleton ~deps:ctx.Out_node.trans i
           | Constant None -> ctx
+          | Map_input { source; info } ->
+            let label =
+              match info with
+              | Ok l -> l
+              | Error `Blocked -> "(each item)"
+            in
+            node i label;
+            let source = aux source in
+            Out_node.connect (edge_to i) source;
+            let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
+            Out_node.singleton ~deps i
           | Bind (x, name) ->
             let inputs =
               match x.ty with
-              | Constant None -> []
+              | Constant None -> Out_node.empty
               | _ -> aux x
             in
             node i name;
-            inputs |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.connect (edge_to i) all_inputs;
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
           | Bind_input {x; info; id} ->
             let inputs =
               match x.ty with
-              | Constant None -> []
+              | Constant None -> Out_node.empty
               | _ -> aux x
             in
             node ?id i info;
-            inputs |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.connect (edge_to i) all_inputs;
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
           | Pair (x, y) ->
-            aux x @ aux y @ ctx
+            Out_node.union (aux x) (aux y) |> Out_node.union ctx
           | Gate_on { ctrl; value } ->
             let ctrls = aux ctrl in
             let values = aux value in
             node i "" ~shape:"circle";
-            ctrls |> List.iter (fun input -> edge input i ~style:"dashed");
-            values |> List.iter (fun input -> input ==> i);
-            ctx |> List.iter (fun input -> input ==> i);
-            [i]
+            ctrls |> Out_node.connect (edge_to i ~style:"dashed");
+            let data_inputs = Out_node.union values ctx in
+            Out_node.connect (edge_to i) data_inputs;
+            let deps = Node_set.(union ctrls.trans data_inputs.trans) in
+            Out_node.singleton ~deps i
           | State x ->
             let inputs = aux x in
             node i "state";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            Out_node.connect (edge_to i) inputs;
+            (* Because a state node will be ready even when its inputs aren't, we shouldn't
+               remove dependencies just because they're also dependencies of a state node.
+               e.g. setting a GitHub status depends on knowing which commit is to be tested
+               and the state of the build. We can know the state of the build (pending) without
+               yet knowing the commit. So the set_state node can't run even though its
+               state input is ready and transitively depends on knowing the commit. *)
+            Out_node.singleton ~deps:Node_set.empty i
           | Catch x ->
             let inputs = aux x in
             node i "catch";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.connect (edge_to i) all_inputs;
+            Out_node.singleton ~deps:all_inputs.trans i
           | Map_failed x ->
             (* Normally, we don't show separate boxes for map functions.
                But we do if one fails. *)
             let inputs = aux x in
             node i "map";
-            inputs |> List.iter (fun input -> input ==> i);
-            [i]
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.connect (edge_to i) all_inputs;
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
           | List_map { items; fn } ->
-            let items = aux items in
+            ignore (aux items);
             Dot.begin_cluster f i;
-            Dot.node f ~shape:"none" i "map";
-            ctx |> List.iter (fun input -> input ==> i);
             let outputs = aux fn in
             Dot.end_cluster f;
-            items |> List.iter (fun input -> edge input i);
             outputs
         in
-        seen := Id.Map.add md.id { i; outputs } !seen;
+        seen := Id.Map.add md.id outputs !seen;
         outputs
     in
     Fmt.pf f "@[<v2>digraph pipeline {@,\
                 node [shape=\"box\"]@,\
                 rankdir=LR@,";
     let _ = aux x in
+    flush_pending ();
     Fmt.pf f "}@]@."
 
   let booting =
