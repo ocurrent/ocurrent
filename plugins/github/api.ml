@@ -468,6 +468,12 @@ module Commit = struct
 
   let owner_name (_, id) = id.Commit_id.owner_name
 
+  let repo_id t =
+    let full = owner_name t in
+    match Astring.String.cut ~sep:"/" full with
+    | Some (owner, name) -> { Repo_id.owner; name}
+    | None -> Fmt.failwith "Invalid owner_name %S" full
+
   let hash (_, id) = id.Commit_id.hash
 
   let pp = Fmt.using snd Commit_id.pp
