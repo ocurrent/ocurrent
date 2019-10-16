@@ -21,6 +21,6 @@ depends: [
   "current_github" {= version}
   "current_docker" {= version}
   "current_rpc" {= version}
-  "capnp-rpc-unix" {>= "0.3.3"}
+  "capnp-rpc-unix" {>= "0.3.3" & < "0.5"}
   "dune"
 ]
