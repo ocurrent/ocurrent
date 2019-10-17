@@ -61,6 +61,23 @@ let css = {|
   form {
     padding: 0.2em;
   }
+
+  table.log-rules {
+    width: 100%;
+  }
+
+  table td input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  table.log-rules td.score {
+    width: 4em;
+  }
+
+  table pre {
+    margin: 0;
+  }
 |} ^ Current_ansi.css
 
 let get () =

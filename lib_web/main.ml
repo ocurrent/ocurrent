@@ -21,6 +21,7 @@ let template contents =
               li [a ~a:[a_href "/"] [txt "OCurrent"]];
               li [a ~a:[a_href "/"] [txt "Home"]];
               li [a ~a:[a_href "/query"] [txt "Query"]];
+              li [a ~a:[a_href "/log-rules"] [txt "Log analysis"]];
             ]
           ];
           div ~a:[a_id "main"] contents
