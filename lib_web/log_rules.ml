@@ -151,7 +151,11 @@ let handle_post data =
   ) else if List.mem_assoc "test" data then (
     match pattern, report, score with
     | [""], _, _ -> Server.respond_error ~body:"Pattern can't be empty" ()
-    | [pattern], [report], [score] -> render ~test:pattern ~pattern ~report ~score ()
+    | [pattern], [report], [score] ->
+      begin match Re.Pcre.re pattern with
+        | exception _ -> Server.respond_error ~body:"Invalid PCRE-format pattern" ()
+        | _ -> render ~test:pattern ~pattern ~report ~score ()
+      end
     | _ -> Server.respond_error ~body:"Bad form submission" ()
   ) else (
     Server.respond_error ~body:"Bad form submission" ()
