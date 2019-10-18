@@ -126,4 +126,5 @@ let () =
     "cache", Test_cache.tests;
     "monitor", Test_monitor.tests;
     "job", Test_job.tests;
+    "log_matcher", Test_log_matcher.tests;
   ]

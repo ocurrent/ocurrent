@@ -331,3 +331,4 @@ module Job = Job
 module Process = Process
 module Switch = Switch
 module Pool = Pool
+module Log_matcher = Log_matcher

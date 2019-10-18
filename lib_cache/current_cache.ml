@@ -219,11 +219,13 @@ module Output(Op : S.PUBLISHER) = struct
                 in
                 let outcome =
                   if Current.Switch.is_on op.switch then (
-                    begin match outcome with
-                      | Ok _ -> Job.log job "Job succeeded"
-                      | Error (`Msg m) -> Job.log job "Job failed: %s" m;
-                    end;
-                    outcome
+                    match outcome with
+                      | Ok _ -> Job.log job "Job succeeded"; outcome
+                      | Error (`Msg m) ->
+                        Job.log job "Job failed: %s" m;
+                        match Current.Log_matcher.analyse_job job with
+                        | None -> outcome
+                        | Some e -> Error (`Msg e)
                   ) else Error (`Msg "Cancelled")
                 in
                 output.mtime <- !Job.timestamp ();

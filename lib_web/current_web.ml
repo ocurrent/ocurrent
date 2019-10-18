@@ -144,6 +144,10 @@ let handle_request ~engine ~webhooks _conn request body =
     | `GET, ["query"] ->
       let body = Query.render uri in
       Server.respond_string ~status:`OK ~body ()
+    | `GET, ["log-rules"] ->
+      Log_rules.render ()
+    | `POST, ["log-rules"] ->
+      Cohttp_lwt.Body.to_string body >>= Log_rules.handle_post
     | `GET, ["metrics"] ->
       let data = Prometheus.CollectorRegistry.(collect default) in
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in

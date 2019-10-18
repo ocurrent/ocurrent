@@ -20,5 +20,6 @@ depends: [
   "duration"
   "prometheus"
   "dune"
+  "re"
   "alcotest-lwt" {with-test}
 ]

@@ -357,3 +357,37 @@ module Db : sig
   val dump_row : Sqlite3.Data.t list Fmt.t
   (** Useful for debugging. *)
 end
+
+module Log_matcher : sig
+  type rule = {
+    pattern : string;
+    report : string;
+    score : int;
+  }
+
+  val analyse_job : Job.t -> string option
+  (** [analyse_job j] scans the logs for [j] looking for known patterns.
+      If it finds any, it returns the report string for the best one, and
+      also logs information about all found patterns. *)
+
+  val add_rule : rule -> unit
+  (** Add a rule that matches log text against the PCRE [rule.pattern].
+      If it matches, the error will be [rule.report]. In [report], "\1" is
+      replaced by the first match group, etc. If multiple rules match, the one
+      with the highest scrore is used. If two rules with the same score match,
+      the first is used. If a rule already exists with the same pattern, it
+      will be replaced. *)
+
+  val remove_rule : string -> (unit, [> `Rule_not_found ]) result
+  (** [remove_rule pattern] removes a rule previously added by [add_rule]. *)
+
+  val list_rules : unit -> rule list
+  (** Get the current set of rules. *)
+
+  (**/**)
+
+  (* For unit-tests: *)
+
+  val drop_all : unit -> unit
+  val analyse_string : ?job:Job.t -> string -> string option
+end
