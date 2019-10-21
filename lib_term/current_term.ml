@@ -76,6 +76,11 @@ module Make (Input : S.INPUT) = struct
     let t = t ctx in
     make (An.catch ~env t.md) (Dyn.catch t.fn)
 
+  let catch_hidden t =
+    cache @@ fun ~env:_ ctx ->
+    let t = t ctx in
+    make t.md (Dyn.catch t.fn)
+
   let of_output x =
     cache @@ fun ~env _ctx ->
     make (An.of_output ~env x) (Dyn.of_output x)
@@ -165,6 +170,28 @@ module Make (Input : S.INPUT) = struct
       let+ () = x
       and+ () = all xs in
       ()
+
+  let all_labelled items =
+    let rec aux = function
+      | [] -> return (Ok ())
+      | (l, x) :: xs ->
+        let+ x = catch_hidden x
+        and+ xs = aux xs in
+        match x with
+        | Ok () -> xs
+        | Error (`Msg e) ->
+          match xs with
+          | Ok () -> Error (`Same ([l], e))
+          | Error (`Same (ls, e2)) when e = e2 -> Error (`Same (l :: ls, e))
+          | Error (`Same (ls, _))
+          | Error (`Diff ls) -> Error (`Diff (l :: ls))
+    in
+    "all" |>
+    let** results = aux items in
+    match results with
+    | Ok () -> return ()
+    | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
+    | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
 
   let list_map ~pp f input =
     cache @@ fun ~env ctx ->

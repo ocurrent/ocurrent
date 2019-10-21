@@ -113,6 +113,42 @@ let test_v5 _switch () =
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
+module Test_input = struct
+  type 'a t = unit
+  type job_id = unit
+  type env = unit
+
+  let get () () = Error (`Msg "Can't happen"), None
+end
+
+module Term = Current_term.Make(Test_input)
+
+let engine_result =
+  Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
+
+let test_all_labelled () =
+  let test x = fst (Term.Executor.run ~env:() (fun () -> Term.all_labelled x)) in
+  Alcotest.check engine_result "all_ok" (Ok ()) @@ test [
+    "Alpine", Term.return ();
+    "Debian", Term.return ();
+  ];
+  Alcotest.check engine_result "1st fails" (Error (`Msg "Alpine failed: apk")) @@ test [
+    "Alpine", Term.fail "apk";
+    "Debian", Term.return ();
+  ];
+  Alcotest.check engine_result "2nd fails" (Error (`Msg "Debian failed: apt")) @@ test [
+    "Alpine", Term.return ();
+    "Debian", Term.fail "apt";
+  ];
+  Alcotest.check engine_result "different failures" (Error (`Msg "Alpine, Debian failed")) @@ test [
+    "Alpine", Term.fail "apk";
+    "Debian", Term.fail "apt";
+  ];
+  Alcotest.check engine_result "same failure" (Error (`Msg "Alpine, Debian failed: ENOSPACE")) @@ test [
+    "Alpine", Term.fail "ENOSPACE";
+    "Debian", Term.fail "ENOSPACE";
+  ]
+
 let () =
   Alcotest.run "test" [
     "pipelines", [
@@ -122,6 +158,9 @@ let () =
       Driver.test_case_gc "v3"        test_v3;
       Driver.test_case_gc "v4"        test_v4;
       Driver.test_case_gc "v5"        test_v5;
+    ];
+    "terms", [
+      Alcotest.test_case "all_labelled" `Quick test_all_labelled;
     ];
     "cache", Test_cache.tests;
     "monitor", Test_monitor.tests;
