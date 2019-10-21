@@ -110,6 +110,11 @@ module type TERM = sig
   val all : unit t list -> unit t
   (** [all xs] is a term that succeeds if every term in [xs] succeeds. *)
 
+  val all_labelled : (string * unit t) list -> unit t
+  (** [all xs] is a term that succeeds if every term in [xs] succeeds.
+      The labels are used if some terms fail, to indicate which ones
+      are failing. *)
+
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
