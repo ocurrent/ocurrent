@@ -27,7 +27,7 @@ let dump_groups f groups =
 let test_pattern pattern =
   let re = Re.Pcre.re pattern |> Re.compile in
   let recent_jobs = Lazy.force get_recent_jobs in
-  let jobs = Current.Db.query recent_jobs Sqlite3.Data.[ INT 1000L ] in
+  let jobs = Current.Db.query recent_jobs Sqlite3.Data.[ INT 10000L ] in
   let n_jobs = List.length jobs in
   let results = jobs |> List.filter_map (function
       | Sqlite3.Data.[ TEXT job_id ] ->
