@@ -36,7 +36,7 @@ let main config mode capnp repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo) in
   let service_id = Capnp_rpc_unix.Vat_config.derived_id capnp "engine" in
-  let restore = Capnp_rpc_lwt.Restorer.single service_id (Rpc.engine engine) in
+  let restore = Capnp_rpc_net.Restorer.single service_id (Rpc.engine engine) in
   Logging.run begin
     Capnp_rpc_unix.serve capnp ~restore >>= fun vat ->
     let uri = Capnp_rpc_unix.Vat.sturdy_uri vat service_id in
