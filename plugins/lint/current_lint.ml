@@ -59,8 +59,7 @@ let get_ocamlformat_version ~src =
                let dotfile = Fpath.(to_string (root / ".ocamlformat")) in
                version_from_file dotfile))
         |> function
-        | Ok (Some t) -> t
-        | Ok None -> "0.11.0"
+        | Ok result -> result
         | Error (`Msg e) -> failwith e)
 
 let format_dockerfile ~base ~ocamlformat_version =
@@ -71,15 +70,18 @@ let format_dockerfile ~base ~ocamlformat_version =
   @@ run "opam install ocamlformat=%s" ocamlformat_version
 
 let v_from_opam ?ocamlformat_version ~base ~src =
-  let dockerfile =
-    let+ ocamlformat_version =
-      match ocamlformat_version with
-      | Some v -> Current.return ~label:("version " ^ v) v
-      | None -> get_ocamlformat_version ~src
-    and+ base = base in
-    format_dockerfile ~base ~ocamlformat_version
-  in
-  let img =
-    Docker.build ~label:"OCamlformat" ~pull:false ~dockerfile (`Git src)
-  in
-  Docker.run ~label:"lint" img ~args:[ "dune"; "build"; "@fmt" ]
+  let ( >>= ) x f = Current.bind f x in
+  ( match ocamlformat_version with
+  | Some v -> Current.return ~label:("version " ^ v) (Some v)
+  | None -> get_ocamlformat_version ~src )
+  >>= function
+  | None -> Current.return ()
+  | Some ocamlformat_version ->
+      let dockerfile =
+        let+ base = base in
+        format_dockerfile ~base ~ocamlformat_version
+      in
+      let img =
+        Docker.build ~label:"OCamlformat" ~pull:false ~dockerfile (`Git src)
+      in
+      Docker.run ~label:"lint" img ~args:[ "dune"; "build"; "@fmt" ]
