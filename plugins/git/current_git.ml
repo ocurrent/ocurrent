@@ -75,7 +75,7 @@ let strip_heads gref =
 let with_checkout ~switch ~job commit fn =
   let { Commit.repo; id } = commit in
   let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
-  Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,git clone %S -b %S && cd %S && git reset --hard %s@]"
+  Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,git clone --recursive %S -b %S && cd %S && git reset --hard %s@]"
     short_hash
     id.Commit_id.repo
     (strip_heads id.Commit_id.gref)
