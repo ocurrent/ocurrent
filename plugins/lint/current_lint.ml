@@ -70,18 +70,17 @@ let format_dockerfile ~base ~ocamlformat_version =
   @@ run "opam install ocamlformat=%s" ocamlformat_version
 
 let v_from_opam ?ocamlformat_version ~base ~src =
-  let ( >>= ) x f = Current.bind f x in
+  let ( >|= ) x f = Current.map f x in
   ( match ocamlformat_version with
   | Some v -> Current.return ~label:("version " ^ v) (Some v)
   | None -> get_ocamlformat_version ~src )
-  >>= function
-  | None -> Current.return ()
-  | Some ocamlformat_version ->
-      let dockerfile =
-        let+ base = base in
-        format_dockerfile ~base ~ocamlformat_version
-      in
-      let img =
-        Docker.build ~label:"OCamlformat" ~pull:false ~dockerfile (`Git src)
-      in
-      Docker.run ~label:"lint" img ~args:[ "dune"; "build"; "@fmt" ]
+  >|= (function Some v -> [ v ] | None -> [])
+  |> Current.list_iter ~pp:Fmt.string (fun ocamlformat_version ->
+         let dockerfile =
+           let+ base = base and+ ocamlformat_version = ocamlformat_version in
+           format_dockerfile ~base ~ocamlformat_version
+         in
+         let img =
+           Docker.build ~label:"OCamlformat" ~pull:false ~dockerfile (`Git src)
+         in
+         Docker.run ~label:"lint" img ~args:[ "dune"; "build"; "@fmt" ])
