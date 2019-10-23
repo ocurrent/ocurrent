@@ -71,15 +71,11 @@ module Make (Input : S.INPUT) = struct
     let t = t ctx in
     make (An.state ~env t.md) (Dyn.state t.fn)
 
-  let catch t =
+  let catch ?(hidden=false) t =
     cache @@ fun ~env ctx ->
     let t = t ctx in
-    make (An.catch ~env t.md) (Dyn.catch t.fn)
-
-  let catch_hidden t =
-    cache @@ fun ~env:_ ctx ->
-    let t = t ctx in
-    make t.md (Dyn.catch t.fn)
+    let an = if hidden then t.md else An.catch ~env t.md in
+    make an (Dyn.catch t.fn)
 
   let of_output x =
     cache @@ fun ~env _ctx ->
@@ -175,7 +171,7 @@ module Make (Input : S.INPUT) = struct
     let rec aux = function
       | [] -> return (Ok ())
       | (l, x) :: xs ->
-        let+ x = catch_hidden x
+        let+ x = catch x ~hidden:true
         and+ xs = aux xs in
         match x with
         | Ok () -> xs
