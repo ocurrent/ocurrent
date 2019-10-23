@@ -68,10 +68,11 @@ module type TERM = sig
   val state : 'a t -> ('a, [`Active of Output.active | `Msg of string]) result t
   (** [state t] always immediately returns a successful result giving the current state of [t]. *)
 
-  val catch : 'a t -> 'a or_error t
+  val catch : ?hidden:bool -> 'a t -> 'a or_error t
   (** [catch t] successfully returns [Ok x] if [t] evaluates successfully to [x],
       or successfully returns [Error e] if [t] fails with error [e].
-      If [t] is active then [catch t] will be active too. *)
+      If [t] is active then [catch t] will be active too.
+      @param hidden If [true], don't show a separate node for this on the diagrams. *)
 
   val ignore_value : 'a t -> unit t
   (** [ignore_value x] is [map ignore x]. *)
