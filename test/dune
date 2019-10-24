@@ -4,6 +4,7 @@
              current_fs
              current_docker_test
              current_git_test
+             current_github_test
              current_opam_test))
 
 (rule

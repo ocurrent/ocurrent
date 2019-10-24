@@ -1,6 +1,7 @@
 open Current.Syntax    (* let*, let+, etc *)
 
 module Git = Current_git_test
+module Github = Current_github_test
 module Docker = Current_docker_test
 module Opam = Current_opam_test
 
@@ -166,4 +167,5 @@ let () =
     "monitor", Test_monitor.tests;
     "job", Test_job.tests;
     "log_matcher", Test_log_matcher.tests;
+    "github", Github.tests;
   ]
