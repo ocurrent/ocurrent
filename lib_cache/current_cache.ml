@@ -265,8 +265,12 @@ module Output(Op : S.PUBLISHER) = struct
       | Some { Db.value; job_id; outcome; finished; build; rebuild; _ } ->
         let op = match outcome with
           | _ when rebuild -> `Retry
-          | Ok outcome -> `Finished (Op.Outcome.unmarshal outcome)
           | Error e -> `Error e
+          | Ok outcome ->
+            try `Finished (Op.Outcome.unmarshal outcome)
+            with ex ->
+              Log.warn (fun f -> f "Failed to restore %S cached outcome: %a (will rebuild)" Op.id Fmt.exn ex);
+              `Retry
         in
         Some value, Some job_id, op, finished, Int64.succ build
       | None -> None, None, `Retry, Unix.gettimeofday (), 0L
