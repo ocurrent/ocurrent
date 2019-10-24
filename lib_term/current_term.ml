@@ -66,10 +66,11 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (An.fail ~env msg) (Dyn.fail msg)
 
-  let state t =
+  let state ?(hidden=false) t =
     cache @@ fun ~env ctx ->
     let t = t ctx in
-    make (An.state ~env t.md) (Dyn.state t.fn)
+    let an = if hidden then t.md else An.state ~env t.md in
+    make an (Dyn.state t.fn)
 
   let catch ?(hidden=false) t =
     cache @@ fun ~env ctx ->

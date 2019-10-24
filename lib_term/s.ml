@@ -65,8 +65,9 @@ module type TERM = sig
   val fail : string -> 'a t
   (** [fail m] is a term that immediately fails with message [m]. *)
 
-  val state : 'a t -> ('a, [`Active of Output.active | `Msg of string]) result t
-  (** [state t] always immediately returns a successful result giving the current state of [t]. *)
+  val state : ?hidden:bool -> 'a t -> ('a, [`Active of Output.active | `Msg of string]) result t
+  (** [state t] always immediately returns a successful result giving the current state of [t].
+      @param hidden If [true], don't show a separate node for this on the diagrams. *)
 
   val catch : ?hidden:bool -> 'a t -> 'a or_error t
   (** [catch t] successfully returns [Ok x] if [t] evaluates successfully to [x],
