@@ -14,7 +14,7 @@ module Key = struct
   let pp_args = Fmt.(list ~sep:sp (quote string))
 
   let cmd { image; args; docker_context } =
-    Cmd.docker ~docker_context @@ ["run"; "-i"; Image.hash image] @ args
+    Cmd.docker ~docker_context @@ ["run"; "--rm"; "-i"; Image.hash image] @ args
 
   let pp f t = Cmd.pp f (cmd t)
 
