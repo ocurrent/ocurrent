@@ -22,7 +22,7 @@ module Make (Job : sig type id end) : sig
 
   val return     : env:env -> string option -> t
   val fail       : env:env -> string -> t
-  val map_input  : env:env -> t -> (string, [`Blocked]) result -> t
+  val map_input  : env:env -> t -> (string, [`Blocked | `Empty_list]) result -> t
   val map_failed : env:env -> t -> string -> t
   val state      : env:env -> t -> t
   val catch      : env:env -> t -> t
