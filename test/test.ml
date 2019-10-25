@@ -113,6 +113,13 @@ let test_v5 _switch () =
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
+let test_v5_nil _switch () =
+  let test_commit = Git.Commit.v ~repo:"my/project" ~hash:"456" in
+  Driver.test ~name:"v5n" (with_commit v5) @@ function
+  | 1 -> Git.complete_clone test_commit
+  | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
+  | _ -> raise Exit
+
 module Test_input = struct
   type 'a t = unit
   type job_id = unit
@@ -158,6 +165,7 @@ let () =
       Driver.test_case_gc "v3"        test_v3;
       Driver.test_case_gc "v4"        test_v4;
       Driver.test_case_gc "v5"        test_v5;
+      Driver.test_case_gc "v5-nil"    test_v5_nil;
     ];
     "terms", [
       Alcotest.test_case "all_labelled" `Quick test_all_labelled;

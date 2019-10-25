@@ -56,11 +56,7 @@ module Make (Input : S.INPUT) = struct
 
   let map_input ~label source x =
     cache @@ fun ~env _ctx ->
-    make (An.map_input ~env source (Ok label)) (Dyn.return x)
-
-  let map_input_blocked source r =
-    cache @@ fun ~env _ctx ->
-    make (An.map_input ~env source (Error `Blocked)) (Dyn.of_output r)
+    make (An.map_input ~env source label) (Dyn.of_output x)
 
   let fail msg =
     cache @@ fun ~env _ctx ->
@@ -190,21 +186,27 @@ module Make (Input : S.INPUT) = struct
     | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
     | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
 
-  let list_map ~pp f input =
+  let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
     cache @@ fun ~env ctx ->
     let input = input ctx in
     match Dyn.run input.fn with
     | Error _ as r ->
       (* Not ready; use static version of map. *)
-      let f = f (map_input_blocked input.md r) ctx in
+      let f = f (map_input input.md ~label:(Error `Blocked) r) ctx in
       let md = An.list_map ~env ~f:f.md input.md in
       make md (Dyn.of_output r)
+    | Ok [] ->
+      (* Empty list; show what would have been done. *)
+      let no_items = Error (`Msg "(empty list)") in
+      let f = f (map_input input.md ~label:(Error `Empty_list) no_items) ctx in
+      let md = An.list_map ~env ~f:f.md input.md in
+      make md (Dyn.return [])
     | Ok items ->
       (* Ready. Expand inputs. *)
       let rec aux = function
         | [] -> return []
         | x :: xs ->
-          let+ y = f (map_input ~label:(Fmt.to_to_string pp x) input.md x)
+          let+ y = f (map_input ~label:(Ok (Fmt.to_to_string pp x)) input.md (Ok x))
           and+ ys = aux xs in
           y :: ys
       in

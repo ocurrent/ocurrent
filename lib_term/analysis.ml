@@ -36,7 +36,7 @@ module Make (Job : sig type id end) = struct
   }
   and metadata_ty =
     | Constant of string option
-    | Map_input of { source : t; info : (string, [`Blocked]) result }
+    | Map_input of { source : t; info : (string, [`Blocked | `Empty_list]) result }
     | State of t
     | Catch of t
     | Map_failed of t      (* In [map f t], [f] raised an exception. *)
@@ -67,7 +67,7 @@ module Make (Job : sig type id end) = struct
     make ~env (Map_input {source; info})
       (match info with
        | Ok _ -> Pass
-       | Error `Blocked -> Blocked)
+       | Error (`Blocked | `Empty_list) -> Blocked)
 
   let fail ~env msg =
     make ~env (Constant None) (Fail msg)
@@ -179,6 +179,7 @@ module Make (Job : sig type id end) = struct
         | Constant (Some l) -> Fmt.string f l
         | Map_input { source = _; info = Ok label } -> Fmt.string f label
         | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
+        | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
         | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
         | Bind_input {x; info; id = _} -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
@@ -300,6 +301,7 @@ module Make (Job : sig type id end) = struct
               match info with
               | Ok l -> l
               | Error `Blocked -> "(each item)"
+              | Error `Empty_list -> "(empty list)"
             in
             node i label;
             let source = aux source in
