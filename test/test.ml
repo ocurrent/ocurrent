@@ -11,10 +11,10 @@ let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
 let push = Docker.push
 
-let analyse src =
+let analyse ~lint src =
   Current.component "analyse" |>
   let** _ = src in
-  Current.return (Some "ocamlformat")
+  Current.return lint
 
 let lint src ~linter =
   Current.component "lint" |>
@@ -131,16 +131,25 @@ let test_v5_nil _switch () =
   | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let v6 commit =
+let test_option ~case commit =
   let src = fetch commit in
-  analyse src
+  analyse ~lint:case src
   |> Current.option_map (fun linter -> lint src ~linter)
   |> Current.ignore_value
 
-let test_v6 _switch () =
-  Driver.test ~name:"v6" (with_commit v6) @@ function
+let test_option_some _switch () =
+  test_option ~case:(Some "ocamlformat")
+  |> with_commit
+  |> (fun c -> Driver.test ~name:"option-some" c @@ function
   | 1 -> Git.complete_clone test_commit
-  | _ -> raise Exit
+  | _ -> raise Exit)
+
+let test_option_none _switch () =
+  test_option ~case:None
+  |> with_commit
+  |> (fun c -> Driver.test ~name:"option-none" c @@ function
+    | 1 -> Git.complete_clone test_commit
+    | _ -> raise Exit)
 
 module Test_input = struct
   type 'a t = unit
@@ -181,14 +190,15 @@ let test_all_labelled () =
 let () =
   Alcotest.run "test" [
     "pipelines", [
-      Driver.test_case_gc "v1"        test_v1;
-      Driver.test_case_gc "v1-cancel" test_v1_cancel;
-      Driver.test_case_gc "v2"        test_v2;
-      Driver.test_case_gc "v3"        test_v3;
-      Driver.test_case_gc "v4"        test_v4;
-      Driver.test_case_gc "v5"        test_v5;
-      Driver.test_case_gc "v5-nil"    test_v5_nil;
-      Driver.test_case_gc "v6"        test_v6;
+      Driver.test_case_gc "v1"          test_v1;
+      Driver.test_case_gc "v1-cancel"   test_v1_cancel;
+      Driver.test_case_gc "v2"          test_v2;
+      Driver.test_case_gc "v3"          test_v3;
+      Driver.test_case_gc "v4"          test_v4;
+      Driver.test_case_gc "v5"          test_v5;
+      Driver.test_case_gc "v5-nil"      test_v5_nil;
+      Driver.test_case_gc "option-some" test_option_some;
+      Driver.test_case_gc "option-none" test_option_none;
     ];
     "terms", [
       Alcotest.test_case "all_labelled" `Quick test_all_labelled;
