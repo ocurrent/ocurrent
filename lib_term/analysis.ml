@@ -37,6 +37,7 @@ module Make (Job : sig type id end) = struct
   and metadata_ty =
     | Constant of string option
     | Map_input of { source : t; info : (string, [`Blocked | `Empty_list]) result }
+    | Opt_input of { source : t; info : [`Blocked | `Selected | `Not_selected] }
     | State of t
     | Catch of t
     | Map_failed of t      (* In [map f t], [f] raised an exception. *)
@@ -45,6 +46,7 @@ module Make (Job : sig type id end) = struct
     | Pair of t * t
     | Gate_on of { ctrl : t; value : t }
     | List_map of { items : t; fn : t }
+    | Option_map of { item : t; fn : t }
 
   type env = {
     next : int ref;
@@ -68,6 +70,12 @@ module Make (Job : sig type id end) = struct
       (match info with
        | Ok _ -> Pass
        | Error (`Blocked | `Empty_list) -> Blocked)
+
+  let option_input ~env source info =
+    make ~env (Opt_input {source; info})
+      (match info with
+       | `Selected -> Pass
+       | `Blocked | `Not_selected -> Blocked)
 
   let fail ~env msg =
     make ~env (Constant None) (Fail msg)
@@ -151,6 +159,9 @@ module Make (Job : sig type id end) = struct
   let list_map ~env ~f items =
     make ~env (List_map { items; fn = f }) items.state
 
+  let option_map ~env ~f item =
+    make ~env (Option_map { item; fn = f }) item.state
+
   let gate ~env ~on:ctrl value =
     let ctrl = simplify ctrl in
     let value = simplify value in
@@ -180,11 +191,13 @@ module Make (Job : sig type id end) = struct
         | Map_input { source = _; info = Ok label } -> Fmt.string f label
         | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
         | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
+        | Opt_input { source; info = _ } -> Fmt.pf f "[%a]" aux source
         | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
         | Bind_input {x; info; id = _} -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
         | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
+        | Option_map { item; fn } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux fn
         | State x -> Fmt.pf f "state(@[%a@])" aux x
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x
         | Map_failed x -> aux f x
@@ -207,15 +220,15 @@ module Make (Job : sig type id end) = struct
          input directly from both A and B. *)
 
       trans : Node_set.t;
-      (** The set of nodes which must be resolved for this node to be resolved.
-          For example, in the graph `A -> B -> C`:
+      (* The set of nodes which must be resolved for this node to be resolved.
+         For example, in the graph `A -> B -> C`:
 
-          trans(A) = {A}
-          trans(B) = {A, B}
-          trans(C) = {A, B, C}
+         trans(A) = {A}
+         trans(B) = {A, B}
+         trans(C) = {A, B, C}
 
-          This is used to hide edges that are implied by other edges, to simplify
-          the output. *)
+         This is used to hide edges that are implied by other edges, to simplify
+         the output. *)
     }
 
     let empty = {
@@ -308,6 +321,8 @@ module Make (Job : sig type id end) = struct
             Out_node.connect (edge_to i) source;
             let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
             Out_node.singleton ~deps i
+          | Opt_input { source; info = _ } ->
+            aux source
           | Bind (x, name) ->
             let inputs =
               match x.ty with
@@ -370,6 +385,13 @@ module Make (Job : sig type id end) = struct
             let outputs = aux fn in
             Dot.end_cluster f;
             outputs
+          | Option_map { item; fn } ->
+            ignore (aux item);
+            Dot.begin_cluster f i;
+            Dot.pp_option f ("style", "dotted");
+            let outputs = aux fn in
+            Dot.end_cluster f;
+            outputs
         in
         seen := Id.Map.add md.id outputs !seen;
         outputs
@@ -385,8 +407,9 @@ module Make (Job : sig type id end) = struct
     let env = make_env () in
     active ~env `Running
 
-  let job_id t =
+  let rec job_id t =
     match t.ty with
     | Bind_input i -> i.id
+    | Option_map x -> job_id x.fn
     | _ -> None
 end

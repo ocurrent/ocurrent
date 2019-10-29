@@ -11,6 +11,17 @@ let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
 let push = Docker.push
 
+let analyse src =
+  Current.component "analyse" |>
+  let** _ = src in
+  Current.return (Some "ocamlformat")
+
+let lint src ~linter =
+  Current.component "lint" |>
+  let** _ = src
+  and* _ = linter in
+  Current.return ()
+
 module Commit_var = Current.Var(Git.Commit)
 
 let test_commit =
@@ -120,6 +131,17 @@ let test_v5_nil _switch () =
   | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
+let v6 commit =
+  let src = fetch commit in
+  analyse src
+  |> Current.option_map (fun linter -> lint src ~linter)
+  |> Current.ignore_value
+
+let test_v6 _switch () =
+  Driver.test ~name:"v6" (with_commit v6) @@ function
+  | 1 -> Git.complete_clone test_commit
+  | _ -> raise Exit
+
 module Test_input = struct
   type 'a t = unit
   type job_id = unit
@@ -166,6 +188,7 @@ let () =
       Driver.test_case_gc "v4"        test_v4;
       Driver.test_case_gc "v5"        test_v5;
       Driver.test_case_gc "v5-nil"    test_v5_nil;
+      Driver.test_case_gc "v6"        test_v6;
     ];
     "terms", [
       Alcotest.test_case "all_labelled" `Quick test_all_labelled;

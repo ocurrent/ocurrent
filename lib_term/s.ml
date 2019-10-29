@@ -107,6 +107,10 @@ module type TERM = sig
   (** [list_seq x] evaluates to a list containing the results of evaluating
       each element in [x], once all elements of [x] have successfully completed. *)
 
+  val option_map : ('a t -> 'b t) -> 'a option t -> 'b option t
+  (** [option_map f x] is a term that evaluates to [Some (f y)] if [x]
+      evaluates to [Some y], or to [None] otherwise. *)
+
   val option_seq : 'a t option -> 'a option t
   (** [option_seq None] is [Current.return None] and
       [option_seq (Some x)] is [Current.map some x].
