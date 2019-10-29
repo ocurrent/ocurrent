@@ -20,6 +20,11 @@ let map f x =
   | Error _ as e -> e
   | Ok y -> Ok (f y)
 
+let map_error f x =
+  match x with
+  | Error (`Msg m) -> Error (`Msg (f m))
+  | _ -> x
+
 let pair a b =
   match a, b with
   | (Error _ as e), _ -> e
