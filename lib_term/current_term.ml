@@ -112,6 +112,15 @@ module Make (Input : S.INPUT) = struct
       let msg = msg_of_exn ex in
       make (An.map_failed ~env x.md msg) (Dyn.fail msg)
 
+  let map_error f x =
+    cache @@ fun ~env ctx ->
+    let x = x ctx in
+    match Dyn.map_error f x.fn with
+    | fn -> make x.md fn
+    | exception ex ->
+      let msg = msg_of_exn ex in
+      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
+
   let ignore_value x = map ignore x
 
   let pair a b =

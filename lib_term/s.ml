@@ -88,6 +88,9 @@ module type TERM = sig
   val map : ('a -> 'b) -> 'a t -> 'b t
   (** [map f x] is a term that runs [x] and then transforms the result using [f]. *)
 
+  val map_error : (string -> string) -> 'a t -> 'a t
+  (** [map_error f x] is a term that runs [x] and then transforms the error string (if any) using [f]. *)
+
   val pair : 'a t -> 'b t -> ('a * 'b) t
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
