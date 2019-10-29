@@ -1,37 +1,23 @@
 (executables
-  (names test test_monitor test_cache)
+  (names gen_dune_rules test test_monitor test_cache)
   (libraries current fmt fmt.tty logs.fmt bos lwt.unix alcotest-lwt
              current_fs
              current_docker_test
              current_git_test
              current_opam_test))
 
+(include dune.inc)
+
 (rule
- (targets
-   v1.1.dot v1.2.dot v1.3.dot
-   v1c.1.dot v1c.2.dot v1c.3.dot
-   v2.1.dot v2.2.dot v2.3.dot v2.4.dot
-   v3.1.dot v3.2.dot v3.3.dot
-   v4.1.dot v4.2.dot v4.3.dot
-   v5.1.dot v5.2.dot v5.3.dot
-   v5n.1.dot v5n.2.dot v5n.3.dot
-   option-some.1.dot option-some.2.dot
-   option-none.1.dot option-none.2.dot
- )
- (action  (run ./test.exe)))
+ (targets dune.gen)
+ (deps
+  (source_tree .))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run ./gen_dune_rules.exe))))
 
 (alias
  (name runtest)
- (package current)
  (action
-  (progn
-   (diff expected/v1.1.dot v1.1.dot) (diff expected/v1.2.dot v1.2.dot) (diff expected/v1.3.dot v1.3.dot)
-   (diff expected/v1c.1.dot v1c.1.dot) (diff expected/v1c.2.dot v1c.2.dot) (diff expected/v1c.3.dot v1c.3.dot)
-   (diff expected/v2.1.dot v2.1.dot) (diff expected/v2.2.dot v2.2.dot) (diff expected/v2.3.dot v2.3.dot) (diff expected/v2.4.dot v2.4.dot)
-   (diff expected/v3.1.dot v3.1.dot) (diff expected/v3.2.dot v3.2.dot) (diff expected/v3.3.dot v3.3.dot)
-   (diff expected/v4.1.dot v4.1.dot) (diff expected/v4.2.dot v4.2.dot) (diff expected/v4.3.dot v4.3.dot)
-   (diff expected/v5.1.dot v5.1.dot) (diff expected/v5.2.dot v5.2.dot) (diff expected/v5.3.dot v5.3.dot)
-   (diff expected/v5n.1.dot v5n.1.dot) (diff expected/v5n.2.dot v5n.2.dot) (diff expected/v5n.3.dot v5n.3.dot)
-   (diff expected/option-some.1.dot option-some.1.dot) (diff expected/option-some.2.dot option-some.2.dot)
-   (diff expected/option-none.1.dot option-none.1.dot) (diff expected/option-none.2.dot option-none.2.dot)
- )))
+  (diff dune.inc dune.gen)))

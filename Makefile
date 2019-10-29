@@ -6,6 +6,10 @@ test:
 	dune build @check
 	if dune runtest --no-buffer; then make svgs; else make svgs; exit 1; fi
 
+test-force:
+	rm _build/default/test/*.dot
+	dune runtest --no-buffer -j 1
+
 svg:
 	mkdir svg
 
