@@ -58,6 +58,10 @@ module Make (Input : S.INPUT) = struct
     cache @@ fun ~env _ctx ->
     make (An.map_input ~env source label) (Dyn.of_output x)
 
+  let option_input ~label source x =
+    cache @@ fun ~env _ctx ->
+    make (An.option_input ~env source label) (Dyn.of_output x)
+
   let fail msg =
     cache @@ fun ~env _ctx ->
     make (An.fail ~env msg) (Dyn.fail msg)
@@ -194,6 +198,27 @@ module Make (Input : S.INPUT) = struct
     | Ok () -> return ()
     | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
     | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
+
+  let option_map (f : 'a t -> 'b t) (input : 'a option t) =
+    cache @@ fun ~env ctx ->
+    let input = input ctx in
+    match Dyn.run input.fn with
+    | Error _ as r ->
+      (* Not ready; use static version. *)
+      let f = f (option_input ~label:`Blocked input.md r) ctx in
+      let md = An.option_map ~env ~f:f.md input.md in
+      make md (Dyn.of_output r)
+    | Ok None ->
+      (* Show what would have been done. *)
+      let r = Error (`Msg "(none)") in
+      let f = f (option_input input.md ~label:`Not_selected r) ctx in
+      let md = An.option_map ~env ~f:f.md input.md in
+      make md (Dyn.of_output (Ok None))
+    | Ok (Some item) ->
+      let results =
+        (let+ y = f (option_input input.md ~label:`Selected (Ok item)) in Some y) ctx
+      in
+      { results with md = An.option_map ~env ~f:results.md input.md }
 
   let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
     cache @@ fun ~env ctx ->

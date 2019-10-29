@@ -15,6 +15,7 @@
    v4.1.dot v4.2.dot v4.3.dot
    v5.1.dot v5.2.dot v5.3.dot
    v5n.1.dot v5n.2.dot v5n.3.dot
+   v6.1.dot v6.2.dot
  )
  (action  (run ./test.exe)))
 
@@ -30,4 +31,5 @@
    (diff expected/v4.1.dot v4.1.dot) (diff expected/v4.2.dot v4.2.dot) (diff expected/v4.3.dot v4.3.dot)
    (diff expected/v5.1.dot v5.1.dot) (diff expected/v5.2.dot v5.2.dot) (diff expected/v5.3.dot v5.3.dot)
    (diff expected/v5n.1.dot v5n.1.dot) (diff expected/v5n.2.dot v5n.2.dot) (diff expected/v5n.3.dot v5n.3.dot)
+   (diff expected/v6.1.dot v6.1.dot) (diff expected/v6.2.dot v6.2.dot)
  )))
