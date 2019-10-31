@@ -45,4 +45,4 @@ let cp_r ~switch ~job ~src ~dst =
   Current.Process.exec ~switch ~job ("", cmd)
 
 let git_submodule_update ~switch ~job ~repo =
-  git ~switch ~job ~cwd:repo ["submodule"; "update"]
+  git ~switch ~job ~cwd:repo ["submodule"; "update"; "--recursive"]
