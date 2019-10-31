@@ -1,10 +1,16 @@
 (executables
-  (names gen_dune_rules test test_monitor test_cache)
+  (names test test_monitor test_cache)
+  (modules test test_monitor test_cache test_job test_log_matcher driver)
   (libraries current fmt fmt.tty logs.fmt bos lwt.unix alcotest-lwt
              current_fs
              current_docker_test
              current_git_test
              current_opam_test))
+
+(executable
+ (name gen_dune_rules)
+ (modules gen_dune_rules)
+ (libraries fmt fpath))
 
 (include dune.inc)
 
