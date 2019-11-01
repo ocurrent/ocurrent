@@ -1,6 +1,9 @@
 open Lwt.Infix
 open Current.Syntax
 
+(* Limit updates to one at a time for now. *)
+let pool = Current.Pool.create ~label:"github" 1
+
 (* Currently, this fires whenever we get an incoming web-hook.
    Ideally, it would be more fine-grained. *)
 let webhook_cond = Lwt_condition.create ()
@@ -433,7 +436,7 @@ module Commit = struct
         Value.pp status
 
     let publish ~switch:_ t job key status =
-      Current.Job.start job ~level:Current.Level.Above_average >>= fun () ->
+      Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       let {Key.commit; context} = key in
       let body = `Assoc (("context", `String context) :: Value.json_items status) in
       get_token t >>= function
