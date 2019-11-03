@@ -12,9 +12,9 @@ module Metrics = struct
   let namespace = "ocurrent"
   let subsystem = "core"
 
-  let evaluations_total =
-    let help = "Total number of evaluations" in
-    Counter.v ~help ~namespace ~subsystem "evaluations_total"
+  let evaluation_time_seconds =
+    let help = "Total time spent evaluating" in
+    Summary.v ~help ~namespace ~subsystem "evaluation_time_seconds"
 end
 
 type job_id = string
@@ -174,8 +174,10 @@ module Engine = struct
       let old = !last_result in
       Log.debug (fun f -> f "Evaluating...");
       let step = Step.create config in
+      let t0 = Unix.gettimeofday () in
       let r, an = Executor.run ~env:step f in
-      Prometheus.Counter.inc_one Metrics.evaluations_total;
+      let t1 = Unix.gettimeofday () in
+      Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       let watches = step.Step.watches in
       List.iter (fun w -> w.actions#release) old.watches;
       last_result := {
