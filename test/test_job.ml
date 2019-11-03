@@ -92,7 +92,7 @@ let pool_cancel _switch () =
   let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
   Alcotest.(check lwt_state) "Job queued" Lwt.Sleep (Lwt.state s1);
   Current.Switch.turn_off sw1 @@ Error (`Msg "Cancel") >|= fun () ->
-  Alcotest.(check lwt_state) "Job cancelled" Lwt.(Fail Canceled) (Lwt.state s1)
+  Alcotest.(check lwt_state) "Job cancelled" (Lwt.Fail (Failure "Cancelled waiting for resource from pool \"test\"")) (Lwt.state s1)
 
 let tests =
   [

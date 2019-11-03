@@ -34,42 +34,50 @@ type t = {
   label : string;
   mutable used : int;
   capacity : int;
-  cond : unit Lwt_condition.t;
+  queue : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
 }
 
 let create ~label capacity =
   Prometheus.Gauge.set (Metrics.capacity label) (float_of_int capacity);
-  { label; used = 0; capacity; cond = Lwt_condition.create () }
+  { label; used = 0; capacity; queue = Lwt_dllist.create () }
+
+let check t =
+  if t.used < t.capacity then (
+    match Lwt_dllist.take_opt_l t.queue with
+    | None -> ()
+    | Some waiter ->
+      t.used <- t.used + 1;
+      Lwt.wakeup_later waiter `Use
+  )
 
 let get ~switch t =
+  let ready, set_ready = Lwt.wait () in
+  let node = Lwt_dllist.add_r set_ready t.queue in
+  Switch.add_hook_or_exec switch (fun _ex ->
+      Lwt_dllist.remove node;
+      if Lwt.is_sleeping ready then Lwt.wakeup_later set_ready `Cancel;
+      Lwt.return_unit
+    ) >>= fun () ->
+  check t;
   let start_wait = Unix.gettimeofday () in
-  let rec aux () =
-    if t.used < t.capacity then (
-      if Switch.is_on switch then (
-        let stop_wait = Unix.gettimeofday () in
-        Prometheus.Summary.observe (Metrics.wait_time t.label) (stop_wait -. start_wait);
-        Prometheus.Gauge.inc_one (Metrics.resources_in_use t.label);
-        t.used <- t.used + 1;
-        Switch.add_hook_or_exec switch (fun _reason ->
-            assert (t.used > 0);
-            Prometheus.Gauge.dec_one (Metrics.resources_in_use t.label);
-            t.used <- t.used - 1;
-            let release_time = Unix.gettimeofday () in
-            Prometheus.Summary.observe (Metrics.use_time t.label) (release_time -. stop_wait);
-            Lwt_condition.broadcast t.cond ();
-            Lwt.return_unit
-          )
-      ) else Fmt.failwith "Cancelled waiting for resource from pool %S" t.label
-    ) else (
-      Prometheus.Gauge.inc_one (Metrics.qlen t.label);
-      Lwt_condition.wait t.cond >>= fun () ->
-      Prometheus.Gauge.dec_one (Metrics.qlen t.label);
-      aux ()
-    )
-  in
-  let res = aux () in
-  Switch.add_hook_or_exec switch (fun _ex -> Lwt.cancel res; Lwt.return_unit) >>= fun () ->
-  res
+  Prometheus.Gauge.inc_one (Metrics.qlen t.label);
+  ready >|= fun ready ->
+  Prometheus.Gauge.dec_one (Metrics.qlen t.label);
+  match ready with
+  | `Cancel -> Fmt.failwith "Cancelled waiting for resource from pool %S" t.label
+  | `Use ->
+    let stop_wait = Unix.gettimeofday () in
+    Prometheus.Summary.observe (Metrics.wait_time t.label) (stop_wait -. start_wait);
+    Prometheus.Gauge.inc_one (Metrics.resources_in_use t.label);
+    Switch.add_hook_or_fail switch (fun _reason ->
+        assert (t.used > 0);
+        Prometheus.Gauge.dec_one (Metrics.resources_in_use t.label);
+        t.used <- t.used - 1;
+        let release_time = Unix.gettimeofday () in
+        Prometheus.Summary.observe (Metrics.use_time t.label) (release_time -. stop_wait);
+        check t;
+        Lwt.return_unit
+      )
 
 let pp f t =
   Fmt.string f t.label
