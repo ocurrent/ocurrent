@@ -189,7 +189,7 @@ module Engine = struct
       trace !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       Lwt.choose (filter_map (fun w -> w.changed) watches) >>= fun () ->
-      aux ()
+      Lwt.pause () >>= aux
     in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
