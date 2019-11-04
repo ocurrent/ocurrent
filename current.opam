@@ -21,5 +21,6 @@ depends: [
   "prometheus"
   "dune"
   "re"
+  "lwt-dllist"
   "alcotest-lwt" {with-test}
 ]
