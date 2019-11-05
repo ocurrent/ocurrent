@@ -53,18 +53,18 @@ let or_raise = function
   | Ok () -> ()
   | Error (`Msg m) -> raise (Failure m)
 
-let with_context ~switch ~job context fn =
+let with_context ~job context fn =
   match context with
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
-  | `Git commit -> Current_git.with_checkout ~switch ~job commit fn
+  | `Git commit -> Current_git.with_checkout ~job commit fn
 
-let build ~switch { pull; pool; timeout } job key =
+let build { pull; pool; timeout } job key =
   let { Key.commit; docker_context; dockerfile; squash } = key in
   dockerfile |> Option.iter (fun contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
     );
   Current.Job.start ?timeout ?pool job ~level:Current.Level.Average >>= fun () ->
-  with_context ~switch ~job commit @@ fun dir ->
+  with_context ~job commit @@ fun dir ->
   dockerfile |> Option.iter (fun contents ->
       Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;
     );
@@ -77,7 +77,7 @@ let build ~switch { pull; pool; timeout } job key =
                                            Fpath.to_string iidfile; "--";
                                            Fpath.to_string dir] in
   let pp_error_command f = Fmt.string f "Docker build" in
-  Current.Process.exec ~switch ?stdin:dockerfile ~pp_error_command ~job cmd >|= function
+  Current.Process.exec ~cancellable:true ?stdin:dockerfile ~pp_error_command ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
     Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->

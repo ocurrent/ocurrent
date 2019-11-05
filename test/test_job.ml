@@ -21,8 +21,8 @@ let streams _switch () =
   let log_data = Job.wait_for_log_data job in
   assert (Lwt.state log_data = Lwt.Sleep);
   let cmd = ("", [| "sh"; "-c"; "echo out1; echo >&2 out2; echo out3" |]) in
-  Current.Process.exec ~switch ~job cmd >>!= fun () ->
-  Current.Switch.turn_off switch @@ Ok () >>= fun () ->
+  Current.Process.exec ~cancellable:true ~job cmd >>!= fun () ->
+  Current.Switch.turn_off switch >>= fun () ->
   assert (Lwt.state log_data != Lwt.Sleep);
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
   Alcotest.(check string) "Combined results" "1970-01-01 00:00.00: Exec: \"sh\" \"-c\" \"echo out1; echo >&2 out2; echo out3\"\n\
@@ -35,8 +35,8 @@ let output _switch () =
   let config = Current.Config.v () in
   let job = Job.create ~switch ~label:"output" ~config () in
   let cmd = ("", [| "sh"; "-c"; "echo out1; echo >&2 out2; echo out3" |]) in
-  Current.Process.check_output ~switch ~job cmd >>!= fun out ->
-  Current.Switch.turn_off switch @@ Ok () >>= fun () ->
+  Current.Process.check_output ~cancellable:true ~job cmd >>!= fun out ->
+  Current.Switch.turn_off switch >>= fun () ->
   Alcotest.(check string) "Output" "out1\nout3\n" out;
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
   Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: \"sh\" \"-c\" \"echo out1; echo >&2 out2; echo out3\"\n\
@@ -49,8 +49,8 @@ let cancel _switch () =
   let config = Current.Config.v () in
   let job = Job.create ~switch ~label:"output" ~config () in
   let cmd = ("", [| "sleep"; "120" |]) in
-  let thread = Current.Process.exec ~switch ~job cmd in
-  Current.Switch.turn_off switch @@ Error (`Msg "Timeout") >>= fun () ->
+  let thread = Current.Process.exec ~cancellable:true ~job cmd in
+  Current.Job.cancel job "Timeout";
   thread >>= fun res ->
   begin match res with
     | Ok () -> Alcotest.fail "Should have failed!"
@@ -59,7 +59,7 @@ let cancel _switch () =
   end;
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
   Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: \"sleep\" \"120\"\n\
-                                 1970-01-01 00:00.00: Timeout\n" (read path);
+                                 1970-01-01 00:00.00: Cancelling: Timeout\n" (read path);
   Lwt.return_unit
 
 let pp_lwt_state f = function
@@ -80,9 +80,9 @@ let pool _switch () =
   let s2 = Job.start ~pool ~level:Current.Level.Harmless job2 in
   Alcotest.(check lwt_state) "First job started" Lwt.(Return ()) (Lwt.state s1);
   Alcotest.(check lwt_state) "Second job queued" Lwt.Sleep (Lwt.state s2);
-  Current.Switch.turn_off sw1 @@ Ok () >>= fun () ->
+  Current.Switch.turn_off sw1 >>= fun () ->
   Alcotest.(check lwt_state) "Second job ready" Lwt.(Return ()) (Lwt.state s2);
-  Current.Switch.turn_off sw2 @@ Ok ()
+  Current.Switch.turn_off sw2
 
 let pool_cancel _switch () =
   let config = Current.Config.v () in
@@ -91,14 +91,16 @@ let pool_cancel _switch () =
   let job1 = Job.create ~switch:sw1 ~label:"job-1" ~config () in
   let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
   Alcotest.(check lwt_state) "Job queued" Lwt.Sleep (Lwt.state s1);
-  Current.Switch.turn_off sw1 @@ Error (`Msg "Cancel") >|= fun () ->
-  Alcotest.(check lwt_state) "Job cancelled" (Lwt.Fail (Failure "Cancelled waiting for resource from pool \"test\"")) (Lwt.state s1)
+  Current.Job.cancel job1 "Cancel";
+  Job.log job1 "Continuing job for a bit";
+  Alcotest.(check lwt_state) "Job cancelled" (Lwt.Fail (Failure "Cancelled waiting for resource from pool \"test\"")) (Lwt.state s1);
+  Lwt.return_unit
 
 let tests =
   [
-    Alcotest_lwt.test_case "streams" `Quick streams;
-    Alcotest_lwt.test_case "output" `Quick output;
-    Alcotest_lwt.test_case "cancel" `Quick cancel;
-    Alcotest_lwt.test_case "pool" `Quick pool;
-    Alcotest_lwt.test_case "pool_cancel" `Quick pool_cancel;
+    Driver.test_case_gc "streams" streams;
+    Driver.test_case_gc "output" output;
+    Driver.test_case_gc "cancel" cancel;
+    Driver.test_case_gc "pool" pool;
+    Driver.test_case_gc "pool_cancel" pool_cancel;
   ]

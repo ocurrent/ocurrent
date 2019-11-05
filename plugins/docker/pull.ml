@@ -17,14 +17,14 @@ module Value = Image
 
 let id = "docker-pull"
 
-let build ~switch No_context job key =
+let build No_context job key =
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
-  Current.Process.exec ~switch ~job (Key.cmd key) >>= function
+  Current.Process.exec ~cancellable:true ~job (Key.cmd key) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     let { Key.docker_context; tag } = key in
     let cmd = Cmd.docker ~docker_context ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
-    Current.Process.check_output ~job cmd >|= function
+    Current.Process.check_output ~cancellable:false ~job cmd >|= function
     | Error _ as e -> e
     | Ok id ->
       let id = String.trim id in

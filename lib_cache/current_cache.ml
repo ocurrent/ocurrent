@@ -61,7 +61,6 @@ module Output(Op : S.PUBLISHER) = struct
 
   type op = {
     value : Value.t;                (* The value currently being set. *)
-    switch : Current.Switch.t;      (* Turning this off aborts the operation. *)
     job : Job.t;
     finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
@@ -95,7 +94,7 @@ module Output(Op : S.PUBLISHER) = struct
      While Active, we may flag that the value we are setting is out-of-date,
      that the user wants to cancel, or that we should cancel because the build
      is no longer needed. But we still wait for the process to finish,
-     possibly encouraging it by turning off the switch.
+     possibly encouraging it using [Job.cancel].
 
      When an Active job finishes:
 
@@ -168,10 +167,7 @@ module Output(Op : S.PUBLISHER) = struct
       Log.info (fun f -> f "Auto-cancelling %a" pp_op (output.key, op.value));
       op.autocancelled <- true;
       (* Cancel existing job. When that finishes, we'll get called again. *)
-      Lwt.async (fun () ->
-          Current.Switch.turn_off op.switch @@
-          Error (`Msg "Auto-cancelling job because it is no longer needed")
-        );
+      Job.cancel op.job "Auto-cancelling job because it is no longer needed"
     | `Retry ->
         invalidate_output output;
         publish ~config output
@@ -190,7 +186,7 @@ module Output(Op : S.PUBLISHER) = struct
     let switch = Current.Switch.create ~label:Op.id () in
     let job = Job.create ~switch ~label:Op.id ~config () in
     output.job_id <- Some (Job.id job);
-    let op = { value = output.desired; switch; job; finished; autocancelled = false } in
+    let op = { value = output.desired; job; finished; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
     output.op <- `Active op;
     let pp_op f = pp_op f (output.key, op.value) in
@@ -200,7 +196,7 @@ module Output(Op : S.PUBLISHER) = struct
          Lwt.finalize
            (fun () ->
               Lwt.catch
-                (fun () -> Op.publish ~switch ctx job output.key (Value.value op.value))
+                (fun () -> Op.publish ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >|= fun outcome ->
               let end_time = Unix.gmtime @@ !Job.timestamp () in
@@ -218,15 +214,14 @@ module Output(Op : S.PUBLISHER) = struct
                   | _ -> None
                 in
                 let outcome =
-                  if Current.Switch.is_on op.switch then (
-                    match outcome with
-                      | Ok _ -> Job.log job "Job succeeded"; outcome
-                      | Error (`Msg m) ->
-                        Job.log job "Job failed: %s" m;
-                        match Current.Log_matcher.analyse_job job with
-                        | None -> outcome
-                        | Some e -> Error (`Msg e)
-                  ) else Error (`Msg "Cancelled")
+                  match Current.Job.cancelled_state op.job, outcome with
+                  | Error _cancelled, _ -> Error (`Msg "Cancelled")
+                  | Ok (), Ok _ -> Job.log job "Job succeeded"; outcome
+                  | Ok (), Error (`Msg m) ->
+                    Job.log job "Job failed: %s" m;
+                    match Current.Log_matcher.analyse_job job with
+                    | None -> outcome
+                    | Some e -> Error (`Msg e)
                 in
                 output.mtime <- !Job.timestamp ();
                 begin match outcome with
@@ -254,7 +249,7 @@ module Output(Op : S.PUBLISHER) = struct
               )
            )
            (fun () ->
-              Current.Switch.turn_off switch @@ Ok ()
+              Current.Switch.turn_off switch
            )
       )
 
@@ -378,13 +373,10 @@ module Output(Op : S.PUBLISHER) = struct
         if Lwt.state started = Lwt.Sleep then `Ready, Lwt.choose [Lwt.map ignore started; op.finished]
         else `Running, op.finished in
       o.ref_count <- o.ref_count + 1;
-      let cancel ~msg () =
-        Lwt.async (fun () -> Current.Switch.turn_off op.switch @@ Error (`Msg msg))
-      in
       Error (`Active a), Current.Input.metadata ?job_id:o.job_id ~changed @@
       object
         method pp f = pp_output f o
-        method cancel = Some (cancel ~msg:"Cancelled by user")
+        method cancel = Some (fun () -> Job.cancel op.job "Cancelled by user")
         method rebuild = None
         method release =
           o.ref_count <- o.ref_count - 1;
@@ -392,7 +384,7 @@ module Output(Op : S.PUBLISHER) = struct
               match o.op with
               | `Active op ->
                 op.autocancelled <- true;
-                cancel ~msg:"Auto-cancelling job because it is no longer needed" ()
+                Job.cancel op.job "Auto-cancelling job because it is no longer needed"
               | _ -> ()
           )
       end
@@ -412,8 +404,8 @@ module Make(B : S.BUILDER) = struct
     module Value = Current.Unit
     module Outcome = B.Value
 
-    let publish ~switch op job key () =
-      B.build ~switch op job key
+    let publish op job key () =
+      B.build op job key
 
     let pp f (key, ()) = B.pp f key
 

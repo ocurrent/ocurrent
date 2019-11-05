@@ -16,6 +16,7 @@ type t = {
   log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
   explicit_confirm : unit Lwt.t;
   set_explicit_confirm : unit Lwt.u; (* Resolve this to override the global confirmation threshold. *)
+  mutable cancel_hooks : [ `Hooks of (string -> unit Lwt.t) Lwt_dllist.t | `Cancelled of string ];
   mutable waiting_for_confirmation : bool;  (* Is calling [approve_early_start] useful? *)
 }
 
@@ -65,6 +66,23 @@ let id_of_path path =
   | parent_dir, leaf ->
     Fpath.(base parent_dir // leaf) |> Fpath.to_string |> Filename.chop_extension
 
+let run_cancel_hooks ~reason hooks =
+  let rec aux () =
+    match Lwt_dllist.take_opt_l hooks with
+    | None -> Lwt.return_unit
+    | Some fn -> fn reason >>= aux
+  in
+  aux ()
+
+let cancel t reason =
+  match t.cancel_hooks with
+  | `Cancelled r2 ->
+    log t "cancel(%S): already cancelled (%S)!" reason r2
+  | `Hooks hooks ->
+    t.cancel_hooks <- `Cancelled reason;
+    log t "Cancelling: %s" reason;
+    Lwt.async (fun () -> run_cancel_hooks ~reason hooks)
+
 let create ~switch ~label ~config () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
   let jobs_dir = Lazy.force jobs_dir in
@@ -87,15 +105,18 @@ let create ~switch ~label ~config () =
     let start_time, set_start_time = Lwt.wait () in
     let log_cond = Lwt_condition.create () in
     let explicit_confirm, set_explicit_confirm = Lwt.wait () in
-    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond;
+    let cancel_hooks = `Hooks (Lwt_dllist.create ()) in
+    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond; cancel_hooks;
               explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false } in
     jobs := Map.add id t !jobs;
-    Switch.add_hook_or_fail switch (fun reason ->
-        begin match reason with
-          | Ok () -> ()
-          | Error (`Msg m) ->
-            log t "%s" m
-        end;
+    Switch.add_hook_or_fail switch (fun () ->
+        begin match t.cancel_hooks with
+          | `Hooks hooks ->
+            let reason = "Job complete" in
+            t.cancel_hooks <- `Cancelled reason;
+            run_cancel_hooks ~reason hooks
+          | `Cancelled _ -> Lwt.return_unit
+        end >>= fun () ->
         close_out ch;
         t.ch <- None;
         jobs := Map.remove id !jobs;
@@ -107,6 +128,21 @@ let create ~switch ~label ~config () =
 let pp_id = Fmt.string
 
 let is_running t = Lwt.state t.start_time <> Lwt.Sleep
+
+let on_cancel t fn =
+  match t.cancel_hooks with
+  | `Cancelled reason -> fn reason
+  | `Hooks hooks ->
+    let (_ : _ Lwt_dllist.node) = Lwt_dllist.add_r fn hooks in
+    Lwt.return_unit
+
+let with_handler t ~on_cancel fn =
+  match t.cancel_hooks with
+  | `Cancelled reason ->
+    on_cancel reason >>= fn
+  | `Hooks hooks ->
+    let node = Lwt_dllist.add_r on_cancel hooks in
+    Lwt.finalize fn (fun () -> Lwt_dllist.remove node; Lwt.return_unit)
 
 let confirm t ?pool level =
   let confirmed =
@@ -133,12 +169,18 @@ let confirm t ?pool level =
   match pool with
   | None -> Lwt.return_unit
   | Some pool ->
-    let res = Pool.get ~switch:t.switch pool in
+    let res = Pool.get ~on_cancel:(on_cancel t) ~switch:t.switch pool in
     if Lwt.is_sleeping res then (
       log t "Waiting for resource in pool %a" Pool.pp pool;
       res >|= fun () ->
       log t "Got resource from pool %a" Pool.pp pool
     ) else res
+
+let pp_duration f d =
+  let d = Duration.to_f d in
+  if d > 120.0 then Fmt.pf f "%.1f minutes" (d /. 60.)
+  else if d > 2.0 then Fmt.pf f "%.1f seconds" d
+  else Fmt.pf f "%f seconds" d
 
 let start ?timeout ?pool ~level t =
   confirm t ?pool level >|= fun () ->
@@ -147,7 +189,15 @@ let start ?timeout ?pool ~level t =
     Fmt.failwith "Job.start called twice!"
   );
   Lwt.wakeup t.set_start_time (!timestamp ());
-  Option.iter (Switch.add_timeout t.switch) timeout
+  timeout |> Option.iter (fun duration ->
+      (* We could be smarter about this and cancel the timeout when the switch is turned off. *)
+      Lwt.async (fun () ->
+          Lwt_unix.sleep (Duration.to_f duration) >|= fun () ->
+          match t.cancel_hooks with
+          | `Cancelled _ -> ()
+          | `Hooks _ -> cancel t (Fmt.strf "Timeout (%a)" pp_duration duration)
+        )
+    )
 
 let start_time t = t.start_time
 
@@ -162,3 +212,8 @@ let approve_early_start t =
   | Lwt.Sleep -> Lwt.wakeup t.set_explicit_confirm ()
   | Lwt.Return () -> ()
   | Lwt.Fail ex -> raise ex
+
+let cancelled_state t =
+  match t.cancel_hooks with
+  | `Cancelled reason -> Error (`Msg reason)
+  | `Hooks _ -> Ok ()

@@ -84,19 +84,30 @@ let copy_to_log ~job src =
   in
   aux ()
 
-let exec ?switch ?(stdin="") ?pp_error_command ~job cmd =
+let add_shutdown_hooks ~cancellable ~job ~cmd proc =
+  if cancellable then (
+    Job.on_cancel job (fun reason ->
+        if proc#state = Lwt_process.Running then (
+          Log.info (fun f -> f "Cancelling %a (%s)" pp_cmd cmd reason);
+          proc#terminate;
+        );
+        Lwt.return_unit
+      )
+  ) else (
+    (* Always terminate process if the job ends: *)
+    Switch.add_hook_or_exec job.Job.switch (fun _reason ->
+        if proc#state = Lwt_process.Running then proc#terminate;
+        Lwt.return_unit
+      )
+  )
+
+let exec ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
   let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process ~stderr:(`FD_copy Unix.stdout) cmd in
   let copy_thread = copy_to_log ~job proc#stdout in
-  Switch.add_hook_or_exec_opt switch (fun _reason ->
-      if proc#state = Lwt_process.Running then (
-        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
-        proc#terminate;
-      );
-      Lwt.return_unit
-    ) >>= fun () ->
+  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   send_to proc#stdin stdin >>= fun stdin_result ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
@@ -104,20 +115,14 @@ let exec ?switch ?(stdin="") ?pp_error_command ~job cmd =
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?switch ?cwd ?(stdin="") ?pp_error_command ~job cmd =
+let check_output ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
   let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_full ?cwd cmd in
   let copy_thread = copy_to_log ~job proc#stderr in
-  Switch.add_hook_or_exec_opt switch (fun _reason ->
-      if proc#state = Lwt_process.Running then (
-        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
-        proc#terminate;
-      );
-      Lwt.return_unit
-    ) >>= fun () ->
+  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   let reader = Lwt_io.read proc#stdout in
   send_to proc#stdin stdin >>= fun stdin_result ->
   reader >>= fun stdout ->

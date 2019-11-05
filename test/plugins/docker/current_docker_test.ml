@@ -55,17 +55,15 @@ module Run = struct
 
   let pp = Key.pp
 
-  let build ~switch No_context job (key : Key.t) =
+  let build No_context job (key : Key.t) =
     Current.Job.start job ~level:Current.Level.Average >>= fun () ->
     let ready, set_ready = Lwt.wait () in
     containers := Containers.add key set_ready !containers;
-    Current.Switch.add_hook_or_exec switch (function
-        | Ok () -> Lwt.return_unit
-        | Error (`Msg m) ->
-          if Lwt.state ready = Lwt.Sleep then (
-            Lwt.wakeup set_ready @@ Error (`Msg m);
-          );
-          Lwt.return_unit
+    Current.Job.on_cancel job (fun m ->
+        if Lwt.state ready = Lwt.Sleep then (
+          Lwt.wakeup set_ready @@ Error (`Msg m);
+        );
+        Lwt.return_unit
       )
     >>= fun () ->
     ready
@@ -96,7 +94,7 @@ module Push = struct
 
   let pp f k = Fmt.pf f "docker push %a" Key.pp k
 
-  let build ~switch:_ No_context job _key =
+  let build No_context job _key =
     Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
     Lwt.return (Ok ())
 

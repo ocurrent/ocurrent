@@ -19,7 +19,7 @@ module Build = struct
 
   let pp = Fmt.string
 
-  let build ~switch:_ t job key =
+  let build t job key =
     Current.Job.start job ~level:Current.Level.Average >>= fun () ->
     if Builds.mem key !t then Fmt.failwith "Already building %s!" key;
     let finished, set_finished = Lwt.wait () in
@@ -209,7 +209,7 @@ module Publish = struct
       t.next <- "unset";
       Lwt.wakeup set_finished v
 
-  let publish ~switch t job key value =
+  let publish t job key value =
     Logs.info (fun f -> f "test_cache.publish");
     assert (key = "foo");
     assert (t.set_finished = None);
@@ -218,16 +218,14 @@ module Publish = struct
     t.set_finished <- Some set_finished;
     t.state <- t.state ^ "-changing";
     t.next <- value;
-    Current.Switch.add_hook_or_exec switch (function
-        | Ok () -> Lwt.return_unit
-        | Error (`Msg reason) as e ->
-          Logs.info (fun f -> f "Cancelling: %s" reason);
-          t.state <- "cancelled";
-          complete t e;
-          Lwt.return_unit
+    Current.Job.with_handler job
+      (fun () -> finished)
+      ~on_cancel:(fun reason ->
+        Logs.info (fun f -> f "Cancelling: %s" reason);
+        t.state <- "cancelled";
+        complete t (Error (`Msg reason));
+        Lwt.return_unit
       )
-    >>= fun () ->
-    finished
 
   let pp f (k, v) =
     Fmt.pf f "Set %s to %s" k v

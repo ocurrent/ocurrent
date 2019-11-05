@@ -8,7 +8,7 @@ module Key = Current.String
 module Value = Current.String
 module Outcome = Current.Unit
 
-let publish ~switch:_ t job _key message =
+let publish t job _key message =
   Current.Job.start job ~level:Current.Level.Above_average >>= fun () ->
   let headers = Cohttp.Header.of_list [
       "Content-type", "application/json";

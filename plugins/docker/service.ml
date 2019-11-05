@@ -29,9 +29,9 @@ module Outcome = Current.Unit
 let cmd { Key.name; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["service"; "update"; "--image"; Image.hash image; name]
 
-let publish ~switch No_context job key value =
+let publish No_context job key value =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  Current.Process.exec ~switch ~job (cmd key value)
+  Current.Process.exec ~cancellable:true ~job (cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (cmd key value)
