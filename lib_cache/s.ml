@@ -38,12 +38,10 @@ module type BUILDER = sig
   (** The result of a build. *)
 
   val build :
-    switch:Current.Switch.t ->
     t -> Current.Job.t -> Key.t ->
     Value.t Current.or_error Lwt.t
-  (** [build ~switch t j k] builds [k].
+  (** [build t j k] builds [k].
       Call [Job.start j] once any required resources have been acquired.
-      If the switch is turned off, the build should be cancelled.
       Log messages can be written to [j]. *)
 
   val pp : Key.t Fmt.t
@@ -67,11 +65,10 @@ module type PUBLISHER = sig
       Usually this is just [Current.Unit]. *)
 
   val publish :
-    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
+    t -> Current.Job.t -> Key.t -> Value.t ->
     Outcome.t Current.or_error Lwt.t
-  (** [publish ~switch t j k v] sets output [k] to value [v].
+  (** [publish t j k v] sets output [k] to value [v].
       Call [Job.start j] once any required resources have been acquired.
-      If the switch is turned off, the operation should be cancelled.
       Log messages can be written to [j]. *)
 
   val pp : (Key.t * Value.t) Fmt.t

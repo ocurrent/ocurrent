@@ -50,10 +50,10 @@ let check t =
       Lwt.wakeup_later waiter `Use
   )
 
-let get ~switch t =
+let get ~on_cancel ~switch t =
   let ready, set_ready = Lwt.wait () in
   let node = Lwt_dllist.add_r set_ready t.queue in
-  Switch.add_hook_or_exec switch (fun _ex ->
+  on_cancel (fun _ ->
       Lwt_dllist.remove node;
       if Lwt.is_sleeping ready then Lwt.wakeup_later set_ready `Cancel;
       Lwt.return_unit

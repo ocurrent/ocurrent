@@ -28,9 +28,9 @@ end
 
 module Value = Current.Unit
 
-let build ~switch No_context job key =
+let build No_context job key =
   Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-  Current.Process.exec ~switch ~job (Key.cmd key)
+  Current.Process.exec ~cancellable:true ~job (Key.cmd key)
 
 let pp = Key.pp
 

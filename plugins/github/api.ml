@@ -435,7 +435,7 @@ module Commit = struct
         context
         Value.pp status
 
-    let publish ~switch:_ t job key status =
+    let publish t job key status =
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       let {Key.commit; context} = key in
       let body = `Assoc (("context", `String context) :: Value.json_items status) in

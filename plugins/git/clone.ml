@@ -31,17 +31,17 @@ let repo_lock repo =
 
 let id = "git-clone"
 
-let build ~switch No_context job { Key.repo; gref } =
+let build No_context job { Key.repo; gref } =
   Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin
     if Cmd.dir_exists local_repo
-    then Cmd.git_fetch ~switch ~job ~src:repo ~dst:local_repo (Fmt.strf "%s:refs/remotes/origin/%s" gref gref)
-    else Cmd.git_clone ~switch ~job ~src:repo local_repo
+    then Cmd.git_fetch ~cancellable:true ~job ~src:repo ~dst:local_repo (Fmt.strf "%s:refs/remotes/origin/%s" gref gref)
+    else Cmd.git_clone ~cancellable:true ~job ~src:repo local_repo
   end >>!= fun () ->
-  Cmd.git_rev_parse ~switch ~job ~repo:local_repo ("origin/" ^ gref) >>!= fun hash ->
+  Cmd.git_rev_parse ~cancellable:true ~job ~repo:local_repo ("origin/" ^ gref) >>!= fun hash ->
   let id = { Commit_id.repo; gref; hash } in
   Lwt.return @@ Ok { Commit.repo = local_repo; id }
 

@@ -192,7 +192,7 @@ end
 
 module Switch : sig
   (** Like [Lwt_switch], but the cleanup functions are called in sequence, not
-      in parallel, and a reason for the shutdown may be given. *)
+      in parallel. *)
 
   type t
   (** A switch limits the lifetime of an operation.
@@ -203,33 +203,24 @@ module Switch : sig
   (** [create ~label ()] is a fresh switch, initially on.
       @param label If the switch is GC'd while on, this is logged in the error message. *)
 
-  val create_off : unit or_error -> t
-  (** [create_off reason] is a fresh switch, initially (and always) off. *)
+  val create_off : unit -> t
+  (** [create_off ()] is a fresh switch, initially (and always) off. *)
 
-  val add_hook_or_exec : t -> (unit or_error -> unit Lwt.t) -> unit Lwt.t
+  val add_hook_or_exec : t -> (unit -> unit Lwt.t) -> unit Lwt.t
   (** [add_hook_or_exec switch fn] pushes [fn] on to the stack of functions to call
       when [t] is turned off. If [t] is already off, calls [fn] immediately.
       If [t] is in the process of being turned off, waits for that to complete
       and then runs [fn]. *)
 
-  val add_hook_or_exec_opt : t option -> (unit or_error -> unit Lwt.t) -> unit Lwt.t
-  (** [add_hook_or_exec_opt] is like [add_hook_or_exec], but does nothing if the switch
-      is [None]. *)
-
-  val turn_off : t -> unit or_error -> unit Lwt.t
-  (** [turn_off t reason] marks the switch as being turned off, then pops and
+  val turn_off : t -> unit Lwt.t
+  (** [turn_off t] marks the switch as being turned off, then pops and
       calls clean-up functions in order. When the last one finishes, the switch
-      is marked as off and cannot be used again. [reason] is passed to the
-      cleanup functions, which may be useful for logging. If the switch is
-      already off, this does nothing. If the switch is already being turned
-      off, it just waits for that to complete. *)
+      is marked as off and cannot be used again. If the switch is already off,
+      this does nothing. If the switch is already being turned off, it just
+      waits for that to complete. *)
 
   val is_on : t -> bool
   (** [is_on t] is [true] if [turn_off t] hasn't yet been called. *)
-
-  val add_timeout : t -> Duration.t -> unit
-  (** [add_timeout t duration] adds a timeout that will wait for [duration] and
-      then turn off the switch. *)
 
   val pp : t Fmt.t
   (** Prints the state of the switch (for debugging). *)
@@ -295,6 +286,24 @@ module Job : sig
   val is_waiting_for_confirmation : t -> bool
   (** Indicates whether the job would benefit from [approve_early_start] being called. *)
 
+  val on_cancel : t -> (string -> unit Lwt.t) -> unit Lwt.t
+  (** [on_cancel t fn] calls [fn reason] if the job is cancelled.
+      If the job has already been cancelled, [fn] is called immediately.
+      If a job finishes without being cancelled, the cancel hooks are run at the end anyway. *)
+
+  val with_handler : t -> on_cancel:(string -> unit Lwt.t) -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_handler t ~on_cancel fn] is like [fn ()], but if the job is cancelled while [fn] is running
+      then [on_cancel reason] is called. Even if cancelled, [fn] is still run to completion.
+      If the job has already been cancelled then [fn reason] is called immediately (but [fn] still runs). *)
+
+  val cancel : t -> string -> unit
+  (** [cancel msg] requests that [t] be cancelled. This runs all registered cancel hooks and marks the job as cancelled.
+      If the job is already cancelled, this has no effect. *)
+
+  val cancelled_state : t -> unit or_error
+  (** [cancelled_state t] is [Ok ()] if the job hasn't been cancelled, or [Error (`Msg reason)] if it has.
+      This should not be used after the switch has been turned off. *)
+
   (**/**)
 
   (* For unit tests we need our own test clock: *)
@@ -305,19 +314,21 @@ end
 
 module Process : sig
   val exec :
-    ?switch:Switch.t -> ?stdin:string ->
+    ?stdin:string ->
     ?pp_error_command:(Format.formatter -> unit) ->
+    cancellable:bool ->
     job:Job.t -> Lwt_process.command ->
     unit or_error Lwt.t
   (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
-      @param switch If this is turned off, the process is terminated.
+      @param cancellable Should the process be terminated if the job is cancelled?
       @param stdin Data to write to stdin before closing it.
       @param pp_error_command Format the command for an error message.
         The default is to print "Command $cmd". *)
 
   val check_output :
-    ?switch:Switch.t -> ?cwd:Fpath.t -> ?stdin:string ->
+    ?cwd:Fpath.t -> ?stdin:string ->
     ?pp_error_command:(Format.formatter -> unit) ->
+    cancellable:bool ->
     job:Job.t -> Lwt_process.command ->
     string or_error Lwt.t
   (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
