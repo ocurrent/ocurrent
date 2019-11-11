@@ -1,6 +1,8 @@
 open Lwt.Infix
 
-type t = No_context
+type t = {
+  pool : Current.Pool.t option;
+}
 
 let id = "docker-run"
 
@@ -28,8 +30,8 @@ end
 
 module Value = Current.Unit
 
-let build No_context job key =
-  Current.Job.start job ~level:Current.Level.Average >>= fun () ->
+let build { pool } job key =
+  Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
   Current.Process.exec ~cancellable:true ~job (Key.cmd key)
 
 let pp = Key.pp
