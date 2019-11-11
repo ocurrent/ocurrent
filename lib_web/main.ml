@@ -1,5 +1,9 @@
 open Tyxml.Html
 
+let csrf_token =
+  Random.self_init ();
+  Random.int64 Int64.max_int |> Int64.to_string
+
 let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
 
 let render_result = function
@@ -44,6 +48,7 @@ let settings config =
       let sel = if selected = None then [a_selected ()] else [] in
       option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: List.rev levels
     );
+    input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf_token] ();
     input ~a:[a_input_type `Submit; a_value "Submit"] ();
   ]
 

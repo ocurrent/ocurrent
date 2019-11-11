@@ -79,19 +79,19 @@ let render_svg a =
   | Unix.WSTOPPED i
   | Unix.WSIGNALED i -> errorf "dot crashed (signal %d)" i
 
-let set_confirm config body =
-  let q = Uri.of_string ("/?" ^ body) in
-  match Uri.get_query_param q "level" with
-  | None -> respond_error `Bad_request "Missing level"
-  | Some "none" ->
+let set_confirm config data =
+  match List.assoc_opt "level" data |> Option.value ~default:[] with
+  | ["none"] ->
     Current.Config.set_confirm config None;
     Server.respond_redirect ~uri:(Uri.of_string "/") ()
-  | Some level ->
-    match Current.Level.of_string level with
-    | Error (`Msg msg) -> respond_error `Bad_request msg
-    | Ok level ->
-      Current.Config.set_confirm config (Some level);
-      Server.respond_redirect ~uri:(Uri.of_string "/") ()
+  | [level] ->
+    begin match Current.Level.of_string level with
+      | Error (`Msg msg) -> respond_error `Bad_request msg
+      | Ok level ->
+        Current.Config.set_confirm config (Some level);
+        Server.respond_redirect ~uri:(Uri.of_string "/") ()
+    end
+  | _ -> respond_error `Bad_request "Missing level"
 
 let handle_request ~engine ~webhooks _conn request body =
   match Lwt.state (Current.Engine.thread engine) with
@@ -104,7 +104,44 @@ let handle_request ~engine ~webhooks _conn request body =
     let uri = Cohttp.Request.uri request in
     let path = Uri.path uri in
     Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
-    match meth, String.cuts ~sep:"/" ~empty:false path with
+    let path = String.cuts ~sep:"/" ~empty:false path in
+    match meth, path with
+    | `POST, ["webhooks"; hook] ->
+      begin match List.assoc_opt hook (webhooks : webhook list) with
+        | Some f -> f request body
+        | None -> Server.respond_not_found ()
+      end
+    | `POST, path ->
+      begin
+        Cohttp_lwt.Body.to_string body >>= fun data ->
+        let data = Uri.query_of_encoded data in
+        match List.assoc_opt "csrf" data |> Option.value ~default:[] with
+        | [got] when got = Main.csrf_token ->
+          begin match path with
+            | ["job"; date; log; "rebuild"] ->
+              let job_id = Fmt.strf "%s/%s" date log in
+              let actions = lookup_actions ~engine job_id in
+              rebuild_job ~actions job_id
+            | ["job"; date; log; "cancel"] ->
+              let job_id = Fmt.strf "%s/%s" date log in
+              let actions = lookup_actions ~engine job_id in
+              cancel_job ~actions job_id
+            | ["job"; date; log; "start"] ->
+              let job_id = Fmt.strf "%s/%s" date log in
+              begin match Current.Job.lookup_running job_id with
+                | Some j -> start_job j
+                | None -> respond_error `Bad_request "Job is not awaiting confirmation"
+              end
+            | ["set"; "confirm"] ->
+              set_confirm (Current.Engine.config engine) data
+            | ["log-rules"] ->
+              Log_rules.handle_post data
+            | _ ->
+              Server.respond_not_found ()
+          end
+        | _ ->
+          respond_error `Bad_request "Bad CSRF token"
+      end
     | `GET, ([] | ["index.html"]) ->
       let body = Main.dashboard engine in
       Server.respond_string ~status:`OK ~body ()
@@ -112,23 +149,6 @@ let handle_request ~engine ~webhooks _conn request body =
       let job_id = Fmt.strf "%s/%s" date log in
       let actions = lookup_actions ~engine job_id in
       get_job ~actions job_id
-    | `POST, ["job"; date; log; "rebuild"] ->
-      let job_id = Fmt.strf "%s/%s" date log in
-      let actions = lookup_actions ~engine job_id in
-      rebuild_job ~actions job_id
-    | `POST, ["job"; date; log; "cancel"] ->
-      let job_id = Fmt.strf "%s/%s" date log in
-      let actions = lookup_actions ~engine job_id in
-      cancel_job ~actions job_id
-    | `POST, ["job"; date; log; "start"] ->
-      let job_id = Fmt.strf "%s/%s" date log in
-      begin match Current.Job.lookup_running job_id with
-        | Some j -> start_job j
-        | None -> respond_error `Bad_request "Job is not awaiting confirmation"
-      end
-    | `POST, ["set"; "confirm"] ->
-      Cohttp_lwt.Body.to_string body >>= fun body ->
-      set_confirm (Current.Engine.config engine) body
     | `GET, ["css"; "style.css"] ->
       Style.get ()
     | `GET, ["pipeline.svg"] ->
@@ -146,18 +166,13 @@ let handle_request ~engine ~webhooks _conn request body =
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["log-rules"] ->
       Log_rules.render ()
-    | `POST, ["log-rules"] ->
-      Cohttp_lwt.Body.to_string body >>= Log_rules.handle_post
     | `GET, ["metrics"] ->
       let data = Prometheus.CollectorRegistry.(collect default) in
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in
       Server.respond_string ~status:`OK ~headers ~body ()
-    | `POST, ["webhooks"; hook] ->
-      begin match List.assoc_opt hook (webhooks : webhook list) with
-        | Some f -> f request body
-        | None -> Server.respond_not_found ()
-      end
+    | (`HEAD | `PUT | `OPTIONS | `CONNECT | `TRACE | `DELETE | `PATCH | `Other _), _ ->
+      respond_error `Bad_request "Bad method"
     | _ ->
       Server.respond_not_found ()
 

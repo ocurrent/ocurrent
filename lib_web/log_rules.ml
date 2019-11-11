@@ -112,13 +112,13 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") () =
           input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
           input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
           input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
+          input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Main.csrf_token] ();
         ]
       ] @ [pattern_hints] @ test_results)
   in
   Server.respond_string ~status:`OK ~body ()
 
 let handle_post data =
-  let data = Uri.query_of_encoded data in
   let pattern = List.assoc_opt "pattern" data |> Option.value ~default:[] in
   let report = List.assoc_opt "report" data |> Option.value ~default:[] in
   let score = List.assoc_opt "score" data |> Option.value ~default:[] in
