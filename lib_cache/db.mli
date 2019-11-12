@@ -26,6 +26,8 @@ val record :
     @param running When the job started running.
     @param finished When the job stopped running (i.e. now). *)
 
+val init : unit -> unit
+
 val lookup : op:string -> string -> entry option
 (** [lookup ~op key] returns the most recently stored result for [op] and [key], if any. *)
 

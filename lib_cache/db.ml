@@ -61,6 +61,9 @@ let db = lazy (
   { db; record; invalidate; drop; lookup }
 )
 
+let init () =
+  ignore (Lazy.force db)
+
 let record ~op ~key ~value ~job_id ~ready ~running ~finished ~build outcome =
   let ok, outcome =
     match outcome with

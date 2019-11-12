@@ -44,6 +44,10 @@ module Db : sig
     rebuild : bool;           (* If [true], then a rebuild was requested. *)
   }
 
+  val init : unit -> unit
+  (** Ensure that the database tables have been created.
+      This is useful if you need to refer to them in your own SQL. *)
+
   val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> unit -> entry list
   (** Search the database for matching records.
       @param op : if present, restrict to results from the named builder or publisher
