@@ -5,9 +5,9 @@ module Make (Job : sig type id end) : sig
 
   type state =
     | Blocked
-    | Active
+    | Active of Output.active
     | Pass
-    | Fail
+    | Fail of string
 
   type env
 
@@ -20,22 +20,27 @@ module Make (Job : sig type id end) : sig
      passed to a [bind]. All static values created within this environment get an
      implicit dependency on [b]. *)
 
-  val blocked    : env:env -> unit -> t
-  val return     : env:env -> string option -> t
-  val fail       : env:env -> unit -> t
-  val state      : env:env -> t -> t
-  val catch      : env:env -> t -> t
-  val pending    : env:env -> unit -> t
-  val of_output  : env:env -> _ Output.t -> t
-  val pair       : env:env -> t -> t -> t
-  val bind       : env:env -> ?info:string -> t -> state -> t
-  val bind_input : env:env -> info:string -> t -> state -> t
-  val list_map   : env:env -> f:t -> t -> t
-  val gate       : env:env -> on:t -> t -> t
+  val return       : env:env -> string option -> t
+  val fail         : env:env -> string -> t
+  val map_input    : env:env -> t -> (string, [`Blocked | `Empty_list]) result -> t
+  val map_failed   : env:env -> t -> string -> t
+  val option_input : env:env -> t -> [`Blocked | `Selected | `Not_selected] -> t
+  val state        : env:env -> t -> t
+  val catch        : env:env -> t -> t
+  val active       : env:env -> Output.active -> t
+  val of_output    : env:env -> _ Output.t -> t
+  val pair         : env:env -> t -> t -> t
+  val bind         : env:env -> ?info:string -> t -> state -> t
+  val bind_input   : env:env -> info:string -> t -> state -> t
+  val list_map     : env:env -> f:t -> t -> t
+  val option_map   : env:env -> f:t -> t -> t
+  val gate         : env:env -> on:t -> t -> t
 
   val booting : t
 
   val set_state : t -> ?id:Job.id -> state -> unit
+
+  val job_id : t -> Job.id option
 
   val pp : t Fmt.t
   val pp_dot : url:(Job.id -> string option) -> t Fmt.t

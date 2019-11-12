@@ -7,6 +7,14 @@ module Commit_id : sig
   (** [v ~repo ~gref ~hash] identifies a commit that can be fetched from [repo]
       using [gref] as the reference name and has hash [hash]. *)
 
+  val repo : t -> string
+  (** [repo t] is the Git URI of the repository. *)
+
+  val gref : t -> string
+
+  val hash : t -> string
+  (* [hash t] is the Git commit hash. *)
+
   val equal : t -> t -> bool
   val pp : t Fmt.t
   val digest : t -> string
@@ -30,15 +38,17 @@ module Commit : sig
       [hash] must be an ancestor of [t] (this isn't checked currently). *)
 end
 
+val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commit.t Current.t
+(** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master"). *)
+
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
-  switch:Current.Switch.t ->
   job:Current.Job.t ->
   Commit.t ->
   (Fpath.t -> 'a Current.or_error Lwt.t) ->
   'a Current.or_error Lwt.t
-(** [with_checkout ~switch ~job c fn] clones [c] to a temporary directory and runs [fn tmpdir].
+(** [with_checkout ~job c fn] clones [c] to a temporary directory and runs [fn tmpdir].
     When it returns, the directory is deleted. *)
 
 module Local : sig

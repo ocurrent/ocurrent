@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 type t = No_context
 
 let id = "docker-service"
@@ -5,7 +7,7 @@ let id = "docker-service"
 module Key = struct
   type t = {
     name : string;
-    docker_host : string option;
+    docker_context : string option;
   } [@@deriving to_yojson]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
@@ -22,15 +24,16 @@ module Value = struct
     ]
 end
 
-let cmd { Key.name; docker_host } { Value.image } =
-  Cmd.docker ~docker_host ["service"; "update"; "--image"; Image.hash image; name]
+module Outcome = Current.Unit
 
-let publish ~switch No_context job key value =
-  Current.Process.exec ~switch ~job (cmd key value)
+let cmd { Key.name; docker_context } { Value.image } =
+  Cmd.docker ~docker_context ["service"; "update"; "--image"; Image.hash image; name]
+
+let publish No_context job key value =
+  Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
+  Current.Process.exec ~cancellable:true ~job (cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (cmd key value)
 
 let auto_cancel = false
-
-let level No_context _key _value = Current.Level.Dangerous

@@ -1,20 +1,21 @@
 open Current.Syntax
 
-type source = Current_git.Commit.t
-
 module S = S
+
+let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,") string)
 
 module Make (Host : S.HOST) = struct
   module Image = Image
 
   module PC = Current_cache.Make(Pull)
 
-  let docker_host = Host.docker_host
+  let docker_context = Host.docker_context
 
-  let pull ~schedule tag =
-    Current.component "pull %s" tag |>
+  let pull ?label ~schedule tag =
+    let label = Option.value label ~default:tag in
+    Current.component "pull %s" label |>
     let> () = Current.return () in
-    PC.get ~schedule Pull.No_context { Pull.Key.docker_host; tag }
+    PC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag }
 
   module BC = Current_cache.Make(Build)
 
@@ -24,40 +25,53 @@ module Make (Host : S.HOST) = struct
     | None -> None
     | Some x -> Some (f x)
 
-  let build ?schedule ?label ?dockerfile ~pull src =
+  let get_build_context = function
+    | `No_context -> Current.return `No_context
+    | `Git commit -> Current.map (fun x -> `Git x) commit
+
+  let build ?schedule ?timeout ?(squash=false) ?label ?dockerfile ?pool ~pull src =
     Current.component "build%a" pp_sp_label label |>
-    let> commit = src
+    let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-    BC.get ?schedule { Build.pull } { Build.Key.commit; dockerfile; docker_host }
+    BC.get ?schedule { Build.pull; pool; timeout } { Build.Key.commit; dockerfile; docker_context; squash }
 
   module RC = Current_cache.Make(Run)
 
-  let run image ~args =
-    Current.component "run" |>
+  let run ?label ?pool image ~args =
+    Current.component "run%a" pp_sp_label label |>
     let> image = image in
-    RC.get Run.No_context { Run.Key.image; args; docker_host }
+    RC.get { Run.pool } { Run.Key.image; args; docker_context }
 
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
-    Current.component "docker-tag %s" tag |>
+    Current.component "docker-tag@,%a" pp_tag tag |>
     let> image = image in
-    TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Tag }
+    TC.set Tag.No_context { Tag.Key.tag; docker_context } { Tag.Value.image }
 
-  let push ~tag image =
-    Current.component "docker-push %s" tag |>
+  module Push_cache = Current_cache.Output(Push)
+
+  let push ?auth ~tag image =
+    Current.component "docker-push@,%a" pp_tag tag |>
     let> image = image in
-    TC.set Tag.No_context { Tag.Key.tag; docker_host } { Tag.Value.image; op = `Push }
+    Push_cache.set auth { Push.Key.tag; docker_context } { Push.Value.image }
 
   module SC = Current_cache.Output(Service)
 
   let service ~name ~image () =
-    Current.component "docker-service %s" name |>
+    Current.component "docker-service@,%s" name |>
     let> image = image in
-    SC.set Service.No_context { Service.Key.name; docker_host } { Service.Value.image }
+    SC.set Service.No_context { Service.Key.name; docker_context } { Service.Value.image }
 end
 
 module Default = Make(struct
-    let docker_host = Sys.getenv_opt "DOCKER_HOST"
+    let docker_context = Sys.getenv_opt "DOCKER_CONTEXT"
   end)
+
+module MC = Current_cache.Output(Push_manifest)
+
+let push_manifest ?auth ~tag manifests =
+  Current.component "docker-push-manifest@,%a" pp_tag tag |>
+  let> manifests = Current.list_seq manifests in
+  MC.set auth tag { Push_manifest.Value.manifests }

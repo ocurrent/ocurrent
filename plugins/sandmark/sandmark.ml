@@ -2,12 +2,7 @@ open Lwt.Infix
 
 let id = "sandmark"
 
-type t = {
-  mutable free_workers : string list;
-  cond : unit Lwt_condition.t;
-}
-
-let create free_workers = { free_workers; cond = Lwt_condition.create () }
+type t = Current.Pool.t
 
 let sandmark_pre_exec ~bench_core ~arch = 
   Fmt.strf "taskset --cpu-list %S setarch %S --addr-no-randomize" bench_core arch
@@ -66,29 +61,9 @@ let maybe name = function
 let cmd _key =
   [ "sleep"; "1h" ]
 
-let with_worker ~job t f =
-  let rec loop () =
-    match t.free_workers with
-    | w :: ws ->
-      t.free_workers <- ws;
-      Current.Job.log job "Acquired worker %S" w;
-      Lwt.finalize
-        (fun () -> f w)
-        (fun () ->
-           t.free_workers <- w :: t.free_workers;
-           Lwt_condition.signal t.cond ();
-           Lwt.return_unit
-        )
-    | [] ->
-      Current.Job.log job "Waiting for free worker...";
-      Lwt_condition.wait t.cond >>= loop
-  in loop ()
-
-let build ~switch workers job key =
-  with_worker ~job workers @@ fun _worker ->
-  Current.Process.exec ~switch ~job ("", Array.of_list (cmd key))
-
-let level _ _ = Current.Level.Mostly_harmless
+let build pool job key =
+  Current.Job.start job ~pool ~level:Current.Level.Average >>= fun () ->
+  Current.Process.exec ~cancellable:true ~job ("", Array.of_list (cmd key))
 
 let auto_cancel = true
 

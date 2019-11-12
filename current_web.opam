@@ -1,0 +1,24 @@
+opam-version: "2.0"
+synopsis: "Test web UI for OCurrent"
+maintainer: "talex5@gmail.com"
+authors: "talex5@gmail.com"
+homepage: "https://github.com/ocaml-ci/ocurrent"
+bug-reports: "https://github.com/ocaml-ci/ocurrent/issues"
+dev-repo: "git+https://github.com/ocaml-ci/ocurrent.git"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+depends: [
+  "current" {= version}
+  "current_ansi" {= version}
+  "ocaml" {>= "4.08.0"}
+  "fmt"
+  "bos"
+  "lwt"
+  "cmdliner"
+  "prometheus-app"
+  "cohttp-lwt-unix" {>= "2.2.0"}
+  "tyxml"
+  "dune"
+]

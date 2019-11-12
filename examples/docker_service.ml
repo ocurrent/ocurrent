@@ -22,7 +22,7 @@ let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
    at least once a week, and redeploy [service] on changes. *)
 let pipeline ~repo ~service () =
   let src = Git.Local.head_commit repo in
-  let image = Docker.build ~schedule:weekly ~pull:true src in
+  let image = Docker.build ~schedule:weekly ~pull:true (`Git src) in
   Docker.service ~name:service ~image ()
 
 let main config mode service repo =

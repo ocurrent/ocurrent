@@ -1,4 +1,3 @@
 (library
   (name current_opam_test)
-  (libraries current current_git_test)
-  (preprocess future_syntax))
+  (libraries current current_git_test))

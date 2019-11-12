@@ -1,7 +1,10 @@
 .merlin
-_build
+_build/
+_opam/
+svg/
+var/
 /*.install
-svg
-var
 pipeline.dot
 pipeline.svg
+*.cap
+secret-key.pem

@@ -4,5 +4,4 @@
   (libraries fmt bos)
   (preprocess (per_module
                 ((pps ppx_deriving.std) output)
-                (future_syntax current_term s)
               )))

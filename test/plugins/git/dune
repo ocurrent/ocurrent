@@ -1,4 +1,3 @@
 (library
   (name current_git_test)
-  (libraries current current_cache)
-  (preprocess future_syntax))
+  (libraries current current.cache))

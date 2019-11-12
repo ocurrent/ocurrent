@@ -3,7 +3,7 @@ module Sandmark = Current_sandmark
 
 let () = Logging.init ()
 
-let workers = Sandmark.create_pool ["localhost"]
+let pool = Current.Pool.create ~label:"benchmark" 1
 
 (* Run [cmd] and return the first line it produces. *)
 let pread cmd = 
@@ -24,7 +24,7 @@ let config =
 (* Benchmark recent commits on the branch with the given head. *)
 let benchmark_branch ~config head =
   Sandmark.recent_commits ~n:5 head
-  |> Current.list_iter ~pp:Git.Commit.pp_short (Sandmark.sandmark ~workers ~config)
+  |> Current.list_iter ~pp:Git.Commit.pp_short (Sandmark.sandmark ~pool ~config)
 
 (* Benchmark recent commits on all interesting branches. *)
 let pipeline ~repo () =
@@ -57,8 +57,8 @@ let main config mode repo =
 open Cmdliner
 
 let repo =
-  Arg.value @@
-  Arg.pos 0 Arg.dir (Sys.getcwd ()) @@
+  Arg.required @@
+  Arg.pos 0 Arg.(some dir) None @@
   Arg.info
     ~doc:"The directory containing the .git subdirectory."
     ~docv:"DIR"

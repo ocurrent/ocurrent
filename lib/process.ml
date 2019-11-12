@@ -21,10 +21,10 @@ let pp_signal f x =
 
 let check_status cmd = function
   | Unix.WEXITED 0 -> Ok ()
-  | Unix.WEXITED x -> failf "Command %a exited with status %d" pp_cmd cmd x
-  | Unix.WSIGNALED x -> failf "Command %a failed with signal %d" pp_cmd cmd x
+  | Unix.WEXITED x -> failf "%t exited with status %d" cmd x
+  | Unix.WSIGNALED x -> failf "%t failed with signal %d" cmd x
   | Unix.WSTOPPED x ->
-      failf "Command %a stopped with signal %a" pp_cmd cmd pp_signal x
+      failf "%t stopped with signal %a" cmd pp_signal x
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
@@ -74,44 +74,61 @@ let send_to ch contents =
     (fun () -> Lwt.return (Ok ()))
     (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
 
-let exec ?switch ?(stdin="") ~job cmd =
-  let log_fd = Job.fd job in
-  let stdout = `FD_copy log_fd in
-  let stderr = `FD_copy log_fd in
+let pp_command cmd f = Fmt.pf f "Command %a" pp_cmd cmd
+
+let copy_to_log ~job src =
+  let rec aux () =
+    Lwt_io.read ~count:4096 src >>= function
+    | "" -> Lwt.return_unit
+    | data -> Job.write job data; aux ()
+  in
+  aux ()
+
+let add_shutdown_hooks ~cancellable ~job ~cmd proc =
+  if cancellable then (
+    Job.on_cancel job (fun reason ->
+        if proc#state = Lwt_process.Running then (
+          Log.info (fun f -> f "Cancelling %a (%s)" pp_cmd cmd reason);
+          proc#terminate;
+        );
+        Lwt.return_unit
+      )
+  ) else (
+    (* Always terminate process if the job ends: *)
+    Switch.add_hook_or_exec job.Job.switch (fun _reason ->
+        if proc#state = Lwt_process.Running then proc#terminate;
+        Lwt.return_unit
+      )
+  )
+
+let exec ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process_out ~stdout ~stderr cmd in
-  Switch.add_hook_or_exec_opt switch (fun _reason ->
-      if proc#state = Lwt_process.Running then (
-        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
-        proc#terminate;
-      );
-      Lwt.return_unit
-    ) >>= fun () ->
+  let proc = Lwt_process.open_process ~stderr:(`FD_copy Unix.stdout) cmd in
+  let copy_thread = copy_to_log ~job proc#stdout in
+  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   send_to proc#stdin stdin >>= fun stdin_result ->
+  copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status cmd status with
+  match check_status pp_error_command status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?switch ?(stdin="") ~job cmd =
-  let log_fd = Job.fd job in
-  let stderr = `FD_copy log_fd in
+let check_output ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
+  let cwd = Option.map Fpath.to_string cwd in
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ~stderr cmd in
-  Switch.add_hook_or_exec_opt switch (fun _reason ->
-      if proc#state = Lwt_process.Running then (
-        Log.info (fun f -> f "Cancelling %a" pp_cmd cmd);
-        proc#terminate;
-      );
-      Lwt.return_unit
-    ) >>= fun () ->
+  let proc = Lwt_process.open_process_full ?cwd cmd in
+  let copy_thread = copy_to_log ~job proc#stderr in
+  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   let reader = Lwt_io.read proc#stdout in
   send_to proc#stdin stdin >>= fun stdin_result ->
   reader >>= fun stdout ->
+  copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status cmd status with
+  match check_status pp_error_command status with
   | Error _ as e -> e
   | Ok () ->
     match stdin_result with

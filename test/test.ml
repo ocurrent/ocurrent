@@ -11,6 +11,17 @@ let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
 let push = Docker.push
 
+let analyse ~lint src =
+  Current.component "analyse" |>
+  let** _ = src in
+  Current.return lint
+
+let lint src ~linter =
+  Current.component "lint" |>
+  let** _ = src
+  and* _ = linter in
+  Current.return ()
+
 module Commit_var = Current.Var(Git.Commit)
 
 let test_commit =
@@ -35,7 +46,7 @@ let test_v1 _switch () =
 let test_v1_cancel _switch () =
   Driver.test ~name:"v1c" (with_commit v1) @@ function
   | 1 -> Git.complete_clone test_commit
-  | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\""
+  | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\" (in-progress)"
   | _ -> raise Exit
 
 (* Similar, but here the test step requires both the binary and
@@ -113,16 +124,87 @@ let test_v5 _switch () =
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
+let test_v5_nil _switch () =
+  let test_commit = Git.Commit.v ~repo:"my/project" ~hash:"456" in
+  Driver.test ~name:"v5n" (with_commit v5) @@ function
+  | 1 -> Git.complete_clone test_commit
+  | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
+  | _ -> raise Exit
+
+let test_option ~case commit =
+  let src = fetch commit in
+  analyse ~lint:case src
+  |> Current.option_map (fun linter -> lint src ~linter)
+  |> Current.ignore_value
+
+let test_option_some _switch () =
+  test_option ~case:(Some "ocamlformat")
+  |> with_commit
+  |> (fun c -> Driver.test ~name:"option-some" c @@ function
+  | 1 -> Git.complete_clone test_commit
+  | _ -> raise Exit)
+
+let test_option_none _switch () =
+  test_option ~case:None
+  |> with_commit
+  |> (fun c -> Driver.test ~name:"option-none" c @@ function
+    | 1 -> Git.complete_clone test_commit
+    | _ -> raise Exit)
+
+module Test_input = struct
+  type 'a t = unit
+  type job_id = unit
+  type env = unit
+
+  let get () () = Error (`Msg "Can't happen"), None
+end
+
+module Term = Current_term.Make(Test_input)
+
+let engine_result =
+  Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
+
+let test_all_labelled () =
+  let test x = fst (Term.Executor.run ~env:() (fun () -> Term.all_labelled x)) in
+  Alcotest.check engine_result "all_ok" (Ok ()) @@ test [
+    "Alpine", Term.return ();
+    "Debian", Term.return ();
+  ];
+  Alcotest.check engine_result "1st fails" (Error (`Msg "Alpine failed: apk")) @@ test [
+    "Alpine", Term.fail "apk";
+    "Debian", Term.return ();
+  ];
+  Alcotest.check engine_result "2nd fails" (Error (`Msg "Debian failed: apt")) @@ test [
+    "Alpine", Term.return ();
+    "Debian", Term.fail "apt";
+  ];
+  Alcotest.check engine_result "different failures" (Error (`Msg "Alpine, Debian failed")) @@ test [
+    "Alpine", Term.fail "apk";
+    "Debian", Term.fail "apt";
+  ];
+  Alcotest.check engine_result "same failure" (Error (`Msg "Alpine, Debian failed: ENOSPACE")) @@ test [
+    "Alpine", Term.fail "ENOSPACE";
+    "Debian", Term.fail "ENOSPACE";
+  ]
+
 let () =
   Alcotest.run "test" [
     "pipelines", [
-      Driver.test_case_gc "v1"        test_v1;
-      Driver.test_case_gc "v1-cancel" test_v1_cancel;
-      Driver.test_case_gc "v2"        test_v2;
-      Driver.test_case_gc "v3"        test_v3;
-      Driver.test_case_gc "v4"        test_v4;
-      Driver.test_case_gc "v5"        test_v5;
+      Driver.test_case_gc "v1"          test_v1;
+      Driver.test_case_gc "v1-cancel"   test_v1_cancel;
+      Driver.test_case_gc "v2"          test_v2;
+      Driver.test_case_gc "v3"          test_v3;
+      Driver.test_case_gc "v4"          test_v4;
+      Driver.test_case_gc "v5"          test_v5;
+      Driver.test_case_gc "v5-nil"      test_v5_nil;
+      Driver.test_case_gc "option-some" test_option_some;
+      Driver.test_case_gc "option-none" test_option_none;
+    ];
+    "terms", [
+      Alcotest.test_case "all_labelled" `Quick test_all_labelled;
     ];
     "cache", Test_cache.tests;
     "monitor", Test_monitor.tests;
+    "job", Test_job.tests;
+    "log_matcher", Test_log_matcher.tests;
   ]

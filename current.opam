@@ -2,28 +2,25 @@ opam-version: "2.0"
 synopsis: "Pipeline language for keeping things up-to-date"
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
-homepage: "https://github.com/talex5/ocurrent"
-bug-reports: "https://github.com/talex5/ocurrent/issues"
-dev-repo: "git+https://github.com/talex5/ocurrent.git"
+homepage: "https://github.com/ocaml-ci/ocurrent"
+bug-reports: "https://github.com/ocaml-ci/ocurrent/issues"
+dev-repo: "git+https://github.com/ocaml-ci/ocurrent.git"
 build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 depends: [
-  "ocaml" {>= "4.07.0"}
+  "ocaml" {>= "4.08.0"}
   "fmt"
   "bos"
   "ppx_deriving"
   "lwt"
-  "irmin-watcher"
   "cmdliner"
-  "dockerfile"
-  "ppx_deriving_yojson" {>= "3.5.1"}
   "sqlite3"
   "duration"
-  "cohttp-lwt-unix"
-  "yojson"
-  "tyxml"
-  "dune" {build}
+  "prometheus"
+  "dune"
+  "re"
+  "lwt-dllist"
   "alcotest-lwt" {with-test}
 ]

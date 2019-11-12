@@ -12,21 +12,6 @@ let ( >>!= ) x f =
   | Ok y -> f y
   | Error _ as e -> Lwt.return e
 
-let id_of_repo repo =
-  let base = Filename.basename repo in
-  let digest = Digest.string repo |> Digest.to_hex in
-  Fmt.strf "%s-%s" base digest
-
-(* .../var/git/myrepo-hhh *)
-let local_copy repo =
-  let repos_dir = Current.state_dir "git" in
-  Fpath.append repos_dir (Fpath.v (id_of_repo repo))
-
-let dir_exists d =
-  match Bos.OS.Dir.exists d with
-  | Ok x -> x
-  | Error (`Msg x) -> failwith x
-
 module Fetch = struct
   type t = No_context
   module Key = Commit_id
@@ -34,32 +19,34 @@ module Fetch = struct
 
   let id = "git-fetch"
 
-  let build ~switch No_context job key =
+  let build No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
-    let local_repo = local_copy remote_repo in
+    Lwt_mutex.with_lock (Clone.repo_lock remote_repo) @@ fun () ->
+    let level =
+      if Commit_id.is_local key then Current.Level.Harmless
+      else Current.Level.Mostly_harmless
+    in
+    Current.Job.start job ~level >>= fun () ->
+    let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
-      if dir_exists local_repo then Lwt.return (Ok ())
-      else Cmd.git_clone ~switch ~job ~src:remote_repo local_repo
+      if Cmd.dir_exists local_repo then Lwt.return (Ok ())
+      else Cmd.git_clone ~cancellable:true ~job ~src:remote_repo local_repo
     end >>!= fun () ->
     let commit = { Commit.repo = local_repo; id = key } in
     (* Fetch the commit (if missing). *)
     begin
-      Commit.check_cached ~job commit >>= function
+      Commit.check_cached ~cancellable:false ~job commit >>= function
       | Ok () -> Lwt.return (Ok ())
-      | Error _ -> Cmd.git_fetch ~switch ~job ~src:remote_repo ~dst:local_repo gref
+      | Error _ -> Cmd.git_fetch ~cancellable:true ~job ~src:remote_repo ~dst:local_repo gref
     end >>!= fun () ->
     (* Check we got the commit we wanted. *)
-    Commit.check_cached ~job commit >>!= fun () ->
+    Commit.check_cached ~cancellable:false ~job commit >>!= fun () ->
     Lwt.return @@ Ok commit
 
   let pp f key = Fmt.pf f "git fetch %a" Key.pp key
 
   let auto_cancel = false
-
-  let level _ k =
-    if Commit_id.is_local k then Current.Level.Harmless
-    else Current.Level.Mostly_harmless
 end
 
 module Fetch_cache = Current_cache.Make(Fetch)
@@ -69,14 +56,39 @@ let fetch cid =
   let> cid = cid in
   Fetch_cache.get Fetch.No_context cid
 
-let with_checkout ~switch ~job commit fn =
+module Clone_cache = Current_cache.Make(Clone)
+
+let clone ~schedule ?(gref="master") repo =
+  Current.component "clone@ %s@ %s" repo gref |>
+  let> () = Current.return () in
+  Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
+
+(* git-clone doesn't like the "refs/heads" prefix. *)
+let strip_heads gref =
+  let prefix = "refs/heads/" in
+  let open Astring in
+  if String.is_prefix ~affix:prefix gref then
+    String.with_index_range ~first:(String.length prefix) gref
+  else
+    gref
+
+let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in
+  let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
+  Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,git clone --recursive %S -b %S && cd %S && git reset --hard %s@]"
+    short_hash
+    id.Commit_id.repo
+    (strip_heads id.Commit_id.gref)
+    (Filename.basename id.Commit_id.repo |> Filename.remove_extension)
+    short_hash;
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
-  Cmd.git_clone ~switch ~job ~src:(Fpath.to_string repo) tmpdir >>!= fun () ->
+  Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
-  | Ok () -> fn tmpdir
+  | Ok () ->
+    Cmd.git_submodule_update ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
+    fn tmpdir
   | Error e ->
-    Commit.check_cached ~job commit >>= function
+    Commit.check_cached ~cancellable:false ~job commit >>= function
     | Error not_cached ->
       Fetch_cache.invalidate id;
       Lwt.return (Error not_cached)

@@ -1,0 +1,13 @@
+digraph pipeline {
+  node [shape="box"]
+  rankdir=LR
+  n3 [label="head",fillcolor="#90ee90",style="filled"]
+  n2 [label="fetch",fillcolor="#ffa500",style="filled"]
+  n1 [label="analyse",fillcolor="#d3d3d3",style="filled"]
+  subgraph cluster_0 {
+  style="dotted"n4 [label="lint",fillcolor="#d3d3d3",style="filled"]
+  }
+  n1 -> n4
+  n2 -> n1
+  n3 -> n2
+  }

@@ -12,7 +12,6 @@ module Make (Input : S.INPUT) = struct
   type context = {
     user_env : Input.env;
     default_env : An.env;
-    mutable inputs : Input.watch list;
   }
 
   type 'a t = context -> 'a node
@@ -47,62 +46,84 @@ module Make (Input : S.INPUT) = struct
         last := Some (ctx, r);
         r
 
-  let blocked () =
+  let active s =
     cache @@ fun ~env _ctx ->
-    make (An.blocked ~env ()) Dyn.pending
-
-  let pending () =
-    cache @@ fun ~env _ctx ->
-    make (An.pending ~env ()) Dyn.pending
+    make (An.active ~env s) (Dyn.active s)
 
   let return ?label x =
     cache @@ fun ~env _ctx ->
     make (An.return ~env label) (Dyn.return x)
 
+  let map_input ~label source x =
+    cache @@ fun ~env _ctx ->
+    make (An.map_input ~env source label) (Dyn.of_output x)
+
+  let option_input ~label source x =
+    cache @@ fun ~env _ctx ->
+    make (An.option_input ~env source label) (Dyn.of_output x)
+
   let fail msg =
     cache @@ fun ~env _ctx ->
-    make (An.fail ~env ()) (Dyn.fail msg)
+    make (An.fail ~env msg) (Dyn.fail msg)
 
-  let state t =
+  let state ?(hidden=false) t =
     cache @@ fun ~env ctx ->
     let t = t ctx in
-    make (An.state ~env t.md) (Dyn.state t.fn)
+    let an = if hidden then t.md else An.state ~env t.md in
+    make an (Dyn.state t.fn)
 
-  let catch t =
+  let catch ?(hidden=false) t =
     cache @@ fun ~env ctx ->
     let t = t ctx in
-    make (An.catch ~env t.md) (Dyn.catch t.fn)
+    let an = if hidden then t.md else An.catch ~env t.md in
+    make an (Dyn.catch t.fn)
 
   let of_output x =
     cache @@ fun ~env _ctx ->
     make (An.of_output ~env x) (Dyn.of_output x)
 
-  let component = Fmt.strf
+  let component fmt = Fmt.strf ("@[<v>" ^^ fmt ^^ "@]")
 
   let bind ?info (f:'a -> 'b t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
     let md = An.bind ~env ?info x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
-    | Error (`Pending) -> make (md An.Active) Dyn.pending
+    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
+    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
       let f2 = with_bind_context md f y in
       let r = f2 ctx in
       An.set_state md (
         match Dyn.run r.fn with
-        | Error (`Msg _) -> An.Fail
-        | Error (`Pending) -> An.Active
+        | Error (`Msg e) -> An.Fail e
+        | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
       r
 
+  let msg_of_exn = function
+    | Failure m -> m
+    | ex -> Printexc.to_string ex
+
   let map f x =
-    cache @@ fun ~env:_ ctx ->
+    cache @@ fun ~env ctx ->
     let x = x ctx in
-    let fn = Dyn.map f x.fn in
-    make x.md fn
+    match Dyn.map f x.fn with
+    | fn -> make x.md fn
+    | exception ex ->
+      let msg = msg_of_exn ex in
+      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
+
+  let map_error f x =
+    cache @@ fun ~env ctx ->
+    let x = x ctx in
+    match Dyn.map_error f x.fn with
+    | fn -> make x.md fn
+    | exception ex ->
+      let msg = msg_of_exn ex in
+      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
 
   let ignore_value x = map ignore x
 
@@ -119,17 +140,16 @@ module Make (Input : S.INPUT) = struct
     let x = x ctx in
     let md = An.bind_input ~env ~info x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md An.Fail) (Dyn.fail e)
-    | Error (`Pending) -> make (md An.Active) Dyn.pending
+    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
+    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let md = md An.Pass in
       let input = f y in
-      let v, id, watch = Input.get ctx.user_env input in
-      ctx.inputs <- watch @ ctx.inputs;
+      let v, id = Input.get ctx.user_env input in
       An.set_state md ?id (
         match v with
-        | Error (`Msg _) -> An.Fail
-        | Error (`Pending) -> An.Active
+        | Error (`Msg e) -> An.Fail e
+        | Error (`Active a) -> An.Active a
         | Ok _ -> An.Pass
       );
       make md (Dyn.of_output v)
@@ -157,30 +177,86 @@ module Make (Input : S.INPUT) = struct
       and+ () = all xs in
       ()
 
-  let list_map ~pp f xs =
+  let all_labelled items =
+    let rec aux = function
+      | [] -> return (Ok ())
+      | (l, x) :: xs ->
+        let+ x = catch x ~hidden:true
+        and+ xs = aux xs in
+        match x with
+        | Ok () -> xs
+        | Error (`Msg e) ->
+          match xs with
+          | Ok () -> Error (`Same ([l], e))
+          | Error (`Same (ls, e2)) when e = e2 -> Error (`Same (l :: ls, e))
+          | Error (`Same (ls, _))
+          | Error (`Diff ls) -> Error (`Diff (l :: ls))
+    in
+    "all" |>
+    let** results = aux items in
+    match results with
+    | Ok () -> return ()
+    | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
+    | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
+
+  let option_map (f : 'a t -> 'b t) (input : 'a option t) =
     cache @@ fun ~env ctx ->
-    let xs = xs ctx in
-    match Dyn.run xs.fn with
-    | Error _ ->
+    let input = input ctx in
+    match Dyn.run input.fn with
+    | Error _ as r ->
+      (* Not ready; use static version. *)
+      let f = f (option_input ~label:`Blocked input.md r) ctx in
+      let md = An.option_map ~env ~f:f.md input.md in
+      make md (Dyn.of_output r)
+    | Ok None ->
+      (* Show what would have been done. *)
+      let r = Error (`Msg "(none)") in
+      let f = f (option_input input.md ~label:`Not_selected r) ctx in
+      let md = An.option_map ~env ~f:f.md input.md in
+      make md (Dyn.of_output (Ok None))
+    | Ok (Some item) ->
+      let results =
+        (let+ y = f (option_input input.md ~label:`Selected (Ok item)) in Some y) ctx
+      in
+      { results with md = An.option_map ~env ~f:results.md input.md }
+
+  let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
+    cache @@ fun ~env ctx ->
+    let input = input ctx in
+    match Dyn.run input.fn with
+    | Error _ as r ->
       (* Not ready; use static version of map. *)
-      let f = f (blocked ()) ctx in
-      let md = An.list_map ~env ~f:f.md xs.md in
-      make md Dyn.pending
+      let f = f (map_input input.md ~label:(Error `Blocked) r) ctx in
+      let md = An.list_map ~env ~f:f.md input.md in
+      make md (Dyn.of_output r)
+    | Ok [] ->
+      (* Empty list; show what would have been done. *)
+      let no_items = Error (`Msg "(empty list)") in
+      let f = f (map_input input.md ~label:(Error `Empty_list) no_items) ctx in
+      let md = An.list_map ~env ~f:f.md input.md in
+      make md (Dyn.return [])
     | Ok items ->
       (* Ready. Expand inputs. *)
       let rec aux = function
         | [] -> return []
         | x :: xs ->
-          let+ y = f (return ~label:(Fmt.to_to_string pp x) x)
+          let+ y = f (map_input ~label:(Ok (Fmt.to_to_string pp x)) input.md (Ok x))
           and+ ys = aux xs in
           y :: ys
       in
       let results = aux items ctx in
-      { results with md = An.list_map ~env ~f:results.md xs.md }
+      { results with md = An.list_map ~env ~f:results.md input.md }
 
   let list_iter ~pp f xs =
     let+ (_ : unit list) = list_map ~pp f xs in
     ()
+
+  let rec list_seq : 'a t list -> 'a list t = function
+    | [] -> return []
+    | x :: xs ->
+      let+ y = x
+      and+ ys = list_seq xs in
+      y :: ys
 
   let option_seq : 'a t option -> 'a option t = function
     | None -> return None
@@ -204,14 +280,15 @@ module Make (Input : S.INPUT) = struct
   module Executor = struct
     let run ~env:user_env f =
       let default_env = An.make_env () in
-      let ctx = { default_env; user_env; inputs = [] } in
+      let ctx = { default_env; user_env } in
       try
         let x = f () ctx in
-        Dyn.run x.fn, x.md, ctx.inputs
+        Dyn.run x.fn, x.md
       with ex ->
-        let fn = Dyn.fail (Printexc.to_string ex) |> Dyn.run in
-        let md = An.fail ~env:default_env () in
-        fn, md, []
+        let msg = Printexc.to_string ex in
+        let fn = Dyn.fail msg |> Dyn.run in
+        let md = An.fail ~env:default_env msg in
+        fn, md
   end
 
   module Analysis = struct

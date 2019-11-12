@@ -33,9 +33,10 @@ end
 let cmd ~cwd n =
   ("", Array.of_list ["git"; "-C"; Fpath.to_string cwd; "log"; "--pretty=%H"; "-n"; string_of_int n])
 
-let build ~switch No_context job { Key.head; n } =
-  Current_git.with_checkout ~switch ~job head @@ fun dir ->
-  Current.Process.check_output ~switch ~job (cmd ~cwd:dir n) >|= function
+let build No_context job { Key.head; n } =
+  Current.Job.start job ~level:Current.Level.Harmless >>= fun () ->
+  Current_git.with_checkout ~job head @@ fun dir ->
+  Current.Process.check_output ~cancellable:true ~job (cmd ~cwd:dir n) >|= function
   | Ok output ->
     let digests = Value.unmarshal output in
     Current.Job.log job "@[<v2>Results:@,%a@]" Fmt.(list string) digests;

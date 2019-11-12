@@ -1,7 +1,6 @@
 (library
-  (name current_docker)
+  (public_name current_docker)
   (libraries current current.cache current_git fpath lwt.unix dockerfile)
   (preprocess (per_module
-                ((pps ppx_deriving.std ppx_deriving_yojson) pull build run tag service)
-                (future_syntax current_docker)
+                ((pps ppx_deriving.std ppx_deriving_yojson) pull build run tag push service)
               )))

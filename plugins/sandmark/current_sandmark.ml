@@ -2,16 +2,12 @@ open Current.Syntax
 
 module Config = Sandmark.Config
 
-type pool = Sandmark.t
-
-let create_pool = Sandmark.create
-
 module SC = Current_cache.Make(Sandmark)
 
-let sandmark ~workers ~config src =
+let sandmark ~pool ~config src =
   Current.component "sandmark" |>
   let> src = src in
-  SC.get workers (config, src)
+  SC.get pool (config, src)
 
 module RC = Current_cache.Make(Recent_commits)
 

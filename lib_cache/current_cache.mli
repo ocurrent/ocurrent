@@ -25,16 +25,28 @@ module Make (B : S.BUILDER) : sig
 end
 
 module Output (P : S.PUBLISHER) : sig
-  val set : P.t -> P.Key.t -> P.Value.t -> unit Current.Input.t
+  val set : ?schedule:Schedule.t -> P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Input.t
   (** [set p k v] is a term for the result of setting [k] to [v]. *)
 
   val reset : unit -> unit
   (** [reset ()] clears the cache. Useful for unit-tests. *)
 end
 
-(**/**)
+module Db : sig
+  type entry = {
+    job_id : string;
+    build : int64;            (* Build number (increases for rebuilds). *)
+    value : string;
+    outcome : string Current.or_error;
+    ready : float;            (* When the job was ready to begin. *)
+    running : float option;   (* When it actually started running (e.g. after confirmation). *)
+    finished : float;         (* When it finished (successfully or not). *)
+    rebuild : bool;           (* If [true], then a rebuild was requested. *)
+  }
 
-(* For unit tests we need our own test clock: *)
-
-val timestamp : (unit -> float) ref
-val sleep : (float -> unit Lwt.t) ref
+  val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> unit -> entry list
+  (** Search the database for matching records.
+      @param op : if present, restrict to results from the named builder or publisher
+      @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results.
+      @param rebuild : if present, restrict results to ones where the rebuild flag matches this. *)
+end

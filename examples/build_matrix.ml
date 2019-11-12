@@ -27,7 +27,7 @@ let pipeline ~repo () =
       let+ base = base in
       dockerfile ~base ~ocaml_version
     in
-    Docker.build ~label:ocaml_version ~pull:false ~dockerfile src |>
+    Docker.build ~label:ocaml_version ~pull:false ~dockerfile (`Git src) |>
     Docker.tag ~tag:(Fmt.strf "example-%s" ocaml_version)
   in
   Current.all [

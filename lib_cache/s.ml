@@ -38,10 +38,10 @@ module type BUILDER = sig
   (** The result of a build. *)
 
   val build :
-    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t ->
+    t -> Current.Job.t -> Key.t ->
     Value.t Current.or_error Lwt.t
-  (** [build ~switch t j k] builds [k].
-      If the switch is turned off, the build should be cancelled.
+  (** [build t j k] builds [k].
+      Call [Job.start j] once any required resources have been acquired.
       Log messages can be written to [j]. *)
 
   val pp : Key.t Fmt.t
@@ -50,10 +50,6 @@ module type BUILDER = sig
   val auto_cancel : bool
   (** [true] if an operation should be cancelled if it is no longer needed, or
       [false] to cancel only when the user explicitly requests it. *)
-
-  val level : t -> Key.t -> Current.Level.t
-  (** [level t k] provides an estimate of how risky / expensive this operation is.
-      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end
 
 module type PUBLISHER = sig
@@ -64,11 +60,15 @@ module type PUBLISHER = sig
   module Value : WITH_DIGEST
   (** The value to publish. *)
 
+  module Outcome : WITH_MARSHAL
+  (** Extra information about the result, if any.
+      Usually this is just [Current.Unit]. *)
+
   val publish :
-    switch:Current.Switch.t -> t -> Current.Job.t -> Key.t -> Value.t ->
-    unit Current.or_error Lwt.t
-  (** [publish ~switch t j k v] sets output [k] to value [v].
-      If the switch is turned off, the operation should be cancelled.
+    t -> Current.Job.t -> Key.t -> Value.t ->
+    Outcome.t Current.or_error Lwt.t
+  (** [publish t j k v] sets output [k] to value [v].
+      Call [Job.start j] once any required resources have been acquired.
       Log messages can be written to [j]. *)
 
   val pp : (Key.t * Value.t) Fmt.t
@@ -79,8 +79,4 @@ module type PUBLISHER = sig
       then we decide to output a different value instead.
       If [true], the old operation will be cancelled immediately.
       If [false], the old operation will run to completion first. *)
-
-  val level : t -> Key.t -> Value.t -> Current.Level.t
-  (** [level t k v] provides an estimate of how risky / expensive this operation is.
-      This is useful to perform dry-runs, or limit to local-only effects, etc. *)
 end

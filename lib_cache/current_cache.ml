@@ -2,16 +2,10 @@ open Lwt.Infix
 
 module Job = Current.Job
 
-let timestamp = ref Unix.gettimeofday
-let sleep = ref Lwt_unix.sleep
-
-let confirm (confirmed, level) =
-  match Lwt.state confirmed with
-  | Lwt.Return () -> Lwt.return_unit
-  | _ ->
-    Log.info (fun f -> f "Waiting for confirm-level >= %a" Current.Level.pp level);
-    confirmed >|= fun () ->
-    Log.info (fun f -> f "Confirm-level now >= %a" Current.Level.pp level)
+let rebuild_cond = Lwt_condition.create ()
+(* This triggers when the user invalidates an entry and we should re-evaluate.
+   Ideally this condition would be per-job, but since we currently re-evaluate
+   everything anyway, a global is fine. *)
 
 module Schedule = struct
   type t = {
@@ -41,193 +35,6 @@ let pp_duration_rough f d =
   in
   aux durations
 
-module Make(B : S.BUILDER) = struct
-  module Builds = Map.Make(String)
-
-  type build_result = B.Value.t Current.or_error * float  (* The final result and end time *)
-
-  type build = {
-    job_id : Current.Input.job_id;
-    key : B.Key.t;
-    build_number : int64;           (* Increments on rebuild *)
-    switch : Current.Switch.t;      (* Turning this off aborts the build. *)
-    finished : build_result Lwt.t;  (* Unresolved if the build is still in progress. *)
-    mutable auto_cancelled : bool;  (* Don't record the result (because the build was auto-cancelled). *)
-    mutable ref_count : int;        (* The number of watchers waiting for the result (for auto-cancel). *)
-  }
-
-  let builds : build Builds.t ref = ref Builds.empty
-
-  let is_running build = Lwt.state build.finished = Lwt.Sleep
-
-  let force_invalidate key =
-    builds := Builds.remove key !builds;
-    Db.Build.invalidate ~builder:B.id key
-
-  (* Mark this build as invalid. The caller is responsible for triggering a re-evaluation. *)
-  let invalidate key =
-    let key_digest = B.Key.digest key in
-    match Builds.find_opt key_digest !builds with
-    | Some build when is_running build -> Fmt.failwith "invalidate(%a): build is still running!" B.pp key
-    | _ -> force_invalidate key_digest
-
-  (* This thread runs in the background to perform the build.
-     When done, it records the result in the database (unless it was auto-cancelled). *)
-  let do_build ~config ~job ctx build =
-    let ready = !timestamp () |> Unix.gmtime in
-    let running = ref None in
-    let is_finished = ref false in
-    Job.log job "Starting build for %a" B.pp build.key;
-    let level = B.level ctx build.key in
-    confirm (Current.Config.confirmed level config, level) >>= fun () ->
-    running := Some (!timestamp () |> Unix.gmtime);
-    Lwt.catch
-      (fun () -> B.build ~switch:build.switch ctx job build.key)
-      (fun ex -> Lwt.return @@ Error (`Msg (Printexc.to_string ex)))
-    >|= fun x ->
-    is_finished := true;
-    let finished = !timestamp () in
-    if build.auto_cancelled then (
-      force_invalidate (B.Key.digest build.key);
-      (* If anyone started wanting this build again after it got cancelled,
-         then they will now recalculate, discover the build doesn't exist, and
-         trigger a new one. *)
-      Error (`Msg "Auto-cancelled"), finished
-    ) else (
-      let record result =
-        Db.Build.record
-          ~builder:B.id
-          ~build:build.build_number
-          ~key:(B.Key.digest build.key)
-          ~job:(Job.id job)
-          ~ready ~running:!running ~finished:(Unix.gmtime finished)
-          result;
-        x, finished
-      in
-      match x with
-      | Ok v ->
-        Job.log job "Success";
-        record @@ Ok (B.Value.marshal v)
-      | Error (`Msg m) as e ->
-        Job.log job "Failed: %s" m;
-        record e
-    )
-
-  (* Create a new in-memory build object. Try to initialise it with the value from the disk-cache.
-     If there isn't one, start a new build in a background thread. *)
-  let get_build ~config ctx key =
-    let key_digest = B.Key.digest key in
-    let finished, set_finished = Lwt.wait () in
-    let previous = Db.Build.lookup ~builder:B.id key_digest in
-    match previous with
-    | Some { Db.Build.rebuild = false; build = build_number; value; finished = fin_time; job_id } ->
-      Log.info (fun f -> f "@[<hov2>Loaded cached result for@ %a@]" B.pp key);
-      let v =
-        match value with
-        | Ok v -> Ok (B.Value.unmarshal v)
-        | Error _ as e -> e
-      in
-      Lwt.wakeup set_finished (v, fin_time);
-      let switch = Current.Switch.create_off @@ Error (`Msg "Loaded from cache") in
-      { job_id; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false }
-    | _ ->
-      let build_number =
-        match previous with
-        | None -> 0L
-        | Some x -> Int64.succ x.Db.Build.build       (* A rebuild was requested *)
-      in
-      let switch = Current.Switch.create ~label:(Fmt.strf "Build %a" B.pp key) () in
-      let job = Job.create ~switch ~label:B.id () in
-      let build = { job_id = Job.id job; switch; build_number; key; finished; ref_count = 0; auto_cancelled = false } in
-      Lwt.async (fun () ->
-          Lwt.try_bind
-            (fun () ->
-               Lwt.finalize
-                 (fun () -> do_build ~config ~job ctx build)
-                 (fun () -> Current.Switch.turn_off build.switch @@ Ok ())
-            )
-            (fun result -> Lwt.wakeup set_finished result; Lwt.return_unit)
-            (fun ex -> Lwt.wakeup_exn set_finished ex; Lwt.return_unit)
-        );
-      build
-
-  (* The build must be currently running when calling this. *)
-  let input_running build =
-    build.ref_count <- build.ref_count + 1;
-    let cancel ~msg () =
-      Lwt.async (fun () -> Current.Switch.turn_off build.switch @@ Error (`Msg msg))
-    in
-    let watch =
-      object
-        method pp f = B.pp f build.key
-        method changed = Lwt.map ignore build.finished
-        method cancel = Some (cancel ~msg:"Cancelled by user")
-        method release =
-          build.ref_count <- build.ref_count - 1;
-          if build.ref_count = 0 && B.auto_cancel && is_running build then (
-            build.auto_cancelled <- true;
-            cancel ~msg:"Auto-cancelling job because it is no longer needed" ()
-          )
-      end
-    in
-    Error `Pending, Some build.job_id, [watch]
-
-  (* The build must be finished when calling this. *)
-  let input_finished ~schedule build (value, finished) =
-    match schedule.Schedule.valid_for with
-    | None -> (value :> B.Value.t Current_term.Output.t), Some build.job_id, []
-    | Some duration ->
-      let remaining_time = Duration.to_f duration +. finished -. !timestamp () in
-      let changed =
-        if remaining_time <= 0.0 then (
-          Log.info (fun f -> f "Build result for %a has expired" B.pp build.key);
-          invalidate build.key;
-          Lwt.return_unit       (* Trigger an immediate recalculation *)
-        ) else (
-          !sleep remaining_time
-        )
-      in
-      let watch =
-        object
-          method pp f =
-            if remaining_time <= 0.0 then
-              Fmt.pf f "%a (expired)" B.pp build.key
-            else
-              Fmt.pf f "%a will be invalid after %a"
-                B.pp build.key
-                pp_duration_rough (Duration.of_f remaining_time)
-
-          method changed = changed
-          method cancel = None
-          method release = ()
-        end
-      in
-      (value :> B.Value.t Current_term.Output.t), Some build.job_id, [watch]
-
-  let input build ~schedule =
-    match Lwt.state build.finished with
-    | Lwt.Sleep -> input_running build
-    | Lwt.Return v -> input_finished build ~schedule v
-    | Lwt.Fail ex -> raise ex
-
-  let get ?(schedule=Schedule.default) ctx key =
-    Current.Input.of_fn @@ fun config ->
-    let key_digest = B.Key.digest key in
-    let b =
-      match Builds.find_opt key_digest !builds with
-      | Some b -> b
-      | None ->
-        let b = get_build ~config ctx key in
-        builds := Builds.add key_digest b !builds;
-        b
-    in
-    input b ~schedule
-
-  let reset () =
-    builds := Builds.empty;
-    Db.Build.drop_all B.id
-end
-
 module Output(Op : S.PUBLISHER) = struct
   module Outputs = Map.Make(String)
 
@@ -252,40 +59,73 @@ module Output(Op : S.PUBLISHER) = struct
     let equal a b = a.digest = b.digest
   end
 
-  (* An entry in the database means we think the output has been successfully set to that value. *)
-
   type op = {
     value : Value.t;                (* The value currently being set. *)
-    switch : Current.Switch.t;      (* Turning this off aborts the operation. *)
+    job : Job.t;
     finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
   }
 
   type output = {
     key : Op.Key.t;
-    mutable job_id : Current.Input.job_id option; (* Current or last log *)
+    mutable build_number : int64;         (* Number of recorded (incl failed) builds with this key. *)
+    mutable ref_count : int;              (* The number of watchers waiting for the result (for auto-cancel). *)
+    mutable last_set : Current.Step.id;   (* Last evaluation step setting this output. *)
+    mutable job_id : Current.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
     mutable ctx : Op.t;                   (* The context for [desired]. *)
     mutable op : [
-      | `Running of op                    (* The currently-running operation. *)
+      | `Active of op                     (* The currently-running operation. *)
       | `Error of [`Msg of string]        (* Why [desired] isn't possible. *)
-      | `Finished
+      | `Finished of Op.Outcome.t         (* Note: if current <> desired then rebuild. *)
+      | `Retry                            (* Need to try again. *)
     ];
+    mutable mtime : float;                (* Time last operation completed (if finished or error). *)
   }
+
+  (* State model:
+
+     The first time a key is used, a new output is created in the Retry state.
+     Whenever an output is wanted and we are in Retry, we transition to Active
+     and start the Lwt builder process. The only way to leave Active is by the
+     Lwt process finishing.
+
+     While Active, we may flag that the value we are setting is out-of-date,
+     that the user wants to cancel, or that we should cancel because the build
+     is no longer needed. But we still wait for the process to finish,
+     possibly encouraging it using [Job.cancel].
+
+     When an Active job finishes:
+
+     - If it was auto-cancelled then we discard the result and return to Retry.
+     - Otherwise we store the result on disk.
+     - If we need to rebuild (because the user asked for another value during the build)
+       then we return to Retry.
+     - Otherwise, we move to Finished or Error, depending on whether the operation succeeded.
+
+     In Finished or Error, the user can trigger a rebuild, moving us back to Retry.
+     Also, if the user sets a different value then we move to Retry.
+
+     The user can only ask to cancel while we are Active. They can only ask to Rebuild
+     when Finished or Error.
+   *)
 
   let pp_op f (k, v) = Op.pp f (k, Value.value v)
   let pp_desired f output = pp_op f (output.key, output.desired)
 
+  (* The in-memory cache of outputs. *)
   let outputs : output Outputs.t ref = ref Outputs.empty
 
   let pp_output f output =
     match output.op with
     | `Error (`Msg msg) ->
       Fmt.pf f "%a: %s" pp_desired output msg
-    | `Finished ->
+    | `Finished _ ->
       Fmt.pf f "%a (completed)" pp_desired output
-    | `Running op ->
+    | `Retry ->
+      Fmt.pf f "%a (retry scheduled)" pp_desired output
+    | `Active op ->
       if Value.equal op.value output.desired then
         Fmt.pf f "%a (in-progress)" pp_op (output.key, op.value)
       else
@@ -293,138 +133,291 @@ module Output(Op : S.PUBLISHER) = struct
           pp_op (output.key, op.value)
           pp_desired output
 
+  (* Caller needs to notify about the change, if needed. *)
+  let invalidate_output output =
+    match output.op with
+    | `Finished _ | `Retry ->
+      output.current <- None;
+      output.op <- `Retry;
+      Db.invalidate ~op:Op.id (Op.Key.digest output.key)
+    | _ -> assert false
+
+  (* Caller needs to notify about the change, if needed. *)
+  let invalidate key =
+    let key = Op.Key.digest key in
+    match Outputs.find_opt key !outputs with
+    | Some o -> invalidate_output o
+    | None -> Db.invalidate ~op:Op.id key
+
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
-     unless we already tried that and failed. *)
+     unless we already tried that and failed. Only call this if the output is currently
+     wanted. *)
   let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
-    | `Running _ when not Op.auto_cancel ->
+    | `Active _ when not Op.auto_cancel ->
       (* Already publishing something and we don't auto-cancel.
          When the stale push completes, we'll get called again. *)
       ()
-    | `Running op when Value.equal output.desired op.value ->
+    | `Active op when Value.equal output.desired op.value ->
       (* We're already working to set the desired value. Just keep going. *)
       ()
-    | `Running op ->
+    | `Active op ->
       assert Op.auto_cancel;
       Log.info (fun f -> f "Auto-cancelling %a" pp_op (output.key, op.value));
       op.autocancelled <- true;
       (* Cancel existing job. When that finishes, we'll get called again. *)
-      Lwt.async (fun () ->
-          Current.Switch.turn_off op.switch @@
-          Error (`Msg "Auto-cancelling job because it is no longer needed")
-        );
-    | `Finished ->
+      Job.cancel op.job "Auto-cancelling job because it is no longer needed"
+    | `Retry ->
+        invalidate_output output;
+        publish ~config output
+    | `Finished _ ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
       | _ ->
         (* Either we don't know the current state, or we know we want something different.
            We're not already running, and we haven't already failed. Time to publish! *)
         (* Once we start publishing, we don't know the state: *)
-        output.current <- None;
-        Db.Publish.invalidate ~op:Op.id (Op.Key.digest output.key);
-        output.op <- `Running (publish ~config output)
+        invalidate_output output;
+        publish ~config output
   and publish ~config output =
     let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let op = { value = output.desired; switch; finished; autocancelled = false } in
+    let job = Job.create ~switch ~label:Op.id ~config () in
+    output.job_id <- Some (Job.id job);
+    let op = { value = output.desired; job; finished; autocancelled = false } in
+    let ready = !Job.timestamp () |> Unix.gmtime in
+    output.op <- `Active op;
+    let pp_op f = pp_op f (output.key, op.value) in
+    Job.log job "New job: %t" pp_op;
     Lwt.async
       (fun () ->
          Lwt.finalize
            (fun () ->
-              let pp_op f = pp_op f (output.key, op.value) in
-              let job = Job.create ~switch ~label:Op.id () in
-              output.job_id <- Some (Job.id job);
-              Job.log job "Publish: %t" pp_op;
               Lwt.catch
-                (fun () ->
-                   let level = Op.level ctx output.key (Value.value op.value) in
-                   confirm (Current.Config.confirmed level config, level) >>= fun () ->
-                   Op.publish ~switch ctx job output.key (Value.value op.value)
-                )
+                (fun () -> Op.publish ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
-              >|= function
-              | Ok () ->
-                Job.log job "Publish(%t) : succeeded" pp_op;
-                output.current <- Some (Value.digest op.value);
-                output.op <- `Finished;
+              >|= fun outcome ->
+              let end_time = Unix.gmtime @@ !Job.timestamp () in
+              if op.autocancelled then (
+                output.op <- `Retry;
+                invalidate_output output;
+                if output.ref_count > 0 then maybe_start ~config output;
+                Lwt.wakeup set_finished ()
+              ) else (
+                (* Record the result *)
+                let running =
+                  match Lwt.state (Job.start_time job) with
+                  | Lwt.Return x -> Some (Unix.gmtime x)
+                  | Lwt.Sleep when Stdlib.Result.is_ok outcome -> Fmt.failwith "Job.start not called!";
+                  | _ -> None
+                in
+                let outcome =
+                  match Current.Job.cancelled_state op.job, outcome with
+                  | Error _cancelled, _ -> Error (`Msg "Cancelled")
+                  | Ok (), Ok _ -> Job.log job "Job succeeded"; outcome
+                  | Ok (), Error (`Msg m) ->
+                    Job.log job "Job failed: %s" m;
+                    match Current.Log_matcher.analyse_job job with
+                    | None -> outcome
+                    | Some e -> Error (`Msg e)
+                in
+                output.mtime <- !Job.timestamp ();
+                begin match outcome with
+                  | Ok outcome ->
+                    output.current <- Some (Value.digest op.value);
+                    output.op <- `Finished outcome;
+                  | Error e ->
+                    (* If it failed but we have a new value to set, ignore the stale error. *)
+                    let retry = not (Value.equal op.value output.desired) in
+                    output.op <- if retry then `Retry else `Error e
+                end;
                 let job_id = Job.id job in
-                Db.Publish.record ~op:Op.id ~job_id ~key:(Op.Key.digest output.key) (Value.digest op.value);
+                let outcome = Stdlib.Result.map Op.Outcome.marshal outcome in
+                Db.record ~op:Op.id ~job_id
+                  ~key:(Op.Key.digest output.key)
+                  ~value:(Value.digest op.value)
+                  ~ready ~running ~finished:end_time
+                  ~build:output.build_number
+                  outcome;
+                output.build_number <- Int64.succ output.build_number;
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                maybe_start ~config output;
+                if output.ref_count > 0 then maybe_start ~config output;
                 Lwt.wakeup set_finished ()
-              | Error (`Msg m as e) ->
-                if op.autocancelled then
-                  Job.log job "Auto-cancel(%t) complete (%s)" pp_op m
-                else
-                  Job.log job "Publish(%t) failed: %s" pp_op m;
-                let retry =
-                  (* If it failed because we cancelled it, don't count that as an error. *)
-                  op.autocancelled ||
-                  (* If it failed but we have a new value to set, ignore the stale error. *)
-                  not (Value.equal op.value output.desired)
-                in
-                output.op <- if retry then `Finished else `Error e;
-                maybe_start ~config output;
-                Lwt.wakeup set_finished ()
+              )
            )
            (fun () ->
-              Current.Switch.turn_off switch @@ Ok ()
+              Current.Switch.turn_off switch
            )
-      );
-    op
+      )
 
-  (* Create a new in-memory [op], initialising it from the database. *)
-  let get_op ctx key desired =
-    let current, job_id =
-      match Db.Publish.lookup ~op:Op.id (Op.Key.digest key) with
-      | Some { Db.Publish.value; job_id } -> Some value, Some job_id
-      | None -> None, None
+  (* Create a new in-memory output, initialising it from the database. *)
+  let get_output ~step_id ctx key desired =
+    let current, job_id, op, mtime, build_number =
+      match Db.lookup ~op:Op.id (Op.Key.digest key) with
+      | Some { Db.value; job_id; outcome; finished; build; rebuild; _ } ->
+        let op = match outcome with
+          | _ when rebuild -> `Retry
+          | Error e -> `Error e
+          | Ok outcome ->
+            try `Finished (Op.Outcome.unmarshal outcome)
+            with ex ->
+              Log.warn (fun f -> f "Failed to restore %S cached outcome: %a (will rebuild)" Op.id Fmt.exn ex);
+              `Retry
+        in
+        Some value, Some job_id, op, finished, Int64.succ build
+      | None -> None, None, `Retry, Unix.gettimeofday (), 0L
     in
-    { key; current; desired; ctx; op = `Finished; job_id }
+    { key; current; desired; ctx; op; job_id; last_set = step_id; ref_count = 0; mtime; build_number }
 
-  let set ctx key value =
-    Current.Input.of_fn @@ fun config ->
+  (* Return the input metadata for a resolved (non-active) output.
+     Report it as changed when a rebuild is requested (manually or via the schedule). *)
+  let resolved o ~schedule ~value ~config =
+    let key = o.key in
+    match o.job_id with
+    | None -> assert false
+    | Some job_id ->
+      let rebuild () =
+        match o.op with
+        | `Finished _ | `Error _ | `Retry ->
+          o.op <- `Retry;
+          maybe_start ~config o;
+          Lwt_condition.broadcast rebuild_cond ();
+          Option.get o.job_id
+        | `Active _ ->
+          Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
+          Option.get o.job_id
+      in
+      let rebuild_requested = Lwt_condition.wait rebuild_cond in
+      match schedule.Schedule.valid_for with
+      | None ->
+        Current.Input.metadata ~job_id ~changed:rebuild_requested @@
+        object
+          method pp f = pp_output f o
+          method cancel = None
+          method rebuild = Some rebuild
+          method release = ()
+        end
+      | Some duration ->
+        let remaining_time = Duration.to_f duration +. o.mtime -. !Job.timestamp () in
+        let changed =
+          if remaining_time <= 0.0 then (
+            Log.info (fun f -> f "Result for %a has expired" pp_op (key, value));
+            invalidate key;
+            Lwt.return_unit       (* Trigger an immediate recalculation *)
+          ) else (
+            !Job.sleep remaining_time
+          )
+        in
+        let changed = Lwt.choose [changed; rebuild_requested] in
+        Current.Input.metadata ~job_id ~changed @@
+        object
+          method pp f =
+            if remaining_time <= 0.0 then
+              Fmt.pf f "%a (expired)" pp_op (key, value)
+            else
+              Fmt.pf f "%a will be invalid after %a"
+                pp_op (key, value)
+                pp_duration_rough (Duration.of_f remaining_time)
+          method cancel = None
+          method rebuild = Some rebuild
+          method release = ()
+        end
+
+  let set ?(schedule=Schedule.default) ctx key value =
+    Current.Input.of_fn @@ fun step ->
     Log.debug (fun f -> f "set: %a" Op.pp (key, value));
     let key_digest = Op.Key.digest key in
     let value = Value.v value in
+    let step_id = Current.Step.id step in
+    (* Ensure the output exists and has [o.desired = value]: *)
     let o =
-      (* Ensure the [op] exists and has [op.desired = value]: *)
       match Outputs.find_opt key_digest !outputs with
       | Some o ->
-        o.ctx <- ctx;
-        if not (Value.equal value o.desired) then (
-          o.desired <- value;
-          match o.op with
-          | `Error _ -> o.op <- `Finished   (* Clear error when the desired value changes. *)
-          | `Running _ | `Finished -> ()
+        (* Output already exists in the memory cache. Update it if needed. *)
+        let changed = not (Value.equal value o.desired) in
+        if o.last_set = step_id then (
+          if changed then
+            Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
+        ) else (
+          o.last_set <- step_id;
+          o.ctx <- ctx;
+          if changed then (
+            o.desired <- value;
+            match o.op with
+            | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
+            | `Active _ | `Finished _ | `Retry -> ()
+          );
         );
         o
       | None ->
-        let o = get_op ctx key value in
+        (* Not in memory cache. Restore from disk if available, or create a new output if not.
+           Either way, [o.desired] is set to [value]. *)
+        let o = get_output ~step_id ctx key value in
         outputs := Outputs.add key_digest o !outputs;
         o
     in
+    (* Ensure a build is in progress if we need one: *)
+    let config = Current.Step.config step in
     maybe_start ~config o;
+    (* Return the current state: *)
     match o.op with
-    | `Finished -> Ok (), o.job_id, []
-    | `Error e -> (Error e :> unit Current_term.Output.t), o.job_id, []
-    | `Running op ->
-      let watch =
-        object
-          method pp f = pp_output f o
-          method changed = op.finished
-          method cancel = None
-          method release = ()
-        end
-      in
-      Error `Pending, o.job_id, [watch]
+    | `Finished x -> Ok x, resolved ~schedule ~value ~config o
+    | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), resolved ~schedule ~value ~config o
+    | `Retry -> Error (`Msg "(retry)"), resolved ~schedule ~value ~config o  (* (probably can't happen) *)
+    | `Active op ->
+      let a, changed =
+        let started = Job.start_time op.job in
+        if Lwt.state started = Lwt.Sleep then `Ready, Lwt.choose [Lwt.map ignore started; op.finished]
+        else `Running, op.finished in
+      o.ref_count <- o.ref_count + 1;
+      Error (`Active a), Current.Input.metadata ?job_id:o.job_id ~changed @@
+      object
+        method pp f = pp_output f o
+        method cancel = Some (fun () -> Job.cancel op.job "Cancelled by user")
+        method rebuild = None
+        method release =
+          o.ref_count <- o.ref_count - 1;
+          if o.ref_count = 0 && Op.auto_cancel then (
+              match o.op with
+              | `Active op ->
+                op.autocancelled <- true;
+                Job.cancel op.job "Auto-cancelling job because it is no longer needed"
+              | _ -> ()
+          )
+      end
 
   let reset () =
     outputs := Outputs.empty;
-    Db.Publish.drop_all Op.id
+    Db.drop_all Op.id
+end
+
+module Make(B : S.BUILDER) = struct
+  module Adaptor = struct
+    type t = B.t
+
+    let id = B.id
+
+    module Key = B.Key
+    module Value = Current.Unit
+    module Outcome = B.Value
+
+    let publish op job key () =
+      B.build op job key
+
+    let pp f (key, ()) = B.pp f key
+
+    let auto_cancel = B.auto_cancel
+  end
+
+  include Output(Adaptor)
+
+  let get ?schedule ctx key =
+    set ?schedule ctx key ()
 end
 
 module S = S
+
+module Db = Db

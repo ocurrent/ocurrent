@@ -1,12 +1,22 @@
 (executables
-  (names docker_build_local build_matrix docker_service sandmark)
+  (public_names docker_build_local
+                docker_service
+                build_matrix
+                github
+                github_app
+                rpc_server
+                rpc_client
+                sandmark)
+  (package current_examples)
   (libraries current
              current_web
              current_docker
              current_git
+             current_github
+             current.fs
+             current_rpc
              current_sandmark
-             current_fs
+             capnp-rpc-unix
              lwt.unix
              logs.fmt
-             fmt.tty)
-  (preprocess future_syntax))
+             fmt.tty))
