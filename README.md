@@ -31,8 +31,8 @@ this repository itself.
 OCurrent is licensed under the Apache License, Version 2.0.
 See [LICENSE][] for the full license text.
 
-[docker-base-images]: https://github.com/ocaml-ci/docker-base-images
-[writing-plugins]: https://github.com/ocaml-ci/ocurrent/wiki/Writing-plugins
-[example pipelines]: https://github.com/ocaml-ci/ocurrent/wiki/Example-pipelines
-[OCurrent wiki]: https://github.com/ocaml-ci/ocurrent/wiki
+[docker-base-images]: https://github.com/ocurrent/docker-base-images
+[writing-plugins]: https://github.com/ocurrent/ocurrent/wiki/Writing-plugins
+[example pipelines]: https://github.com/ocurrent/ocurrent/wiki/Example-pipelines
+[OCurrent wiki]: https://github.com/ocurrent/ocurrent/wiki
 [LICENSE]: ./LICENSE

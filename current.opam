@@ -2,9 +2,9 @@ opam-version: "2.0"
 synopsis: "Pipeline language for keeping things up-to-date"
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
-homepage: "https://github.com/ocaml-ci/ocurrent"
-bug-reports: "https://github.com/ocaml-ci/ocurrent/issues"
-dev-repo: "git+https://github.com/ocaml-ci/ocurrent.git"
+homepage: "https://github.com/ocurrent/ocurrent"
+bug-reports: "https://github.com/ocurrent/ocurrent/issues"
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
 build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
