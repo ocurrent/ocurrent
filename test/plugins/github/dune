@@ -1,0 +1,3 @@
+(library
+ (name current_github_test)
+ (libraries current_github alcotest))

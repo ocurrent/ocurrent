@@ -96,6 +96,8 @@ module Installation : sig
       configured for this installation. *)
 end
 
+module Api_checks : module type of Api_checks
+
 module App : sig
   type t
   (** Configuration for a GitHub application. *)
