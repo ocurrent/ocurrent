@@ -1,5 +1,11 @@
 opam-version: "2.0"
 synopsis: "Test web UI for OCurrent"
+description: """
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a basic web UI for service administrators.
+It shows the current pipeline visually and allows viewing job
+logs and configuring the log analyser."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
