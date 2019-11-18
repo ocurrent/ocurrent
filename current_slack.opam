@@ -22,5 +22,5 @@ depends: [
   "lwt"
   "tls"
   "cohttp-lwt-unix"
-  "dune"
+  "dune" {>= "1.9"}
 ]

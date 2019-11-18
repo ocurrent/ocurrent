@@ -26,5 +26,5 @@ depends: [
   "dockerfile"
   "ppx_deriving_yojson" {>= "3.5.1"}
   "yojson"
-  "dune"
+  "dune" {>= "1.9"}
 ]
