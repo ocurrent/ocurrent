@@ -4,8 +4,6 @@ OCurrent allows you to specify a workflow / pipeline for keeping things up-to-da
   <img src="./doc/gated-deploy.svg"/>
 </p>
 
-Status: **experimental**
-
 For example, the pipeline shown about fetches the head of a GitHub repository's
 `master` branch, builds it, runs the tests, and deploys the binary if the tests
 pass. When a new commit is pushed, it runs the pipeline again.
@@ -23,8 +21,8 @@ In particular, you might like to start by reading about the
 [example pipelines][] or how to [write your own plugins][writing-plugins].
 
 Larger uses of OCurrent include the
-[OCaml Docker base image builder][docker-base-images] and the CI that tests
-this repository itself.
+[OCaml Docker base image builder][docker-base-images] and
+[ocaml-ci][], which is the CI that tests this repository itself.
 
 # Licensing
 
@@ -32,6 +30,7 @@ OCurrent is licensed under the Apache License, Version 2.0.
 See [LICENSE][] for the full license text.
 
 [docker-base-images]: https://github.com/ocurrent/docker-base-images
+[ocaml-ci]: https://github.com/ocurrent/ocaml-ci/
 [writing-plugins]: https://github.com/ocurrent/ocurrent/wiki/Writing-plugins
 [example pipelines]: https://github.com/ocurrent/ocurrent/wiki/Example-pipelines
 [OCurrent wiki]: https://github.com/ocurrent/ocurrent/wiki

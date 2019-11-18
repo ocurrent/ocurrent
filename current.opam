@@ -1,10 +1,22 @@
 opam-version: "2.0"
 synopsis: "Pipeline language for keeping things up-to-date"
+description: """
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+It is used in ocaml-ci (which provides CI for OCaml projects on GitHub),
+and in docker-base-images (a pipeline that builds Docker images for various
+Linux distributions, OCaml compiler versions and CPU types, and pushes them
+to Docker Hub).
+
+A pipeline is written much like you would write a one-shot sequential script,
+but OCurrent will automatically re-run steps when the inputs change, and will
+run steps in parallel where possible."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+doc: "https://ocurrent.github.io/ocurrent/"
 build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}

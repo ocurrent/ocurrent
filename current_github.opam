@@ -1,5 +1,12 @@
 opam-version: "2.0"
 synopsis: "GitHub plugin for OCurrent"
+description: """
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for interacting with GitHub.
+It can monitor and clone remote GitHub repositories, and can
+push GitHub status messages to show the results of testing
+PRs and branches."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
