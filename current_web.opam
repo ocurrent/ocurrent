@@ -26,5 +26,5 @@ depends: [
   "prometheus-app"
   "cohttp-lwt-unix" {>= "2.2.0"}
   "tyxml"
-  "dune"
+  "dune" {>= "1.9"}
 ]

@@ -29,5 +29,5 @@ depends: [
   "current_docker" {= version}
   "current_rpc" {= version}
   "capnp-rpc-unix" {>= "0.5"}
-  "dune"
+  "dune" {>= "1.9"}
 ]
