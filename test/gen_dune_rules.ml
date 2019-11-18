@@ -1,5 +1,5 @@
 let is_testcase name =
-  Fpath.(has_ext "dot" (v name))
+  Filename.extension name = ".dot"
 
 let pp_targets ppf filenames =
   Fmt.pf ppf

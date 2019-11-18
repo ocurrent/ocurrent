@@ -10,7 +10,7 @@
 (executable
  (name gen_dune_rules)
  (modules gen_dune_rules)
- (libraries fmt fpath))
+ (libraries fmt))
 
 (include dune.inc)
 
