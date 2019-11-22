@@ -1,4 +1,4 @@
 (library
   (public_name current_slack)
   (name current_slack)
-  (libraries current current.cache lwt.unix cohttp-lwt-unix yojson))
+  (libraries current current.cache lwt.unix cohttp cohttp-lwt cohttp-lwt-unix lwt logs fmt uri yojson))

@@ -1,7 +1,7 @@
 (library
   (public_name current_rpc)
   (name current_rpc)
-  (libraries capnp-rpc-lwt lwt.unix fpath)
+  (libraries capnp capnp-rpc capnp-rpc-lwt stdint lwt lwt.unix logs result fmt fpath)
   (flags (:standard -w -53-55)))
 
 (rule

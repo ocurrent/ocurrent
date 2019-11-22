@@ -1,6 +1,6 @@
 (library
   (public_name current)
-  (libraries current_term lwt cmdliner sqlite3 lwt.unix prometheus duration lwt-dllist)
+  (libraries current_term lwt cmdliner sqlite3 lwt.unix prometheus duration lwt-dllist logs fmt fpath bos astring re result)
   (preprocess (per_module
                 ((pps ppx_deriving.std) level)
               )))

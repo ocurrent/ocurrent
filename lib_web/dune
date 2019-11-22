@@ -1,10 +1,30 @@
 (library
-  (public_name current_web)
-  (libraries
+ (public_name current_web)
+ (libraries
+    astring
     current
     current.cache
+    current.term
     current_ansi
+    lwt
     lwt.unix
+    cohttp
+    cohttp-lwt
     cohttp-lwt-unix
+    conduit-lwt-unix
     tyxml
-    prometheus-app))
+    tyxml.functor
+    prometheus
+    prometheus-app
+    ppx_sexp_conv.runtime-lib
+    cmdliner
+    fmt
+    sqlite3
+    re
+    uri
+    fpath
+    logs
+    bos
+    result
+    sexplib
+))

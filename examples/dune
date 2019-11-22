@@ -1,20 +1,32 @@
 (executables
-  (public_names docker_build_local
-                docker_service
-                build_matrix
-                github
-                github_app
-                rpc_server
-                rpc_client)
-  (package current_examples)
-  (libraries current
-             current_web
-             current_docker
-             current_git
-             current_github
-             current.fs
-             current_rpc
-             capnp-rpc-unix
-             lwt.unix
-             logs.fmt
-             fmt.tty))
+ (public_names docker_build_local
+               docker_service
+               build_matrix
+               github
+               github_app
+               rpc_server
+               rpc_client)
+ (package current_examples)
+ (libraries current
+            current_cache
+            current_web
+            current_docker
+            current_git
+            current_github
+            current.fs
+            current_rpc
+            capnp-rpc
+            capnp-rpc-net
+            capnp-rpc-lwt
+            capnp-rpc-unix
+            lwt
+            lwt.unix
+            logs.fmt
+            fmt.tty
+            fpath
+            duration
+            cmdliner
+            uri
+            dockerfile
+            prometheus
+            result))

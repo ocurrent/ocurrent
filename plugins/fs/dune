@@ -1,4 +1,4 @@
 (library
   (public_name current.fs)
   (name current_fs)
-  (libraries current fpath bos logs))
+  (libraries current current.term fpath bos result fmt logs))
