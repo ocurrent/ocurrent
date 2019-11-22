@@ -1,6 +1,20 @@
 (library
-  (public_name current_docker)
-  (libraries current current.cache current_git fmt fpath lwt lwt.unix logs dockerfile duration result astring bos ppx_deriving_yojson.runtime)
-  (preprocess (per_module
-                ((pps ppx_deriving.std ppx_deriving_yojson) pull build run tag push service)
-              )))
+ (public_name current_docker)
+ (libraries
+   astring
+   bos
+   current
+   current.cache
+   current_git
+   dockerfile
+   duration
+   fmt
+   fpath
+   logs
+   lwt
+   lwt.unix
+   ppx_deriving_yojson.runtime
+   result)
+ (preprocess (per_module
+              ((pps ppx_deriving.std ppx_deriving_yojson) pull build run tag push service)
+)))

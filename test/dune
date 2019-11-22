@@ -1,11 +1,27 @@
 (executables
-  (names test test_monitor test_cache)
-  (modules test test_monitor test_cache test_job test_log_matcher driver)
-  (libraries current fmt fmt.tty logs.fmt bos lwt.unix alcotest-lwt
-             current_fs
-             current_docker_test
-             current_git_test
-             current_opam_test))
+ (names test test_monitor test_cache)
+ (modules test test_monitor test_cache test_job test_log_matcher driver)
+ (libraries
+   alcotest
+   alcotest-lwt
+   astring
+   bos
+   current
+   current.cache
+   current.term
+   current_docker_test
+   current_fs
+   current_git_test
+   current_opam_test
+   duration
+   fmt
+   fmt.tty
+   fpath
+   logs.fmt
+   lwt
+   lwt.unix
+   result
+   ppx_deriving.runtime))
 
 (executable
  (name gen_dune_rules)
@@ -20,7 +36,7 @@
   (source_tree .))
  (action
   (with-stdout-to
-   %{targets}
+    %{targets}
    (run ./gen_dune_rules.exe))))
 
 (alias

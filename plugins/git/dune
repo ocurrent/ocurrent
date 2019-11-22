@@ -1,6 +1,18 @@
 (library
-  (public_name current_git)
-  (libraries current current.cache fpath lwt.unix irmin-watcher lwt fmt bos result astring logs ppx_deriving_yojson)
-  (preprocess (per_module
-                ((pps ppx_deriving_yojson) commit_id commit clone)
-              )))
+ (public_name current_git)
+ (libraries
+   astring
+   bos
+   current
+   current.cache
+   fmt
+   fpath
+   irmin-watcher
+   logs
+   lwt
+   lwt.unix
+   ppx_deriving_yojson
+   result)
+ (preprocess (per_module
+              ((pps ppx_deriving_yojson) commit_id commit clone)
+)))

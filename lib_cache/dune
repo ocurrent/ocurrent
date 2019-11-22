@@ -1,4 +1,14 @@
 (library
-  (public_name current.cache)
-  (name current_cache)
-  (libraries current current.term lwt lwt.unix duration sqlite3 fmt logs re result))
+ (public_name current.cache)
+ (name current_cache)
+ (libraries
+   current
+   current.term
+   duration
+   fmt
+   logs
+   lwt
+   lwt.unix
+   re
+   result
+   sqlite3))
