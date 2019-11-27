@@ -1,3 +1,7 @@
 (library
  (public_name current_ansi)
- (libraries astring fmt tyxml))
+ (libraries
+   astring
+   fmt
+   tyxml
+   tyxml.functor))
