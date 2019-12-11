@@ -14,6 +14,16 @@ module type DOCKER = sig
     val pp : t Fmt.t
   end
 
+  module Container_result : sig
+    type 'a t
+
+    val (&) : 'a t -> 'b t -> ('a * 'b) t
+
+    val unit : unit t
+    val logs : ?tail:int -> unit -> string list t
+    val file : Fpath.t -> string t
+  end
+
   val pull : ?label:string -> schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
   (** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
       @param schedule Controls how often we check for updates. If the schedule
@@ -42,6 +52,15 @@ module type DOCKER = sig
     Image.t Current.t -> args:string list ->
     unit Current.t
   (** [run image ~args] runs [image args] with Docker. *)
+
+  val run' :
+    ?label:string ->
+    ?pool:Current.Pool.t ->
+    Image.t Current.t -> args:string list ->
+    results:'a Container_result.t ->
+    'a Current.t
+  (** Like [run] but also takes the [~results] argument.
+      Allows to fetch logs or files from the dead container, before it is removed. *)
 
   val tag : tag:string -> Image.t Current.t -> unit Current.t
   (** [tag image ~tag] does "docker tag image tag" *)

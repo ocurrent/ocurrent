@@ -7,6 +7,51 @@ let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,"
 module Make (Host : S.HOST) = struct
   module Image = Image
 
+  module Container_result = struct
+
+    type 'a t =
+      | Logs : Run.fetch_logs -> string list t
+      | File : { path : Fpath.t } -> string t
+      | Unit : unit t
+      | Pair : 'a t * 'b t -> ('a * 'b) t
+
+    let (&) a b = Pair (a, b)
+    let unit = Unit
+    let logs ?tail () = Logs { tail }
+    let file path = File { path }
+
+    let rec to_yojson : type a. a t -> _ = function
+      | Logs { tail } ->
+        let tail = match tail with Some t -> `Int t | None -> `String "none" in
+        `Assoc [ "logs", `Assoc [ "tail", tail ] ]
+      | File { path } ->
+        `Assoc [ "file", `Assoc [ "path", `String (Fpath.to_string path) ] ]
+      | Unit -> `String "unit"
+      | Pair (a, b) -> `List [ to_yojson a; to_yojson b ]
+
+    let simplify t =
+      let rec loop : type a. _ -> _ -> a t -> _ = fun logs files -> function
+        | Unit -> logs, files
+        | Logs l -> Some l, files
+        | File { path } -> logs, Fpath.to_string path :: files
+        | Pair (a, b) ->
+          let logs, files = loop logs files a in
+          loop logs files b
+      in
+      loop None [] t
+
+    let return (logs : string list) (files : (string * string) list) =
+      let rec loop : type a. a t -> a = function
+        | Logs _ -> logs
+        | File { path } -> List.assoc (Fpath.to_string path) files
+        | Unit -> ()
+        | Pair (a, b) ->
+          loop a, loop b
+      in
+      loop
+
+  end
+
   module PC = Current_cache.Make(Pull)
 
   let docker_context = Host.docker_context
@@ -39,9 +84,22 @@ module Make (Host : S.HOST) = struct
   module RC = Current_cache.Make(Run)
 
   let run ?label ?pool image ~args =
-    Current.component "run%a" pp_sp_label label |>
-    let> image = image in
-    RC.get { Run.pool } { Run.Key.image; args; docker_context }
+    let fetch_logs = None and fetch_files = [] in
+    let+ _ =
+      Current.component "run%a" pp_sp_label label |>
+      let> image = image in
+      RC.get { Run.pool } { Run.Key.image; args; docker_context; fetch_logs; fetch_files }
+    in
+    ()
+
+  let run' ?label ?pool image ~args ~results =
+    let fetch_logs, fetch_files = Container_result.simplify results in
+    let+ Run.Value.{ logs; files } =
+      Current.component "run%a" pp_sp_label label |>
+      let> image = image in
+      RC.get { Run.pool } { Run.Key.image; args; docker_context; fetch_logs; fetch_files }
+    in
+    Container_result.return logs files results
 
   module TC = Current_cache.Output(Tag)
 
