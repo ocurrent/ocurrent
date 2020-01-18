@@ -26,6 +26,7 @@ module type DOCKER = sig
     ?label:string ->
     ?dockerfile:Dockerfile.t Current.t ->
     ?pool:Current.Pool.t ->
+    ?build_args:string list ->
     pull:bool ->
     source ->
     Image.t Current.t

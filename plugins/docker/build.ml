@@ -20,6 +20,7 @@ module Key = struct
     dockerfile : string option;
     docker_context : string option;
     squash : bool;
+    build_args: string list;
   }
 
   let digest_dockerfile = function
@@ -30,12 +31,13 @@ module Key = struct
     | `No_context -> `Null
     | `Git commit -> `String (Current_git.Commit.id commit)
 
-  let to_json { commit; dockerfile; docker_context; squash } =
+  let to_json { commit; dockerfile; docker_context; squash; build_args } =
     `Assoc [
       "commit", source_to_json commit;
       "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
       "docker_context", [%derive.to_yojson:string option] docker_context;
       "squash", [%derive.to_yojson:bool] squash;
+      "build_args", [%derive.to_yojson:string list] build_args;
     ]
 
   let digest t = Yojson.Safe.to_string (to_json t)
@@ -59,7 +61,7 @@ let with_context ~job context fn =
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
 let build { pull; pool; timeout } job key =
-  let { Key.commit; docker_context; dockerfile; squash } = key in
+  let { Key.commit; docker_context; dockerfile; squash; build_args } = key in
   dockerfile |> Option.iter (fun contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
     );
@@ -72,7 +74,7 @@ let build { pull; pool; timeout } job key =
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
   let cmd = Cmd.docker ~docker_context @@ ["build"] @
-                                          pull @ squash @
+                                          pull @ squash @ build_args @
                                           ["--iidfile";
                                            Fpath.to_string iidfile; "--";
                                            Fpath.to_string dir] in

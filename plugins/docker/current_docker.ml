@@ -29,12 +29,13 @@ module Make (Host : S.HOST) = struct
     | `No_context -> Current.return `No_context
     | `Git commit -> Current.map (fun x -> `Git x) commit
 
-  let build ?schedule ?timeout ?(squash=false) ?label ?dockerfile ?pool ~pull src =
+  let build ?schedule ?timeout ?(squash=false) ?label ?dockerfile ?pool ?(build_args=[]) ~pull src =
     Current.component "build%a" pp_sp_label label |>
     let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
     let dockerfile = option_map Dockerfile.string_of_t dockerfile in
-    BC.get ?schedule { Build.pull; pool; timeout } { Build.Key.commit; dockerfile; docker_context; squash }
+    BC.get ?schedule { Build.pull; pool; timeout }
+      { Build.Key.commit; dockerfile; docker_context; squash; build_args }
 
   module RC = Current_cache.Make(Run)
 
