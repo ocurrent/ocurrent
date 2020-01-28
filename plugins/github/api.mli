@@ -13,6 +13,7 @@ module Commit : sig
   val repo_id : t -> Repo_id.t
   val owner_name : t -> string
   val hash : t -> string
+  val kind : t -> [ `Ref of string | `PR of int ]
   val pp : t Fmt.t
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
 end

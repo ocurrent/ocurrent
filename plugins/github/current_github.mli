@@ -49,6 +49,10 @@ module Api : sig
     val hash : t -> string
     (** [hash t] is the Git commit hash of [t]. *)
 
+    val kind : t -> [ `Ref of string | `PR of int ]
+    (** [kind t] tells you whether this commit is from a branch [`Ref branch_name]
+        or a PR [`PR pr_number]. *)
+
     val pp : t Fmt.t
   end
 
