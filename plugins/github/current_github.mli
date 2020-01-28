@@ -58,8 +58,11 @@ module Api : sig
     val id : t -> Repo_id.t
     val pp : t Fmt.t
 
-    val ci_refs : t Current.t -> Commit.t list Current.t
-    (** [ci_refs t] evaluates to the list of branches and open PRs in [t]. *)
+    val branches : t Current.t -> Commit.t list Current.t
+    (** [branches t] evaluates to the list of branches in [t]. *)
+
+    val prs : t Current.t -> Commit.t list Current.t
+    (** [prs t] evaluates to the list of open PRs in [t]. *)
 
     val head_commit : t Current.t -> Commit.t Current.t
     (** [head_commit t] evaluates to the commit at the head of the default branch in [t]. *)
@@ -74,8 +77,11 @@ module Api : sig
   val head_commit : t -> Repo_id.t -> Commit.t Current.t
   (** [head_commit t repo] evaluates to the commit at the head of the default branch in [repo]. *)
 
-  val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
-  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo]. *)
+  val branches : t -> Repo_id.t -> Commit.t list Current.t
+  (** [branches t repo] evaluates to the list of branches in [repo]. *)
+
+  val prs : t -> Repo_id.t -> Commit.t list Current.t
+  (** [prs t repo] evaluates to the list of open PRs in [repo]. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)

@@ -121,16 +121,18 @@ type t = {
   token_lock : Lwt_mutex.t;
   mutable token : token;
   mutable head_inputs : commit Current.Input.t Repo_map.t;
-  mutable ci_refs_inputs : ci_refs Current.Input.t Repo_map.t;
+  mutable branches_inputs : ci_refs Current.Input.t Repo_map.t;
+  mutable prs_inputs : ci_refs Current.Input.t Repo_map.t;
 }
 and commit = t * Commit_id.t
 and ci_refs = commit list
 
 let v ~get_token account =
   let head_inputs = Repo_map.empty in
-  let ci_refs_inputs = Repo_map.empty in
+  let branches_inputs = Repo_map.empty in
+  let prs_inputs = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_inputs; ci_refs_inputs; account }
+  { get_token; token_lock; token = no_token; head_inputs; branches_inputs; prs_inputs; account }
 
 let of_oauth token =
   let get_token () = Lwt.return { token = Ok token; expiry = None } in
@@ -282,7 +284,7 @@ let head_commit t repo =
     t.head_inputs <- Repo_map.add repo i t.head_inputs;
     i
 
-let query_branches_and_open_prs = {|
+let query_branches = {|
   query($owner: String!, $name: String!) {
     rateLimit {
       cost
@@ -302,6 +304,53 @@ let query_branches_and_open_prs = {|
           }
         }
       }
+    }
+  }
+|}
+
+let parse_ref ~owner_name ~prefix json =
+  let open Yojson.Safe.Util in
+  let node = json / "node" in
+  let name = node / "name" |> to_string in
+  let hash = node / "target" / "oid" |> to_string in
+  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
+
+let get_branches t { Repo_id.owner; name } =
+    let variables = [
+      "owner", `String owner;
+      "name", `String name;
+    ] in
+    exec_graphql t ~variables query_branches >|= fun json ->
+    try
+      let open Yojson.Safe.Util in
+      let data = json / "data" in
+      handle_rate_limit t "default_ref" (data / "rateLimit");
+      let repo = data / "repository" in
+      let owner_name = repo / "nameWithOwner" |> to_string in
+      let refs =
+        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/")
+        |> List.map (fun r -> (t, r)) in
+      (* TODO: use cursors to get all results.
+         For now, we just take the first 100 and warn if there are more. *)
+      let n_branches = repo / "refs" / "totalCount" |> to_int in
+      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
+      if List.length refs < n_branches then
+        Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
+      refs |> List.filter (fun (_, c) -> c.Commit_id.id <> `Ref "refs/heads/gh-pages")
+    with ex ->
+      let pp f j = Yojson.Safe.pretty_print f j in
+      Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
+      raise ex
+
+let query_open_prs = {|
+  query($owner: String!, $name: String!) {
+    rateLimit {
+      cost
+      remaining
+      resetAt
+    }
+    repository(owner: $owner, name: $name) {
+      nameWithOwner
       pullRequests(first: 100, states:[OPEN]) {
         totalCount
         edges {
@@ -315,13 +364,6 @@ let query_branches_and_open_prs = {|
   }
 |}
 
-let parse_ref ~owner_name ~prefix json =
-  let open Yojson.Safe.Util in
-  let node = json / "node" in
-  let name = node / "name" |> to_string in
-  let hash = node / "target" / "oid" |> to_string in
-  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
-
 let parse_pr ~owner_name json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
@@ -329,45 +371,37 @@ let parse_pr ~owner_name json =
   let pr = node / "number" |> to_int in
   { Commit_id.owner_name; id = `PR pr; hash }
 
-let get_ci_refs t { Repo_id.owner; name } =
+let get_prs t { Repo_id.owner; name } =
     let variables = [
       "owner", `String owner;
       "name", `String name;
     ] in
-    exec_graphql t ~variables query_branches_and_open_prs >|= fun json ->
+    exec_graphql t ~variables query_open_prs >|= fun json ->
     try
       let open Yojson.Safe.Util in
       let data = json / "data" in
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
       let owner_name = repo / "nameWithOwner" |> to_string in
-      let refs =
-        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/")
-        |> List.map (fun r -> (t, r)) in
       let prs =
         repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name)
         |> List.map (fun r -> (t, r)) in
       (* TODO: use cursors to get all results.
          For now, we just take the first 100 and warn if there are more. *)
-      let n_branches = repo / "refs" / "totalCount" |> to_int in
       let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
-      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
       Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.prs_total [owner; name]) (float_of_int n_prs);
-      if List.length refs < n_branches then
-        Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
       if List.length prs < n_prs then
         Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
-      let refs = refs |> List.filter (fun (_, c) -> c.Commit_id.id <> `Ref "refs/heads/gh-pages") in
-      refs @ prs
+      prs
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
       raise ex
 
-let make_ci_refs_input t repo =
+let make_input_aux ~make ~msg t repo =
   let read () =
     Lwt.catch
-      (fun () -> get_ci_refs t repo >|= Stdlib.Result.ok)
+      (fun () -> make t repo >|= Stdlib.Result.ok)
       (fun ex -> Lwt_result.fail @@ `Msg (Fmt.strf "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
   in
   let watch refresh =
@@ -384,23 +418,33 @@ let make_ci_refs_input t repo =
         (fun () -> aux x)
         (function
           | Lwt.Canceled -> Lwt.return_unit  (* (could clear metrics here) *)
-          | ex -> Log.err (fun f -> f "ci_refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
+          | ex -> Log.err (fun f -> f "%s thread failed: %a" msg Fmt.exn ex); Lwt.return_unit
         )
     in
     Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
   in
-  let pp f = Fmt.pf f "Watch %a CI refs" Repo_id.pp repo in
+  let pp f = Fmt.pf f "Watch %a %s" Repo_id.pp repo msg in
   Current.monitor ~read ~watch ~pp
 
-let ci_refs t repo =
-  Current.component "%a CI refs" Repo_id.pp repo |>
+let input_aux ~get ~set ~make ~msg t repo =
+  Current.component "%a %s" Repo_id.pp repo msg |>
   let> () = Current.return () in
-  match Repo_map.find_opt repo t.ci_refs_inputs with
+  match Repo_map.find_opt repo (get t) with
   | Some i -> i
   | None ->
-    let i = make_ci_refs_input t repo in
-    t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
+    let i = make_input_aux ~make ~msg t repo in
+    set t (Repo_map.add repo i (get t));
     i
+
+let branches =
+  input_aux
+    ~get:(fun t -> t.branches_inputs) ~set:(fun t v -> t.branches_inputs <- v)
+    ~make:get_branches ~msg:"branches"
+
+let prs =
+  input_aux
+    ~get:(fun t -> t.prs_inputs) ~set:(fun t v -> t.prs_inputs <- v)
+    ~make:get_prs ~msg:"PRs"
 
 module Commit = struct
   module Set_status = struct
@@ -504,15 +548,25 @@ module Repo = struct
       api.head_inputs <- Repo_map.add repo i api.head_inputs;
       i
 
-  let ci_refs t =
-    Current.component "CI refs" |>
+  let input_aux ~get ~set ~make ~msg t =
+    Current.component "%s" msg |>
     let> (api, repo) = t in
-    match Repo_map.find_opt repo api.ci_refs_inputs with
+    match Repo_map.find_opt repo (get api) with
     | Some i -> i
     | None ->
-      let i = make_ci_refs_input api repo in
-      api.ci_refs_inputs <- Repo_map.add repo i api.ci_refs_inputs;
+      let i = make_input_aux ~make ~msg api repo in
+      set api (Repo_map.add repo i (get api));
       i
+
+  let branches =
+    input_aux
+      ~get:(fun api -> api.branches_inputs) ~set:(fun api v -> api.branches_inputs <- v)
+      ~make:get_branches ~msg:"Branches"
+
+  let prs =
+    input_aux
+      ~get:(fun api -> api.prs_inputs) ~set:(fun api v -> api.prs_inputs <- v)
+      ~make:get_prs ~msg:"PRs"
 end
 
 open Cmdliner
