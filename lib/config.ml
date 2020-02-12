@@ -44,10 +44,14 @@ open Cmdliner
 
 let cmdliner_confirm =
   let levels = List.map (fun l -> Level.to_string l, Some l) Level.values in
-  let conv = Arg.enum @@ ("none", None) :: levels in
-  Arg.opt conv None @@
-  Arg.info ~doc:"Confirm before starting operations at or above this level."
-    ["confirm"]
+  let enum = ("none", None) :: levels in
+  let doc =
+    Fmt.str
+      "Confirm before starting operations at or above this level (%s)."
+      (Arg.doc_alts_enum enum)
+  in
+  Arg.opt (Arg.enum enum) None @@
+  Arg.info ~doc ["confirm"]
 
 let auto_release =
   Arg.value @@
