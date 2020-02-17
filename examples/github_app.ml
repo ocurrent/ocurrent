@@ -36,7 +36,7 @@ let github_status_of_state = function
 let pipeline ~app () =
   let dockerfile =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
-    dockerfile ~base
+    `Contents (dockerfile ~base)
   in
   Github.App.installations app |> Current.list_iter ~pp:Github.Installation.pp @@ fun installation ->
   let repos = Github.Installation.repositories installation in

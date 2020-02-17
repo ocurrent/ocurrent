@@ -24,7 +24,7 @@ module type DOCKER = sig
     ?timeout:Duration.t ->
     ?squash:bool ->
     ?label:string ->
-    ?dockerfile:Dockerfile.t Current.t ->
+    ?dockerfile:[`File of Fpath.t | `Contents of Dockerfile.t] Current.t ->
     ?pool:Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
