@@ -34,7 +34,7 @@ let pipeline ~github ~repo () =
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   let dockerfile =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
-    dockerfile ~base
+    `Contents (dockerfile ~base)
   in
   Docker.build ~pull:false ~dockerfile (`Git src)
   |> Current.state

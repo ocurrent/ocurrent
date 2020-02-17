@@ -33,7 +33,12 @@ module Make (Host : S.HOST) = struct
     Current.component "build%a" pp_sp_label label |>
     let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
-    let dockerfile = option_map Dockerfile.string_of_t dockerfile in
+    let dockerfile =
+      match dockerfile with
+      | None -> `File (Fpath.v "Dockerfile")
+      | Some (`File _ as f) -> f
+      | Some (`Contents c) -> `Contents (Dockerfile.string_of_t c)
+    in
     BC.get ?schedule { Build.pull; pool; timeout }
       { Build.Key.commit; dockerfile; docker_context; squash; build_args }
 

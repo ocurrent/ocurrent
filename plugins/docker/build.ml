@@ -17,15 +17,15 @@ let use_pool pool f =
 module Key = struct
   type t = {
     commit : [ `No_context | `Git of Current_git.Commit.t ];
-    dockerfile : string option;
+    dockerfile : [`File of Fpath.t | `Contents of string];
     docker_context : string option;
     squash : bool;
     build_args: string list;
   }
 
   let digest_dockerfile = function
-    | None -> None
-    | Some contents -> Some (Digest.string contents |> Digest.to_hex)
+    | `File name -> `Assoc [ "file", `String (Fpath.to_string name) ]
+    | `Contents contents -> `Assoc [ "contents", `String (Digest.string contents |> Digest.to_hex) ]
 
   let source_to_json = function
     | `No_context -> `Null
@@ -34,7 +34,7 @@ module Key = struct
   let to_json { commit; dockerfile; docker_context; squash; build_args } =
     `Assoc [
       "commit", source_to_json commit;
-      "dockerfile", [%derive.to_yojson:string option] (digest_dockerfile dockerfile);
+      "dockerfile", digest_dockerfile dockerfile;
       "docker_context", [%derive.to_yojson:string option] docker_context;
       "squash", [%derive.to_yojson:bool] squash;
       "build_args", [%derive.to_yojson:string list] build_args;
@@ -62,24 +62,31 @@ let with_context ~job context fn =
 
 let build { pull; pool; timeout } job key =
   let { Key.commit; docker_context; dockerfile; squash; build_args } = key in
-  dockerfile |> Option.iter (fun contents ->
+  begin match dockerfile with
+    | `Contents contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
-    );
+    | `File _ -> ()
+  end;
   Current.Job.start ?timeout ?pool job ~level:Current.Level.Average >>= fun () ->
   with_context ~job commit @@ fun dir ->
-  dockerfile |> Option.iter (fun contents ->
+  let file =
+    match dockerfile with
+    | `Contents contents ->
       Bos.OS.File.write Fpath.(dir / "Dockerfile") (contents ^ "\n") |> or_raise;
-    );
+      []
+    | `File name ->
+      ["-f"; Fpath.(to_string (dir // name))]
+  in
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
   let cmd = Cmd.docker ~docker_context @@ ["build"] @
-                                          pull @ squash @ build_args @
+                                          pull @ squash @ build_args @ file @
                                           ["--iidfile";
                                            Fpath.to_string iidfile; "--";
                                            Fpath.to_string dir] in
   let pp_error_command f = Fmt.string f "Docker build" in
-  Current.Process.exec ~cancellable:true ?stdin:dockerfile ~pp_error_command ~job cmd >|= function
+  Current.Process.exec ~cancellable:true ~pp_error_command ~job cmd >|= function
   | Error _ as e -> e
   | Ok () ->
     Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->
