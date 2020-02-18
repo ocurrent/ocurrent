@@ -78,6 +78,10 @@ module Input : sig
       Note: the engine calls [f] in an evaluation before calling [release]
       on the previous watches, so if the ref-count drops to zero then you can
       cancel the job. *)
+
+  val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
+  (** [map_result fn t] transforms the result of [t] with [fn]. The metadata remains the same.
+      If [fn] raises an exception, this is converted to [Error]. *)
 end
 
 module Job_map : Map.S with type key = job_id

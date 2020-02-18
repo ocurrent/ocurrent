@@ -95,6 +95,11 @@ module Input = struct
       | Some job_id -> Step.register_job step job_id actions
     end;
     (value, job_id)
+
+  let map_result fn t step =
+    let x, md = t step in
+    let y = try fn x with ex -> Error (`Msg (Printexc.to_string ex)) in
+    y, md
 end
 
 include Current_term.Make(Input)
