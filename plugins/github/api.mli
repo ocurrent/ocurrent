@@ -1,4 +1,4 @@
-(* Public API; see Current_git.mli for details of these: *)
+(* Public API; see Current_github.mli for details of these: *)
 
 module Status : sig
   type t

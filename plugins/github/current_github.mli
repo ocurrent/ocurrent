@@ -105,6 +105,9 @@ module App : sig
 
   val installation : t -> account:string -> int -> Installation.t
   (** [installation t ~account id] gives access to the API for installation [id].
+      Note: this generates a fresh value on each call and should not be used inside
+      a pipeline. It is intended to be called once from your [main] function, for
+      apps with only a single installation.
       @param account The GitHub account that installed the application. *)
 
   val installations : t -> Installation.t list Current.t
