@@ -403,6 +403,101 @@ module Make (Job : sig type id end) = struct
     flush_pending ();
     Fmt.pf f "}@]@."
 
+  (* This is similar to [pp_dot], except that for each call to [node] we call [count] instead. *)
+  let stats x =
+    let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
+    let next = ref 0 in
+    let ok = ref 0 in
+    let ready = ref 0 in
+    let running = ref 0 in
+    let failed = ref 0 in
+    let blocked = ref 0 in
+    let rec aux md =
+      match Id.Map.find_opt md.id !seen with
+      | Some x -> x
+      | None ->
+        let i = !next in
+        incr next;
+        let ctx =
+          match md.bind with
+          | None -> Out_node.empty
+          | Some c -> aux c
+        in
+        let count () =
+          match md.state with
+          | Pass -> incr ok
+          | Blocked -> incr blocked
+          | Active `Ready -> incr ready
+          | Active `Running -> incr running
+          | Fail _ -> incr failed
+        in
+        let outputs =
+          match md.ty with
+          | Constant (Some _) -> count (); Out_node.singleton ~deps:ctx.Out_node.trans i
+          | Constant None when Out_node.is_empty ctx ->
+            count ();
+            Out_node.singleton ~deps:ctx.Out_node.trans i
+          | Constant None -> ctx
+          | Map_input { source; info = _ } ->
+            count ();
+            let source = aux source in
+            let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
+            Out_node.singleton ~deps i
+          | Opt_input { source; info = _ } -> aux source
+          | Bind (x, _) ->
+            let inputs =
+              match x.ty with
+              | Constant None -> Out_node.empty
+              | _ -> aux x
+            in
+            count ();
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+          | Bind_input {x; info = _; id = _} ->
+            let inputs =
+              match x.ty with
+              | Constant None -> Out_node.empty
+              | _ -> aux x
+            in
+            count ();
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+          | Pair (x, y) ->
+            Out_node.union (aux x) (aux y) |> Out_node.union ctx
+          | Gate_on { ctrl; value } ->
+            count ();
+            let ctrls = aux ctrl in
+            let values = aux value in
+            let data_inputs = Out_node.union values ctx in
+            let deps = Node_set.(union ctrls.trans data_inputs.trans) in
+            Out_node.singleton ~deps i
+          | State x ->
+            let _ : Out_node.t = aux x in
+            count ();
+            Out_node.singleton ~deps:Node_set.empty i
+          | Catch x ->
+            let inputs = aux x in
+            count ();
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.singleton ~deps:all_inputs.trans i
+          | Map_failed x ->
+            let inputs = aux x in
+            count ();
+            let all_inputs = Out_node.union inputs ctx in
+            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+          | List_map { items; fn } ->
+            ignore (aux items);
+            aux fn
+          | Option_map { item; fn } ->
+            ignore (aux item);
+            aux fn
+        in
+        seen := Id.Map.add md.id outputs !seen;
+        outputs
+    in
+    ignore (aux x);
+    { S.ok = !ok; ready = !ready; running = !running; failed = !failed; blocked = !blocked  }
+
   let booting =
     let env = make_env () in
     active ~env `Running

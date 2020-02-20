@@ -42,6 +42,8 @@ module Make (Job : sig type id end) : sig
 
   val job_id : t -> Job.id option
 
+  val stats : t -> S.stats
+
   val pp : t Fmt.t
   val pp_dot : url:(Job.id -> string option) -> t Fmt.t
 end

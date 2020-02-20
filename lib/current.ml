@@ -15,6 +15,10 @@ module Metrics = struct
   let evaluation_time_seconds =
     let help = "Total time spent evaluating" in
     Summary.v ~help ~namespace ~subsystem "evaluation_time_seconds"
+
+  let pipeline_stage_total =
+    let help = "Number of pipeline stages by state" in
+    Gauge.v_label ~label_name:"state" ~help ~namespace ~subsystem "pipeline_stage_total"
 end
 
 type job_id = string
@@ -221,6 +225,14 @@ module Engine = struct
     match m.changed with
     | Some p -> Lwt.state p <> Lwt.Sleep
     | None -> false
+
+  let update_metrics results =
+    let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats results.analysis in
+    Prometheus.Gauge.set (Metrics.pipeline_stage_total "ok") (float_of_int ok);
+    Prometheus.Gauge.set (Metrics.pipeline_stage_total "ready") (float_of_int ready);
+    Prometheus.Gauge.set (Metrics.pipeline_stage_total "running") (float_of_int running);
+    Prometheus.Gauge.set (Metrics.pipeline_stage_total "failed") (float_of_int failed);
+    Prometheus.Gauge.set (Metrics.pipeline_stage_total "blocked") (float_of_int blocked)
 end
 
 module Monitor : sig
