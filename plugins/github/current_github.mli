@@ -59,7 +59,7 @@ module Api : sig
     val pp : t Fmt.t
 
     val ci_refs : t Current.t -> Commit.t list Current.t
-    (** [ci_refs t] evaluates to the list of branches and open PRs in [t]. *)
+    (** [ci_refs t] evaluates to the list of branches and open PRs in [t], excluding gh-pages. *)
 
     val head_commit : t Current.t -> Commit.t Current.t
     (** [head_commit t] evaluates to the commit at the head of the default branch in [t]. *)
@@ -74,8 +74,12 @@ module Api : sig
   val head_commit : t -> Repo_id.t -> Commit.t Current.t
   (** [head_commit t repo] evaluates to the commit at the head of the default branch in [repo]. *)
 
+  val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
+  (** [head_of t repo id] evaluates to the commit at the head of [id] in [repo].
+      e.g. [head_of t repo (`Ref "refs/heads/master")] *)
+
   val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
-  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo]. *)
+  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)

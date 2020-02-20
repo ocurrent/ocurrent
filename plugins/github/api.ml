@@ -89,25 +89,35 @@ let no_token = {
   expiry = Some (-1.0);
 }
 
+module GH_ref = struct
+  type t = [ `Ref of string | `PR of int ] [@@deriving to_yojson]
+
+  let compare = Stdlib.compare
+
+  let pp f = function
+    | `Ref r -> Fmt.string f r
+    | `PR pr -> Fmt.pf f "PR %d" pr
+
+  let to_git = function
+    | `Ref head -> head
+    | `PR id -> Fmt.strf "refs/pull/%d/head" id
+end
+
+module GH_ref_map = Map.Make(GH_ref)
+
 module Commit_id = struct
   type t = {
     owner_name : string;    (* e.g. "owner/name" *)
-    id : [ `Ref of string | `PR of int ];
+    id : GH_ref.t;
     hash : string;
   } [@@deriving to_yojson]
 
   let to_git { owner_name; id; hash } =
     let repo = Fmt.strf "https://github.com/%s.git" owner_name in
-    let gref =
-      match id with
-      | `Ref head -> head
-      | `PR id -> Fmt.strf "refs/pull/%d/head" id
-    in
+    let gref = GH_ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
-  let pp_id f = function
-    | `Ref r -> Fmt.string f r
-    | `PR pr -> Fmt.pf f "PR %d" pr
+  let pp_id = GH_ref.pp
 
   let pp f { owner_name; id; hash } =
     Fmt.pf f "@[<v>%s@,%a@,%s@]" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
@@ -124,7 +134,7 @@ type t = {
   mutable ci_refs_inputs : ci_refs Current.Input.t Repo_map.t;
 }
 and commit = t * Commit_id.t
-and ci_refs = commit list
+and ci_refs = commit GH_ref_map.t
 
 let v ~get_token account =
   let head_inputs = Repo_map.empty in
@@ -342,11 +352,9 @@ let get_ci_refs t { Repo_id.owner; name } =
       let repo = data / "repository" in
       let owner_name = repo / "nameWithOwner" |> to_string in
       let refs =
-        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/")
-        |> List.map (fun r -> (t, r)) in
+        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/") in
       let prs =
-        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name)
-        |> List.map (fun r -> (t, r)) in
+        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name) in
       (* TODO: use cursors to get all results.
          For now, we just take the first 100 and warn if there are more. *)
       let n_branches = repo / "refs" / "totalCount" |> to_int in
@@ -357,8 +365,10 @@ let get_ci_refs t { Repo_id.owner; name } =
         Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
       if List.length prs < n_prs then
         Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
-      let refs = refs |> List.filter (fun (_, c) -> c.Commit_id.id <> `Ref "refs/heads/gh-pages") in
-      refs @ prs
+      let add xs map = List.fold_left (fun acc x -> GH_ref_map.add x.Commit_id.id (t, x) acc) map xs in
+      GH_ref_map.empty
+      |> add refs
+      |> add prs
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -392,15 +402,38 @@ let make_ci_refs_input t repo =
   let pp f = Fmt.pf f "Watch %a CI refs" Repo_id.pp repo in
   Current.monitor ~read ~watch ~pp
 
-let ci_refs t repo =
-  Current.component "%a CI refs" Repo_id.pp repo |>
-  let> () = Current.return () in
+let refs t repo =
   match Repo_map.find_opt repo t.ci_refs_inputs with
   | Some i -> i
   | None ->
     let i = make_ci_refs_input t repo in
     t.ci_refs_inputs <- Repo_map.add repo i t.ci_refs_inputs;
     i
+
+let to_ci_refs refs =
+  refs
+  |> GH_ref_map.remove (`Ref "refs/heads/gh-pages")
+  |> GH_ref_map.bindings
+  |> List.map snd
+
+let ci_refs t repo =
+  let+ refs =
+    Current.component "%a CI refs" Repo_id.pp repo |>
+    let> () = Current.return () in
+    refs t repo
+  in
+  to_ci_refs refs
+
+let head_of t repo id =
+  Current.component "%a@,%a" Repo_id.pp repo GH_ref.pp id |>
+  let> () = Current.return () in
+  refs t repo
+  |> Current.Input.map_result @@ function
+  | Error _ as e -> e
+  | Ok refs ->
+    match GH_ref_map.find_opt id refs with
+    | Some x -> Ok x
+    | None -> Error (`Msg (Fmt.strf "No such ref %a/%a" Repo_id.pp repo GH_ref.pp id))
 
 module Commit = struct
   module Set_status = struct
@@ -505,14 +538,12 @@ module Repo = struct
       i
 
   let ci_refs t =
-    Current.component "CI refs" |>
-    let> (api, repo) = t in
-    match Repo_map.find_opt repo api.ci_refs_inputs with
-    | Some i -> i
-    | None ->
-      let i = make_ci_refs_input api repo in
-      api.ci_refs_inputs <- Repo_map.add repo i api.ci_refs_inputs;
-      i
+    let+ refs =
+      Current.component "CI refs" |>
+      let> (api, repo) = t in
+      refs api repo
+    in
+    to_ci_refs refs
 end
 
 open Cmdliner
