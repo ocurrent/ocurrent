@@ -155,6 +155,11 @@ module Engine : sig
       it should be re-evaluated. Provided for unit-tests. *)
 
   val pp_metadata : metadata Fmt.t
+
+  val update_metrics : results -> unit
+  (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
+      Call this on each metrics collection if you have exactly one pipeline. The default web
+      UI does this automatically. *)
 end
 
 module Var (T : Current_term.S.T) : sig

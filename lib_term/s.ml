@@ -1,5 +1,14 @@
 type 'a or_error = ('a, [`Msg of string]) result
 
+type stats = {
+  ok : int;
+  ready : int;
+  running : int;
+  failed : int;
+  blocked : int;
+}
+(** Counters showing how many pipeline stages are in each state. *)
+
 module type T = sig
   type t
   val equal : t -> t -> bool
@@ -43,6 +52,9 @@ module type ANALYSIS = sig
   val pp_dot : url:(job_id -> string option) -> t Fmt.t
   (** [pp_dot ~url] formats a [t] as a graphviz dot graph.
       @param url Generates a URL from an ID. *)
+
+  val stats : t -> stats
+  (** [stats t] count how many stages are in each state. *)
 end
 
 module type TERM = sig

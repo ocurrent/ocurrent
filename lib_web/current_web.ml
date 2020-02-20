@@ -167,6 +167,7 @@ let handle_request ~engine ~webhooks _conn request body =
     | `GET, ["log-rules"] ->
       Log_rules.render ()
     | `GET, ["metrics"] ->
+      Current.Engine.(update_metrics (state engine));
       let data = Prometheus.CollectorRegistry.(collect default) in
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in
