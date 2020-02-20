@@ -21,12 +21,12 @@ module Fetch = struct
 
   let build No_context job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
-    Lwt_mutex.with_lock (Clone.repo_lock remote_repo) @@ fun () ->
     let level =
       if Commit_id.is_local key then Current.Level.Harmless
       else Current.Level.Mostly_harmless
     in
     Current.Job.start job ~level >>= fun () ->
+    Lwt_mutex.with_lock (Clone.repo_lock remote_repo) @@ fun () ->
     let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
