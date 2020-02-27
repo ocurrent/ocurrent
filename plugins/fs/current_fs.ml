@@ -28,3 +28,19 @@ let save path value =
       Ok (), Current.Input.metadata actions
     | Error _ as e ->
       e, Current.Input.metadata actions
+
+let read path =
+  Current.component "read" |>
+  let> path = path in
+  Current.Input.of_fn @@ fun _env ->
+  let actions = object
+    method pp f = Fmt.pf f "Save %a" Fpath.pp path
+    method cancel = None
+    method rebuild = None
+    method release = ()
+  end in
+  match Bos.OS.File.read path with
+  | Ok value ->
+    Ok (value), Current.Input.metadata actions
+  | Error _ as e ->
+    e, Current.Input.metadata actions
