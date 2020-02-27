@@ -4,6 +4,18 @@ open Astring
 let src = Logs.Src.create "current_web" ~doc:"OCurrent web interface"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Metrics = struct
+  open Prometheus
+
+  let collection_duration_seconds =
+    { MetricInfo.
+      name = MetricName.v "ocurrent_web_metrics_collection_duration_seconds";
+      metric_type = Gauge;
+      help = "Time taken to collect Prometheus metrics";
+      label_names = [];
+    }
+end
+
 module Server = Cohttp_lwt_unix.Server
 
 type webhook = string * (Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t)
@@ -168,7 +180,14 @@ let handle_request ~engine ~webhooks _conn request body =
       Log_rules.render ()
     | `GET, ["metrics"] ->
       Current.Engine.(update_metrics (state engine));
-      let data = Prometheus.CollectorRegistry.(collect default) in
+      let data =
+        let open Prometheus in
+        let t0 = Unix.gettimeofday () in
+        let data = Prometheus.CollectorRegistry.(collect default) in
+        let t1 = Unix.gettimeofday () in
+        let value = Sample_set.sample (t1 -. t0) in
+        MetricFamilyMap.add Metrics.collection_duration_seconds (LabelSetMap.singleton [] [value]) data
+      in
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in
       Server.respond_string ~status:`OK ~headers ~body ()
