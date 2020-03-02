@@ -47,6 +47,15 @@ module type DOCKER = sig
       @param run_args List of additional arguments to pass to the "docker
                       run" subcommand. *)
 
+  val pread :
+    ?label:string ->
+    ?pool:Current.Pool.t ->
+    ?run_args:string list ->
+    Image.t Current.t -> args:string list ->
+    string Current.t
+  (** [pread image ~args] runs [image args] with Docker the same way than [run]
+      does but returns its stdout as a string. *)
+
   val tag : tag:string -> Image.t Current.t -> unit Current.t
   (** [tag image ~tag] does "docker tag image tag" *)
 

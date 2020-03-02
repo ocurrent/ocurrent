@@ -16,5 +16,5 @@
    ppx_deriving_yojson.runtime
    result)
  (preprocess (per_module
-              ((pps ppx_deriving.std ppx_deriving_yojson) pull build run tag push service)
+              ((pps ppx_deriving.std ppx_deriving_yojson) pull build run pread tag push service)
 )))
