@@ -49,6 +49,13 @@ module Make (Host : S.HOST) = struct
     let> image = image in
     RC.get { Run.pool } { Run.Key.image; args; docker_context; run_args }
 
+  module PrC = Current_cache.Make(Pread)
+
+  let pread ?label ?pool ?(run_args=[]) image ~args  =
+    Current.component "pread%a" pp_sp_label label |>
+    let> image = image in
+    PrC.get { Pread.pool } { Pread.Key.image; args; docker_context; run_args }
+
   module TC = Current_cache.Output(Tag)
 
   let tag ~tag image =
