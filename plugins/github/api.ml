@@ -89,7 +89,7 @@ let no_token = {
   expiry = Some (-1.0);
 }
 
-module GH_ref = struct
+module Ref = struct
   type t = [ `Ref of string | `PR of int ] [@@deriving to_yojson]
 
   let compare = Stdlib.compare
@@ -103,21 +103,21 @@ module GH_ref = struct
     | `PR id -> Fmt.strf "refs/pull/%d/head" id
 end
 
-module GH_ref_map = Map.Make(GH_ref)
+module Ref_map = Map.Make(Ref)
 
 module Commit_id = struct
   type t = {
     owner_name : string;    (* e.g. "owner/name" *)
-    id : GH_ref.t;
+    id : Ref.t;
     hash : string;
   } [@@deriving to_yojson]
 
   let to_git { owner_name; id; hash } =
     let repo = Fmt.strf "https://github.com/%s.git" owner_name in
-    let gref = GH_ref.to_git id in
+    let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
-  let pp_id = GH_ref.pp
+  let pp_id = Ref.pp
 
   let pp f { owner_name; id; hash } =
     Fmt.pf f "@[<v>%s@,%a@,%s@]" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
@@ -134,7 +134,7 @@ type t = {
   mutable ci_refs_inputs : ci_refs Current.Input.t Repo_map.t;
 }
 and commit = t * Commit_id.t
-and ci_refs = commit GH_ref_map.t
+and ci_refs = commit Ref_map.t
 
 let v ~get_token account =
   let head_inputs = Repo_map.empty in
@@ -365,8 +365,8 @@ let get_ci_refs t { Repo_id.owner; name } =
         Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
       if List.length prs < n_prs then
         Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
-      let add xs map = List.fold_left (fun acc x -> GH_ref_map.add x.Commit_id.id (t, x) acc) map xs in
-      GH_ref_map.empty
+      let add xs map = List.fold_left (fun acc x -> Ref_map.add x.Commit_id.id (t, x) acc) map xs in
+      Ref_map.empty
       |> add refs
       |> add prs
     with ex ->
@@ -412,8 +412,8 @@ let refs t repo =
 
 let to_ci_refs refs =
   refs
-  |> GH_ref_map.remove (`Ref "refs/heads/gh-pages")
-  |> GH_ref_map.bindings
+  |> Ref_map.remove (`Ref "refs/heads/gh-pages")
+  |> Ref_map.bindings
   |> List.map snd
 
 let ci_refs t repo =
@@ -425,15 +425,15 @@ let ci_refs t repo =
   to_ci_refs refs
 
 let head_of t repo id =
-  Current.component "%a@,%a" Repo_id.pp repo GH_ref.pp id |>
+  Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
   let> () = Current.return () in
   refs t repo
   |> Current.Input.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    match GH_ref_map.find_opt id refs with
+    match Ref_map.find_opt id refs with
     | Some x -> Ok x
-    | None -> Error (`Msg (Fmt.strf "No such ref %a/%a" Repo_id.pp repo GH_ref.pp id))
+    | None -> Error (`Msg (Fmt.strf "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
 
 module Commit = struct
   module Set_status = struct

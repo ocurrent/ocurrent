@@ -65,6 +65,17 @@ module Api : sig
     (** [head_commit t] evaluates to the commit at the head of the default branch in [t]. *)
   end
 
+  module Ref : sig
+    type t = [ `Ref of string | `PR of int ]
+
+    val pp : t Fmt.t
+
+    val to_git : t -> string
+    (** [to_git t] is the Git-format string of the ref, e.g."refs/pull/%d/head" *)
+  end
+
+  module Ref_map : Map.S with type key = Ref.t
+
   val of_oauth : string -> t
   (** [of_oauth token] is a configuration that authenticates to GitHub using [token]. *)
 
@@ -80,6 +91,12 @@ module Api : sig
 
   val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages. *)
+
+  val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Input.t
+  (** [refs t repo] is the input for all the references in [repo].
+      This is the low-level API for getting the refs.
+      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly.
+      The result is cached (so calling it twice will return the same input). *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)
