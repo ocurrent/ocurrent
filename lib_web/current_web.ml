@@ -166,6 +166,9 @@ let handle_request ~engine ~webhooks _conn request body =
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["log-rules"] ->
       Log_rules.render ()
+    | `GET, ["jobs"] ->
+      let body = Jobs.render () in
+      Server.respond_string ~status:`OK ~body ()
     | `GET, ["metrics"] ->
       Current.Engine.(update_metrics (state engine));
       let data = Prometheus.CollectorRegistry.(collect default) in

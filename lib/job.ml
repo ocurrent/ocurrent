@@ -230,3 +230,5 @@ let cancelled_state t =
   match t.cancel_hooks with
   | `Cancelled reason -> Error (`Msg reason)
   | `Hooks _ -> Ok ()
+
+let jobs () = !jobs
