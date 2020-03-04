@@ -187,24 +187,28 @@ let test_all_labelled () =
     "Debian", Term.fail "ENOSPACE";
   ]
 
+module Cli = Alcotest.Cli.Make(Lwt)
+
 let () =
-  Alcotest.run "test" [
-    "pipelines", [
-      Driver.test_case_gc "v1"          test_v1;
-      Driver.test_case_gc "v1-cancel"   test_v1_cancel;
-      Driver.test_case_gc "v2"          test_v2;
-      Driver.test_case_gc "v3"          test_v3;
-      Driver.test_case_gc "v4"          test_v4;
-      Driver.test_case_gc "v5"          test_v5;
-      Driver.test_case_gc "v5-nil"      test_v5_nil;
-      Driver.test_case_gc "option-some" test_option_some;
-      Driver.test_case_gc "option-none" test_option_none;
-    ];
-    "terms", [
-      Alcotest.test_case "all_labelled" `Quick test_all_labelled;
-    ];
-    "cache", Test_cache.tests;
-    "monitor", Test_monitor.tests;
-    "job", Test_job.tests;
-    "log_matcher", Test_log_matcher.tests;
-  ]
+  Lwt_main.run begin
+    Cli.run "test" [
+      "pipelines", [
+        Driver.test_case_gc "v1"          test_v1;
+        Driver.test_case_gc "v1-cancel"   test_v1_cancel;
+        Driver.test_case_gc "v2"          test_v2;
+        Driver.test_case_gc "v3"          test_v3;
+        Driver.test_case_gc "v4"          test_v4;
+        Driver.test_case_gc "v5"          test_v5;
+        Driver.test_case_gc "v5-nil"      test_v5_nil;
+        Driver.test_case_gc "option-some" test_option_some;
+        Driver.test_case_gc "option-none" test_option_none;
+      ];
+      "terms", [
+        Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;
+      ];
+      "cache", Test_cache.tests;
+      "monitor", Test_monitor.tests;
+      "job", Test_job.tests;
+      "log_matcher", Test_log_matcher.tests;
+    ]
+  end
