@@ -78,9 +78,11 @@ let pool _switch () =
   let job2 = Job.create ~switch:sw2 ~label:"job-2" ~config () in
   let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
   let s2 = Job.start ~pool ~level:Current.Level.Harmless job2 in
+  Lwt.pause () >>= fun () ->
   Alcotest.(check lwt_state) "First job started" Lwt.(Return ()) (Lwt.state s1);
   Alcotest.(check lwt_state) "Second job queued" Lwt.Sleep (Lwt.state s2);
   Current.Switch.turn_off sw1 >>= fun () ->
+  Lwt.pause () >>= fun () ->
   Alcotest.(check lwt_state) "Second job ready" Lwt.(Return ()) (Lwt.state s2);
   Current.Switch.turn_off sw2
 
@@ -92,6 +94,7 @@ let pool_cancel _switch () =
   let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
   Alcotest.(check lwt_state) "Job queued" Lwt.Sleep (Lwt.state s1);
   Current.Job.cancel job1 "Cancel";
+  Lwt.pause () >>= fun () ->
   Job.log job1 "Continuing job for a bit";
   Alcotest.(check lwt_state) "Job cancelled" (Lwt.Fail (Failure "Cancelled waiting for resource from pool \"test\"")) (Lwt.state s1);
   Lwt.return_unit

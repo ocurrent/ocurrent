@@ -38,5 +38,5 @@ let basic () =
 
 let tests =
   [
-    Alcotest.test_case "basic" `Quick basic;
+    Alcotest_lwt.test_case_sync "basic" `Quick basic;
   ]
