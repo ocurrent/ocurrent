@@ -16,5 +16,4 @@
    re
    result
    sqlite3)
- (preprocess (per_module
-              ((pps ppx_deriving.std) level))))
+ (preprocess (pps ppx_deriving.std)))
