@@ -4,6 +4,4 @@
  (libraries
    bos
    fmt)
- (preprocess (per_module
-              ((pps ppx_deriving.std) output)
-)))
+ (preprocess (pps ppx_deriving.std)))

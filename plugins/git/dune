@@ -13,6 +13,4 @@
    lwt.unix
    ppx_deriving_yojson
    result)
- (preprocess (per_module
-              ((pps ppx_deriving_yojson) commit_id commit clone)
-)))
+ (preprocess (pps ppx_deriving_yojson)))
