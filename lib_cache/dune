@@ -9,6 +9,7 @@
    logs
    lwt
    lwt.unix
+   prometheus
    re
    result
    sqlite3))

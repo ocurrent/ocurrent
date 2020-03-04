@@ -24,6 +24,7 @@ let template contents =
             ul [
               li [a ~a:[a_href "/"] [txt "OCurrent"]];
               li [a ~a:[a_href "/"] [txt "Home"]];
+              li [a ~a:[a_href "/jobs"] [txt "Jobs"]];
               li [a ~a:[a_href "/query"] [txt "Query"]];
               li [a ~a:[a_href "/log-rules"] [txt "Log analysis"]];
             ]

@@ -2,6 +2,17 @@ open Lwt.Infix
 
 module Job = Current.Job
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "cache"
+
+  let memory_cache_items =
+    let help = "Number of results cached in RAM" in
+    Gauge.v_label ~label_name:"id" ~help ~namespace ~subsystem "memory_cache_items"
+end
+
 let rebuild_cond = Lwt_condition.create ()
 (* This triggers when the user invalidates an entry and we should re-evaluate.
    Ideally this condition would be per-job, but since we currently re-evaluate
@@ -357,6 +368,7 @@ module Output(Op : S.PUBLISHER) = struct
            Either way, [o.desired] is set to [value]. *)
         let o = get_output ~step_id ctx key value in
         outputs := Outputs.add key_digest o !outputs;
+        Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
         o
     in
     (* Ensure a build is in progress if we need one: *)
@@ -391,6 +403,7 @@ module Output(Op : S.PUBLISHER) = struct
 
   let reset () =
     outputs := Outputs.empty;
+    Prometheus.Gauge.set (Metrics.memory_cache_items Op.id) 0.0;
     Db.drop_all Op.id
 end
 

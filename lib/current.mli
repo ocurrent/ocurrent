@@ -287,6 +287,10 @@ module Job : sig
   val lookup_running : job_id -> t option
   (** If [lookup_running job_id] is the job [j] with id [job_id], if [is_running j]. *)
 
+  val jobs : unit -> t Job_map.t
+  (** [jobs ()] is the set of active jobs, whether they are currently used in a pipeline or not.
+      This is any job which is running or ready to run (i.e. every job which hasn't closed its log file). *)
+
   val approve_early_start : t -> unit
   (** [approve_early_start t] marks the job as approved to start even if the
       global confirmation threshold would otherwise prevent it. Calling this
