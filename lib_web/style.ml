@@ -50,12 +50,21 @@ let css = {|
   table.table {
     border: 1px solid black;
     padding: 0;
+    border-collapse: collapse;
   }
 
   table.table th {
     background: #888;
     color: white;
     padding: 0.1em;
+  }
+
+  table.table td {
+    padding: 0.3em;
+  }
+
+  table.table tr {
+    border: 1px solid black;
   }
 
   form {

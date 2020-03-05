@@ -28,6 +28,7 @@ let template contents =
               li [a ~a:[a_href "/jobs"] [txt "Jobs"]];
               li [a ~a:[a_href "/query"] [txt "Query"]];
               li [a ~a:[a_href "/log-rules"] [txt "Log analysis"]];
+              li [a ~a:[a_href "/heap"] [txt "Heap"]];
             ]
           ];
           div ~a:[a_id "main"] contents

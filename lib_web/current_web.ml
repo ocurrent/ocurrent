@@ -133,6 +133,8 @@ let handle_request ~engine ~webhooks _conn request body =
               set_confirm (Current.Engine.config engine) data
             | ["log-rules"] ->
               Log_rules.handle_post data
+            | ["heap"] ->
+              Heap.handle_post data
             | _ ->
               Server.respond_not_found ()
           end
@@ -165,6 +167,9 @@ let handle_request ~engine ~webhooks _conn request body =
       Log_rules.render ()
     | `GET, ["jobs"] ->
       let body = Jobs.render () in
+      Server.respond_string ~status:`OK ~body ()
+    | `GET, ["heap"] ->
+      let body = Heap.render () in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["metrics"] ->
       Current.Engine.(update_metrics (state engine));
