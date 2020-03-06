@@ -17,6 +17,7 @@ let template contents =
     html
       (head (title (txt "OCurrent")) [
           link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
+          meta ~a:[a_charset "UTF-8"] ();
         ]
       )
       (body [
