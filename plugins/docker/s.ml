@@ -65,6 +65,18 @@ module type DOCKER = sig
 
   val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
+
+  module Cmd : sig
+    (** Building Docker commands. This is useful for creating custom pipeline stages. *)
+
+    type t = Lwt_process.command
+
+    val docker : string list -> t
+    (** [docker args] is a command to run docker, with the "--context" argument added (if necessary).
+        e.g. [docker ["run"; image]] *)
+
+    val pp : t Fmt.t
+  end
 end
 
 module type HOST = sig

@@ -76,6 +76,15 @@ module Make (Host : S.HOST) = struct
     Current.component "docker-service@,%s" name |>
     let> image = image in
     SC.set Service.No_context { Service.Key.name; docker_context } { Service.Value.image }
+
+  module Cmd = struct
+    type t = Lwt_process.command
+
+    let docker args =
+      Cmd.docker ~docker_context args
+
+    let pp = Cmd.pp
+  end
 end
 
 module Default = Make(struct
