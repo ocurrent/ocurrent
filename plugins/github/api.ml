@@ -120,7 +120,7 @@ module Commit_id = struct
   let pp_id = Ref.pp
 
   let pp f { owner_name; id; hash } =
-    Fmt.pf f "@[<v>%s@,%a@,%s@]" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
+    Fmt.pf f "%s@ %a@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -463,7 +463,7 @@ module Commit = struct
     let auto_cancel = true
 
     let pp f ({ Key.commit; context }, status) =
-      Fmt.pf f "Set %a/%s to %a"
+      Fmt.pf f "Set %a/%s to@ %a"
         Commit_id.pp commit
         context
         Value.pp status
