@@ -50,6 +50,9 @@ module Api : sig
     (** [hash t] is the Git commit hash of [t]. *)
 
     val pp : t Fmt.t
+
+    val uri : t -> Uri.t
+    (** [uri t] is a URI for the GitHub web page showing [t]. *)
   end
 
   module Repo : sig

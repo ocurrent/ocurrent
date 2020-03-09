@@ -15,6 +15,7 @@ module Commit : sig
   val hash : t -> string
   val pp : t Fmt.t
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
+  val uri : t -> Uri.t
 end
 
 module Ref : sig

@@ -117,6 +117,9 @@ module Commit_id = struct
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
+  let uri t =
+    Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/commit/%s" t.owner_name t.hash) ()
+
   let pp_id = Ref.pp
 
   let pp f { owner_name; id; hash } =
@@ -499,6 +502,8 @@ module Commit = struct
   module Set_status_cache = Current_cache.Output(Set_status)
 
   type t = commit
+
+  let uri (_, commit) = Commit_id.uri commit
 
   let id (_, commit_id) = Commit_id.to_git commit_id
 
