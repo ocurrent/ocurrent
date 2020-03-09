@@ -1,6 +1,7 @@
 (executables
  (public_names docker_build_local
                docker_service
+               docker_custom
                build_matrix
                github
                github_app

@@ -65,6 +65,29 @@ module type DOCKER = sig
 
   val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
+
+  module Cmd : sig
+    (** Building Docker commands. This is useful for creating custom pipeline stages. *)
+
+    type t = Lwt_process.command
+
+    val docker : string list -> t
+    (** [docker args] is a command to run docker, with the "--context" argument added (if necessary).
+        e.g. [docker ["run"; image]] *)
+
+    val with_container :
+      kill_on_cancel:bool ->
+      job:Current.Job.t -> t ->
+      (string -> 'a Current.or_error Lwt.t) ->
+      'a Current.or_error Lwt.t
+    (** [with_container ~kill_on_cancel ~job t fn] runs [t] to create a new container
+        (the output is the container ID), then calls [fn id].
+        When [fn] returns, it removes the container (killing it first if necessary).
+        If [fn] raises an exception, it catches it and turns it into an error return.
+        @param kill_on_cancel "docker kill" the container if the the job is cancelled. *)
+
+    val pp : t Fmt.t
+  end
 end
 
 module type HOST = sig

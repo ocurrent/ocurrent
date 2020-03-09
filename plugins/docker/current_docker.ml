@@ -76,6 +76,59 @@ module Make (Host : S.HOST) = struct
     Current.component "docker-service@,%s" name |>
     let> image = image in
     SC.set Service.No_context { Service.Key.name; docker_context } { Service.Value.image }
+
+  module Cmd = struct
+    open Lwt.Infix
+
+    let ( >>!= ) = Lwt_result.bind
+
+    type t = Lwt_process.command
+
+    let docker args =
+      Cmd.docker ~docker_context args
+
+    let rm_f id = docker ["container"; "rm"; "-f"; id]
+    let kill id = docker ["container"; "kill"; id]
+
+    (* Try to "docker kill $id". If it fails, just log a warning and continue. *)
+    let try_kill_container ~job id =
+      Current.Process.exec ~cancellable:false ~job (kill id) >|= function
+      | Ok () -> ()
+      | Error (`Msg m) -> Current.Job.log job "Warning: Failed to kill container %S: %s" id m
+
+    let with_container ~kill_on_cancel ~job t fn =
+      Current.Process.check_output ~cancellable:false ~job t >>!= fun id ->
+      let id = String.trim id in
+      let did_rm = ref false in
+      Lwt.catch
+        (fun () ->
+           begin
+             if kill_on_cancel then (
+               Current.Job.on_cancel job (fun _ ->
+                   if !did_rm = false then try_kill_container ~job id
+                   else Lwt.return_unit
+                 )
+             ) else (
+               Lwt.return_unit
+             )
+           end >>= fun () ->
+           fn id)
+        (fun ex -> Lwt.return (Fmt.error_msg "with_container: uncaught exception: %a" Fmt.exn ex))
+      >>= fun result ->
+      did_rm := true;
+      Current.Process.exec ~cancellable:false ~job (rm_f id) >|= function
+      | Ok () -> result         (* (the common case, where removing the container succeeds) *)
+      | Error (`Msg rm_error) as rm_e ->
+        match result with
+        | Ok _ -> rm_e
+        | Error _ as e ->
+          (* The job failed, and removing the container failed too.
+             Log the second error and return the first. *)
+          Current.Job.log job "Failed to remove container %S when job failed: %s" id rm_error;
+          e
+
+    let pp = Cmd.pp
+  end
 end
 
 module Default = Make(struct
