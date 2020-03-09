@@ -1,9 +1,9 @@
 (* Usage: docker_custom.exe
 
    This fetches the latest nginx image (once a week) and tests it. The test
-   starts the container running and then tries running curl inside it.
-   This demonstrates how to write custom pipeline stages to cover cases that
-   the built-in Docker plugin doesn't.
+   starts the container running nginx and then tries execing curl inside it
+   too. This demonstrates how to write custom pipeline stages to cover cases
+   that the Docker plugin doesn't.
 *)
 
 open Current.Syntax
@@ -24,14 +24,7 @@ module Test = struct
   module Key = Docker.Image
   module Value = Current.Unit
 
-  let ( >>!= ) x f =
-    x >>= function
-    | Ok x -> f x
-    | Error (`Msg m) -> failwith m
-
   let run image = Docker.Cmd.docker ["container"; "run"; "-d"; Docker.Image.hash image]
-  let stop id = Docker.Cmd.docker ["container"; "stop"; id]
-  let rm id = Docker.Cmd.docker ["container"; "rm"; id]
   let exec id args = Docker.Cmd.docker ("container" :: "exec" :: "-i" :: id :: args)
 
   (* The test command to run. You might want to make this part of the key if it
@@ -41,15 +34,7 @@ module Test = struct
   let build No_context job image =
     Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
     (* Start the container running: *)
-    Current.Process.check_output ~cancellable:false ~job (run image) >>!= fun id ->
-    let id = String.trim id in
-    (* Stop and remove the container when the job finishes: *)
-    Current.Job.on_cancel job (fun _ ->
-        Current.Process.exec ~cancellable:false ~job (stop id) >>!= fun () ->
-        Current.Process.exec ~cancellable:false ~job (rm id) >>!= fun () ->
-        Current.Job.log job "Test cleanup complete";
-        Lwt.return_unit
-      ) >>= fun () ->
+    Docker.Cmd.with_container ~job ~kill_on_cancel:true (run image) @@ fun id ->
     Current.Job.log job "Waiting 1 second to let HTTP server start...";
     Lwt_unix.sleep 1.0 >>= fun () ->
     (* Test the container's service: *)
@@ -96,6 +81,6 @@ open Cmdliner
 let cmd =
   let doc = "Check that the nginx container can serve a web page" in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner),
-  Term.info "docker_build_local" ~doc
+  Term.info "docker_custom" ~doc
 
 let () = Term.(exit @@ eval cmd)
