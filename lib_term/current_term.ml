@@ -11,7 +11,6 @@ module Make (Input : S.INPUT) = struct
 
   type context = {
     user_env : Input.env;
-    default_env : An.env;
   }
 
   type 'a t = context -> 'a node
@@ -37,12 +36,7 @@ module Make (Input : S.INPUT) = struct
       match !last with
       | Some (prev_ctx, cached) when prev_ctx == ctx -> cached
       | _ ->
-        let env =
-          match bind with
-          | None -> ctx.default_env
-          | Some b -> An.with_bind b ctx.default_env
-        in
-        let r = f ~env ctx in
+        let r = f ~env:bind ctx in
         last := Some (ctx, r);
         r
 
@@ -271,15 +265,14 @@ module Make (Input : S.INPUT) = struct
 
   module Executor = struct
     let run ~env:user_env f =
-      let default_env = An.make_env () in
-      let ctx = { default_env; user_env } in
+      let ctx = { user_env } in
       try
         let x = f () ctx in
         Dyn.run x.fn, x.md
       with ex ->
         let msg = Printexc.to_string ex in
         let fn = Dyn.fail msg |> Dyn.run in
-        let md = An.fail ~env:default_env msg in
+        let md = An.fail ~env:None msg in
         fn, md
   end
 
