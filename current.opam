@@ -23,6 +23,7 @@ build: [
 ]
 depends: [
   "ocaml" {>= "4.08.0"}
+  "current_incr" {= version}
   "fmt"
   "bos"
   "ppx_deriving"

@@ -1,0 +1,4 @@
+(tests
+ (names test)
+ (package current_incr)
+ (libraries current_incr alcotest))
