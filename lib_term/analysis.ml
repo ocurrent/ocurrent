@@ -30,9 +30,8 @@ module Make (Job : sig type id end) = struct
   type t = {
     id : Id.t;
     bind : t option;
-    (* For bind, we must create the node before knowing the state *)
-    mutable ty : metadata_ty;
-    mutable state : state;
+    ty : metadata_ty;
+    state : state;
   }
   and metadata_ty =
     | Constant of string option
@@ -48,19 +47,10 @@ module Make (Job : sig type id end) = struct
     | List_map of { items : t; fn : t }
     | Option_map of { item : t; fn : t }
 
-  type env = {
-    next : int ref;
-    bind : t option;
-  }
-
-  let make_env () =
-    { next = ref 0; bind = None }
-
-  let with_bind bind env = { env with bind = Some bind }
+  type env = t option
 
   let make ~env ty state =
-    incr env.next;
-    { id = Id.mint (); ty; bind = env.bind; state }
+    { id = Id.mint (); ty; bind = env; state }
 
   let return ~env label =
     make ~env (Constant label) Pass
@@ -125,7 +115,7 @@ module Make (Job : sig type id end) = struct
     let a = simplify a in
     let b = simplify b in
     let single_context =
-      a.bind =? b.bind && b.bind =? env.bind
+      a.bind =? b.bind && b.bind =? env
     in
     match single_context, a.ty, b.ty with
     | true, Constant None, _ -> b
@@ -133,9 +123,9 @@ module Make (Job : sig type id end) = struct
     | _ ->
       make ~env (Pair (a, b)) (pair_state a b)
 
-  let bind ~env:parent ?(info="") x state =
-    match info, parent with
-    | "", { bind = Some bind; _ } -> bind
+  let bind ~env ?(info="") x state =
+    match info, env with
+    | "", Some bind -> bind
     | _ ->
       let x = simplify x in
       let ty = Bind (x, info) in
@@ -144,17 +134,17 @@ module Make (Job : sig type id end) = struct
         | Blocked | Active _ | Fail _ -> Blocked
         | Pass -> state
       in
-      make ~env:parent ty state
+      make ~env ty state
 
-  let bind_input ~env:parent ~info x state =
+  let bind_input ~env ~info ?id x state =
     let x = simplify x in
-    let ty = Bind_input {x; info; id = None} in
+    let ty = Bind_input {x; info; id} in
     let state =
       match x.state with
       | Blocked | Active _ | Fail _ -> Blocked
       | Pass -> state
     in
-    make ~env:parent ty state
+    make ~env ty state
 
   let list_map ~env ~f items =
     make ~env (List_map { items; fn = f }) items.state
@@ -166,13 +156,6 @@ module Make (Job : sig type id end) = struct
     let ctrl = simplify ctrl in
     let value = simplify value in
     make ~env (Gate_on { ctrl; value }) (pair_state ctrl value)
-
-  let set_state t ?id state =
-    t.state <- state;
-    match t.ty, id with
-    | Bind_input {x; info; id = None}, Some _ -> t.ty <- Bind_input {x; info; id}
-    | _, None -> ()
-    | _ -> assert false
 
   let pp f x =
     let seen = ref Id.Set.empty in
@@ -499,8 +482,7 @@ module Make (Job : sig type id end) = struct
     { S.ok = !ok; ready = !ready; running = !running; failed = !failed; blocked = !blocked  }
 
   let booting =
-    let env = make_env () in
-    active ~env `Running
+    active ~env:None `Running
 
   let rec job_id t =
     match t.ty with
