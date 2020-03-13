@@ -20,8 +20,8 @@ module Make (Job : sig type id end) : sig
   val map_input    : env:env -> t -> (string, [`Blocked | `Empty_list]) result -> t
   val map_failed   : env:env -> t -> string -> t
   val option_input : env:env -> t -> [`Blocked | `Selected | `Not_selected] -> t
-  val state        : env:env -> t -> t
-  val catch        : env:env -> t -> t
+  val state        : env:env -> hidden:bool -> t -> t
+  val catch        : env:env -> hidden:bool -> t -> t
   val active       : env:env -> Output.active -> t
   val of_output    : env:env -> _ Output.t -> t
   val pair         : env:env -> t -> t -> t

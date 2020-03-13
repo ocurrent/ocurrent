@@ -11,6 +11,9 @@ let build = Docker.build
 let test = Docker.run ~cmd:["make"; "test"]
 let push = Docker.push
 
+let engine_result =
+  Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
+
 let analyse ~lint src =
   Current.component "analyse" |>
   let** _ = src in
@@ -151,6 +154,17 @@ let test_option_none _switch () =
     | 1 -> Git.complete_clone test_commit
     | _ -> raise Exit)
 
+(* This is just to check the diagram when the state box is hidden. *)
+let test_state _switch () =
+  let pipeline () =
+    Current.component "set-status" |>
+    let** value = Current.state ~hidden:true (Current.active `Ready) in
+    Alcotest.(check engine_result) "Pending" (Error (`Active `Ready)) value;
+    Current.return ()
+  in
+  Driver.test ~name:"state" pipeline @@ function
+  | _ -> raise Exit
+
 module Test_input = struct
   type 'a t = unit
   type job_id = unit
@@ -160,9 +174,6 @@ module Test_input = struct
 end
 
 module Term = Current_term.Make(Test_input)
-
-let engine_result =
-  Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
 
 let test_all_labelled () =
   let test x = fst (Term.Executor.run ~env:() (fun () -> Term.all_labelled x)) in
@@ -202,6 +213,7 @@ let () =
         Driver.test_case_gc "v5-nil"      test_v5_nil;
         Driver.test_case_gc "option-some" test_option_some;
         Driver.test_case_gc "option-none" test_option_none;
+        Driver.test_case_gc "state"       test_state;
       ];
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;

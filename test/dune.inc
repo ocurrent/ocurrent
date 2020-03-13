@@ -3,6 +3,7 @@
           option-none.2.dot
           option-some.1.dot
           option-some.2.dot
+          state.1.dot
           v1.1.dot
           v1.2.dot
           v1.3.dot
@@ -46,6 +47,11 @@
  (name runtest)
  (package current)
  (action (diff expected/option-some.2.dot option-some.2.dot)))
+
+(alias
+ (name runtest)
+ (package current)
+ (action (diff expected/state.1.dot state.1.dot)))
 
 (alias
  (name runtest)

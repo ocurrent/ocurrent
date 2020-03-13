@@ -68,14 +68,14 @@ module Make (Input : S.INPUT) = struct
     let env = !bind_context in
     cache @@ fun ctx ->
     let t = t ctx in
-    let an = if hidden then t.md else An.state ~env t.md in
+    let an = An.state ~env ~hidden t.md in
     make an (Dyn.state t.fn)
 
   let catch ?(hidden=false) t =
     let env = !bind_context in
     cache @@ fun ctx ->
     let t = t ctx in
-    let an = if hidden then t.md else An.catch ~env t.md in
+    let an = An.catch ~env ~hidden t.md in
     make an (Dyn.catch t.fn)
 
   let of_output x =
