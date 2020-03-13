@@ -94,14 +94,7 @@ module Make (Input : S.INPUT) = struct
     | Ok y ->
       let md = md An.Pass in
       let f2 = with_bind_context md f y in
-      let r = f2 ctx in
-      An.set_state md (
-        match Dyn.run r.fn with
-        | Error (`Msg e) -> An.Fail e
-        | Error (`Active a) -> An.Active a
-        | Ok _ -> An.Pass
-      );
-      r
+      f2 ctx
 
   let msg_of_exn = function
     | Failure m -> m
@@ -138,20 +131,19 @@ module Make (Input : S.INPUT) = struct
   let bind_input ~info (f:'a -> 'b Input.t) (x:'a t) =
     cache @@ fun ~env ctx ->
     let x = x ctx in
-    let md = An.bind_input ~env ~info x.md in
     match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
-    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
+    | Error (`Msg e) -> make (An.bind_input ~env ~info x.md (An.Fail e)) (Dyn.fail e)
+    | Error (`Active a) -> make (An.bind_input ~env ~info x.md (An.Active a)) (Dyn.active a)
     | Ok y ->
-      let md = md An.Pass in
       let input = f y in
       let v, id = Input.get ctx.user_env input in
-      An.set_state md ?id (
-        match v with
-        | Error (`Msg e) -> An.Fail e
-        | Error (`Active a) -> An.Active a
-        | Ok _ -> An.Pass
-      );
+      let md = An.bind_input ~env ~info x.md ?id (
+          match v with
+          | Error (`Msg e) -> An.Fail e
+          | Error (`Active a) -> An.Active a
+          | Ok _ -> An.Pass
+        )
+      in
       make md (Dyn.of_output v)
 
   module Syntax = struct

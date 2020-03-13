@@ -30,9 +30,8 @@ module Make (Job : sig type id end) = struct
   type t = {
     id : Id.t;
     bind : t option;
-    (* For bind, we must create the node before knowing the state *)
-    mutable ty : metadata_ty;
-    mutable state : state;
+    ty : metadata_ty;
+    state : state;
   }
   and metadata_ty =
     | Constant of string option
@@ -146,9 +145,9 @@ module Make (Job : sig type id end) = struct
       in
       make ~env:parent ty state
 
-  let bind_input ~env:parent ~info x state =
+  let bind_input ~env:parent ~info ?id x state =
     let x = simplify x in
-    let ty = Bind_input {x; info; id = None} in
+    let ty = Bind_input {x; info; id} in
     let state =
       match x.state with
       | Blocked | Active _ | Fail _ -> Blocked
@@ -166,13 +165,6 @@ module Make (Job : sig type id end) = struct
     let ctrl = simplify ctrl in
     let value = simplify value in
     make ~env (Gate_on { ctrl; value }) (pair_state ctrl value)
-
-  let set_state t ?id state =
-    t.state <- state;
-    match t.ty, id with
-    | Bind_input {x; info; id = None}, Some _ -> t.ty <- Bind_input {x; info; id}
-    | _, None -> ()
-    | _ -> assert false
 
   let pp f x =
     let seen = ref Id.Set.empty in

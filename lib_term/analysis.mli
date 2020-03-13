@@ -31,14 +31,12 @@ module Make (Job : sig type id end) : sig
   val of_output    : env:env -> _ Output.t -> t
   val pair         : env:env -> t -> t -> t
   val bind         : env:env -> ?info:string -> t -> state -> t
-  val bind_input   : env:env -> info:string -> t -> state -> t
+  val bind_input   : env:env -> info:string -> ?id:Job.id -> t -> state -> t
   val list_map     : env:env -> f:t -> t -> t
   val option_map   : env:env -> f:t -> t -> t
   val gate         : env:env -> on:t -> t -> t
 
   val booting : t
-
-  val set_state : t -> ?id:Job.id -> state -> unit
 
   val job_id : t -> Job.id option
 
