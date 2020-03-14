@@ -13,11 +13,6 @@ module Metrics = struct
     Gauge.v_label ~label_name:"id" ~help ~namespace ~subsystem "memory_cache_items"
 end
 
-let rebuild_cond = Lwt_condition.create ()
-(* This triggers when the user invalidates an entry and we should re-evaluate.
-   Ideally this condition would be per-job, but since we currently re-evaluate
-   everything anyway, a global is fine. *)
-
 module Schedule = struct
   type t = {
     valid_for : Duration.t option;
@@ -73,7 +68,6 @@ module Output(Op : S.PUBLISHER) = struct
   type op = {
     value : Value.t;                (* The value currently being set. *)
     job : Job.t;
-    finished : unit Lwt.t;
     mutable autocancelled : bool;   (* This op is expected to fail *)
   }
 
@@ -192,12 +186,12 @@ module Output(Op : S.PUBLISHER) = struct
         invalidate_output output;
         publish ~config output
   and publish ~config output =
-    let finished, set_finished = Lwt.wait () in
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let job = Job.create ~switch ~label:Op.id ~config () in
+    Lwt.on_termination (Job.start_time job) Current.Engine.update;
     output.job_id <- Some (Job.id job);
-    let op = { value = output.desired; job; finished; autocancelled = false } in
+    let op = { value = output.desired; job; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
     output.op <- `Active op;
     let pp_op f = pp_op f (output.key, op.value) in
@@ -214,8 +208,7 @@ module Output(Op : S.PUBLISHER) = struct
               if op.autocancelled then (
                 output.op <- `Retry;
                 invalidate_output output;
-                if output.ref_count > 0 then maybe_start ~config output;
-                Lwt.wakeup set_finished ()
+                if output.ref_count > 0 then maybe_start ~config output
               ) else (
                 (* Record the result *)
                 let running =
@@ -255,12 +248,11 @@ module Output(Op : S.PUBLISHER) = struct
                 output.build_number <- Int64.succ output.build_number;
                 (* While we were pushing, we might have decided we wanted something else.
                    If so, start pushing that now. *)
-                if output.ref_count > 0 then maybe_start ~config output;
-                Lwt.wakeup set_finished ()
+                if output.ref_count > 0 then maybe_start ~config output
               )
            )
            (fun () ->
-              Current.Switch.turn_off switch
+              Current.Switch.turn_off switch >|= Current.Engine.update
            )
       )
 
@@ -283,8 +275,7 @@ module Output(Op : S.PUBLISHER) = struct
     in
     { key; current; desired; ctx; op; job_id; last_set = step_id; ref_count = 0; mtime; build_number }
 
-  (* Return the input metadata for a resolved (non-active) output.
-     Report it as changed when a rebuild is requested (manually or via the schedule). *)
+  (* Return the input metadata for a resolved (non-active) output. *)
   let resolved o ~schedule ~value ~config =
     let key = o.key in
     match o.job_id with
@@ -295,16 +286,15 @@ module Output(Op : S.PUBLISHER) = struct
         | `Finished _ | `Error _ | `Retry ->
           o.op <- `Retry;
           maybe_start ~config o;
-          Lwt_condition.broadcast rebuild_cond ();
+          Current.Engine.update ();
           Option.get o.job_id
         | `Active _ ->
           Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
           Option.get o.job_id
       in
-      let rebuild_requested = Lwt_condition.wait rebuild_cond in
       match schedule.Schedule.valid_for with
       | None ->
-        Current.Input.metadata ~job_id ~changed:rebuild_requested @@
+        Current.Input.metadata ~job_id @@
         object
           method pp f = pp_output f o
           method cancel = None
@@ -313,17 +303,16 @@ module Output(Op : S.PUBLISHER) = struct
         end
       | Some duration ->
         let remaining_time = Duration.to_f duration +. o.mtime -. !Job.timestamp () in
-        let changed =
-          if remaining_time <= 0.0 then (
-            Log.info (fun f -> f "Result for %a has expired" pp_op (key, value));
-            invalidate key;
-            Lwt.return_unit       (* Trigger an immediate recalculation *)
-          ) else (
-            !Job.sleep remaining_time
-          )
-        in
-        let changed = Lwt.choose [changed; rebuild_requested] in
-        Current.Input.metadata ~job_id ~changed @@
+        if remaining_time <= 0.0 then (
+          Log.info (fun f -> f "Result for %a has expired" pp_op (key, value));
+          invalidate key;
+          Current.Engine.update ()    (* Trigger an immediate recalculation *)
+        ) else (
+          Lwt.async (fun () ->
+              !Job.sleep remaining_time >|= Current.Engine.update
+            )
+        );
+        Current.Input.metadata ~job_id @@
         object
           method pp f =
             if remaining_time <= 0.0 then
@@ -380,12 +369,12 @@ module Output(Op : S.PUBLISHER) = struct
     | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), resolved ~schedule ~value ~config o
     | `Retry -> Error (`Msg "(retry)"), resolved ~schedule ~value ~config o  (* (probably can't happen) *)
     | `Active op ->
-      let a, changed =
+      let a =
         let started = Job.start_time op.job in
-        if Lwt.state started = Lwt.Sleep then `Ready, Lwt.choose [Lwt.map ignore started; op.finished]
-        else `Running, op.finished in
+        if Lwt.state started = Lwt.Sleep then `Ready else `Running
+      in
       o.ref_count <- o.ref_count + 1;
-      Error (`Active a), Current.Input.metadata ?job_id:o.job_id ~changed @@
+      Error (`Active a), Current.Input.metadata ?job_id:o.job_id @@
       object
         method pp f = pp_output f o
         method cancel = Some (fun () -> Job.cancel op.job "Cancelled by user")

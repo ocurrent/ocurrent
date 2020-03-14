@@ -70,7 +70,7 @@ let result =
   let error = Alcotest.testable pp (=) in
   Alcotest.(result unit) error
 
-let trace step { Current.Engine.value = out; watches = inputs; _ } =
+let trace step ~next:_ { Current.Engine.value = out; watches = inputs; _ } =
   incr step;
   let step = !step in
   Logs.info (fun f -> f "Step %d (inputs = %a)" step Fmt.(Dump.list Current.Engine.pp_metadata) inputs);

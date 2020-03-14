@@ -62,12 +62,9 @@ module Input : sig
 
   val metadata :
     ?job_id:job_id ->
-    ?changed:unit Lwt.t ->
     actions -> metadata
   (** [metadata actions] is used to provide metadata about a value.
       @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
-      @param changed A Lwt promise that resolves when the input has changed (and so terms
-                     using it should be recalculated).
       @param actions Ways to interact with this input. *)
 
   val of_fn : (Step.t -> 'a Current_term.Output.t * metadata) -> 'a t
@@ -128,12 +125,17 @@ module Engine : sig
 
   val create :
     ?config:Config.t ->
-    ?trace:(results -> unit Lwt.t) ->
+    ?trace:(next:unit Lwt.t -> results -> unit Lwt.t) ->
     (unit -> unit term) ->
     t
   (** [create pipeline] is a new engine running [pipeline].
       The engine will evaluate [t]'s pipeline immediately, and again whenever
       one of its inputs changes. *)
+
+  val update : unit -> unit
+  (** Trigger a reevaluation of the pipeline.
+      Inputs should call this whenever they might now produce a different result
+      (e.g. an active input becomes finished). *)
 
   val state : t -> results
   (** The most recent results from evaluating the pipeline. *)
@@ -149,10 +151,6 @@ module Engine : sig
   val job_id : metadata -> job_id option
 
   val config : t -> Config.t
-
-  val is_stale : metadata -> bool
-  (** [is_stale m] is [true] if this job has signalled that
-      it should be re-evaluated. Provided for unit-tests. *)
 
   val pp_metadata : metadata Fmt.t
 
