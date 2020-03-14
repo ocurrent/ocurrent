@@ -22,10 +22,21 @@ let init_logging () =
   Logs.(set_level (Some Info));
   Logs.set_reporter reporter
 
+module SVar = Current.Var(struct
+    type t = string * unit Current.t
+    let equal = (==)
+    let pp f (test, _pipeline) = Fmt.pf f "%s" test
+  end)
+let selected = SVar.create ~name:"current-test" (Error (`Msg "no-test"))
+
 module Git = Current_git_test
 module Docker = Current_docker_test
 
-let with_analysis ~name ~i (t : unit Current.t) =
+let i = ref 1
+
+let test_pipeline =
+  Current.component "choose pipeline" |>
+  let** name, t = SVar.get selected in
   let data =
     let+ a = Current.Analysis.get t in
     Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp a);
@@ -75,9 +86,10 @@ let rebuild msg =
 let test ?config ~name v actions =
   Git.reset ();
   Docker.reset ();
-  (* Perform an initial analysis: *)
-  let i = ref 1 in
+  SVar.set selected (Ok (name, v ()));
+  i := 1;
   let trace ~next step_result =
+    if !i = 0 then raise Exit;
     current_watches := step_result;
     let { Current.Engine.watches; value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
@@ -87,17 +99,14 @@ let test ?config ~name v actions =
       try actions !i with
       | Expect_skip -> ()
       | Exit ->
-        List.iter (fun w -> (Current.Engine.actions w)#release) watches;
-        raise Exit
+        SVar.set selected (Error (`Msg "test-over"));
+        i := -1
     end;
     incr i;
     Lwt.pause () >|= fun () ->
     if Lwt.state next = Lwt.Sleep then failwith "No inputs ready (tests stuck)!"
   in
-  let engine =
-    Current.Engine.create ?config ~trace @@ fun () ->
-    with_analysis ~name ~i @@ v ()
-  in
+  let engine = Current.Engine.create ?config ~trace (fun () -> test_pipeline) in
   Lwt.catch
     (fun () -> Current.Engine.thread engine)
     (function
