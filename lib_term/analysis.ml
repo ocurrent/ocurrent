@@ -37,8 +37,8 @@ module Make (Job : sig type id end) = struct
     | Constant of string option
     | Map_input of { source : t; info : (string, [`Blocked | `Empty_list]) result }
     | Opt_input of { source : t; info : [`Blocked | `Selected | `Not_selected] }
-    | State of t
-    | Catch of t
+    | State of { source : t; hidden : bool }
+    | Catch of { source : t; hidden : bool }
     | Map_failed of t      (* In [map f t], [f] raised an exception. *)
     | Bind of t * string
     | Bind_input of {x : t; info : string; id : Job.id option}
@@ -73,16 +73,16 @@ module Make (Job : sig type id end) = struct
   let map_failed ~env t msg =
     make ~env (Map_failed t) (Fail msg)
 
-  let state ~env t =
-    make ~env (State t) Pass
+  let state ~env ~hidden t =
+    make ~env (State { source = t; hidden }) Pass
 
-  let catch ~env t =
+  let catch ~env ~hidden t =
     let state =
       match t.state with
       | Fail _ -> Pass
       | _  -> t.state
     in
-    make ~env (Catch t) state
+    make ~env (Catch { source = t; hidden }) state
 
   let active ~env a =
     make ~env (Constant None) (Active a)
@@ -181,8 +181,8 @@ module Make (Job : sig type id end) = struct
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
         | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
         | Option_map { item; fn } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux fn
-        | State x -> Fmt.pf f "state(@[%a@])" aux x
-        | Catch x -> Fmt.pf f "catch(@[%a@])" aux x
+        | State x -> Fmt.pf f "state(@[%a@])" aux x.source
+        | Catch x -> Fmt.pf f "catch(@[%a@])" aux x.source
         | Map_failed x -> aux f x
       )
     in
@@ -337,8 +337,11 @@ module Make (Job : sig type id end) = struct
             Out_node.connect (edge_to i) data_inputs;
             let deps = Node_set.(union ctrls.trans data_inputs.trans) in
             Out_node.singleton ~deps i
-          | State x ->
-            let inputs = aux x in
+          | Catch { source; hidden = true }
+          | State { source; hidden = true } ->
+            aux source
+          | State { source; hidden = false } ->
+            let inputs = aux source in
             node i "state";
             Out_node.connect (edge_to i) inputs;
             (* Because a state node will be ready even when its inputs aren't, we shouldn't
@@ -348,8 +351,8 @@ module Make (Job : sig type id end) = struct
                yet knowing the commit. So the set_state node can't run even though its
                state input is ready and transitively depends on knowing the commit. *)
             Out_node.singleton ~deps:Node_set.empty i
-          | Catch x ->
-            let inputs = aux x in
+          | Catch { source; hidden = false } ->
+            let inputs = aux source in
             node i "catch";
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
@@ -454,13 +457,13 @@ module Make (Job : sig type id end) = struct
             let data_inputs = Out_node.union values ctx in
             let deps = Node_set.(union ctrls.trans data_inputs.trans) in
             Out_node.singleton ~deps i
-          | State x ->
-            let _ : Out_node.t = aux x in
-            count ();
+          | State { source; hidden } ->
+            let _ : Out_node.t = aux source in
+            if not hidden then count ();
             Out_node.singleton ~deps:Node_set.empty i
-          | Catch x ->
-            let inputs = aux x in
-            count ();
+          | Catch { source; hidden } ->
+            let inputs = aux source in
+            if not hidden then count ();
             let all_inputs = Out_node.union inputs ctx in
             Out_node.singleton ~deps:all_inputs.trans i
           | Map_failed x ->
