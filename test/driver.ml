@@ -69,8 +69,6 @@ let rebuild msg =
   | None -> Fmt.failwith "Job %S cannot be rebuilt!" msg
   | Some rebuild -> rebuild () |> ignore
 
-let ready i = Current.Engine.is_stale i
-
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
@@ -79,27 +77,22 @@ let test ?config ~name v actions =
   Docker.reset ();
   (* Perform an initial analysis: *)
   let i = ref 1 in
-  let trace step_result =
+  let trace ~next step_result =
     current_watches := step_result;
     let { Current.Engine.watches; value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
     Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Engine.pp_metadata) watches);
     begin
-      let ready_watch = List.find_opt ready watches in
-      try
-        actions !i;
-        match ready_watch with
-        | Some i -> Fmt.failwith "Input already ready! %a" Current.Engine.pp_metadata i
-        | None -> ()
-      with
-      | Expect_skip -> assert (ready_watch <> None)
+      if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
+      try actions !i with
+      | Expect_skip -> ()
       | Exit ->
         List.iter (fun w -> (Current.Engine.actions w)#release) watches;
         raise Exit
     end;
     incr i;
     Lwt.pause () >|= fun () ->
-    if not (List.exists ready watches) then failwith "No inputs ready (tests stuck)!"
+    if Lwt.state next = Lwt.Sleep then failwith "No inputs ready (tests stuck)!"
   in
   let engine =
     Current.Engine.create ?config ~trace @@ fun () ->

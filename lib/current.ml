@@ -32,7 +32,6 @@ end
 
 type job_metadata = {
   job_id : job_id option;
-  changed : unit Lwt.t option;
   actions : actions;
 }
 
@@ -67,8 +66,8 @@ module Input = struct
 
   type env = Step.t
 
-  let metadata ?job_id ?changed actions =
-    { job_id; changed; actions }
+  let metadata ?job_id actions =
+    { job_id; actions }
 
   let of_fn f step =
     try f step
@@ -92,7 +91,7 @@ module Input = struct
 
   let get step (t : 'a t) =
     let value, metadata = t step in
-    let { job_id; changed = _; actions } = metadata in
+    let { job_id; actions } = metadata in
     step.watches <- metadata :: step.watches;
     begin match job_id with
       | None -> ()
@@ -110,46 +109,6 @@ include Current_term.Make(Input)
 
 type 'a term = 'a t
 
-module Var (T : Current_term.S.T) = struct
-  type t = {
-    mutable current : T.t Current_term.Output.t;
-    name : string;
-    cond : unit Lwt_condition.t;
-  }
-
-  let create ~name current =
-    { current; name; cond = Lwt_condition.create () }
-
-  let get t =
-    let open Syntax in
-    component "%s" t.name |>
-    let> () = return () in
-    Input.of_fn @@ fun _env ->
-    let changed = Lwt_condition.wait t.cond in
-    t.current, Input.metadata ~changed @@
-    object
-      method pp f = Fmt.string f t.name
-      method cancel = None
-      method rebuild = None
-      method release = ()
-    end
-
-  let set t v =
-    t.current <- v;
-    Lwt_condition.broadcast t.cond ()
-
-  let update t f =
-    t.current <- f t.current;
-    Lwt_condition.broadcast t.cond ()
-end
-
-let rec filter_map f = function
-  | [] -> []
-  | x :: xs ->
-    match f x with
-    | None -> filter_map f xs
-    | Some y -> y :: filter_map f xs
-
 module Engine = struct
   type metadata = job_metadata
 
@@ -166,6 +125,11 @@ module Engine = struct
     config : Config.t;
   }
 
+  let propagate = Lwt_condition.create ()
+
+  let update () =
+    Lwt_condition.broadcast propagate ()
+
   let booting = {
     value = Error (`Active `Running);
     analysis = Analysis.booting;
@@ -173,7 +137,7 @@ module Engine = struct
     jobs = Job_map.empty;
   }
 
-  let default_trace r =
+  let default_trace ~next:_ r =
     Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r.value);
     Lwt.return_unit
 
@@ -181,6 +145,7 @@ module Engine = struct
     let last_result = ref booting in
     let rec aux () =
       let old = !last_result in
+      let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
       let step = Step.create config in
       let t0 = Unix.gettimeofday () in
@@ -195,9 +160,9 @@ module Engine = struct
         watches;
         jobs = step.Step.jobs;
       };
-      trace !last_result >>= fun () ->
+      trace ~next !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
-      Lwt.choose (filter_map (fun w -> w.changed) watches) >>= fun () ->
+      next >>= fun () ->
       Lwt.pause () >>= aux
     in
     let thread =
@@ -221,11 +186,6 @@ module Engine = struct
 
   let pp_metadata f m = m.actions#pp f
 
-  let is_stale m =
-    match m.changed with
-    | Some p -> Lwt.state p <> Lwt.Sleep
-    | None -> false
-
   let update_metrics results =
     let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats results.analysis in
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "ok") (float_of_int ok);
@@ -233,6 +193,37 @@ module Engine = struct
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "running") (float_of_int running);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "failed") (float_of_int failed);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "blocked") (float_of_int blocked)
+end
+
+module Var (T : Current_term.S.T) = struct
+  type t = {
+    mutable current : T.t Current_term.Output.t;
+    name : string;
+  }
+
+  let create ~name current =
+    { current; name }
+
+  let get t =
+    let open Syntax in
+    component "%s" t.name |>
+    let> () = return () in
+    Input.of_fn @@ fun _env ->
+    t.current, Input.metadata @@
+    object
+      method pp f = Fmt.string f t.name
+      method cancel = None
+      method rebuild = None
+      method release = ()
+    end
+
+  let set t v =
+    t.current <- v;
+    Engine.update ()
+
+  let update t f =
+    t.current <- f t.current;
+    Engine.update ()
 end
 
 module Monitor : sig
@@ -251,7 +242,6 @@ end = struct
     mutable need_refresh : bool;          (* Update detected after current read started *)
     mutable active : bool;                (* Monitor thread is running *)
     cond : unit Lwt_condition.t;          (* Maybe time to leave the "wait" state *)
-    external_cond : unit Lwt_condition.t; (* New value ready for external user *)
   }
 
   let refresh t () =
@@ -277,7 +267,7 @@ end = struct
     t.need_refresh <- false;
     t.read () >>= fun v ->
     t.value <- (v :> _ Current_term.Output.t);
-    Lwt_condition.broadcast t.external_cond ();
+    Engine.update ();
     wait ~unwatch t
   and wait ~unwatch t =
     if t.ref_count = 0 then disable ~unwatch t
@@ -291,8 +281,7 @@ end = struct
       t.active <- true;
       Lwt.async (fun () -> enable t >|= fun `Finished -> ())
     );  (* (else the previous thread will check [ref_count] before exiting) *)
-    let changed = Lwt_condition.wait t.external_cond in
-    t.value, Input.metadata ~changed @@
+    t.value, Input.metadata @@
     object
       method cancel = None
       method rebuild = None   (* Might be useful to implement this *)
@@ -305,12 +294,11 @@ end = struct
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
-    let external_cond = Lwt_condition.create () in
     let t = {
       ref_count = 0;
       active = false;
       need_refresh = true;
-      cond; external_cond;
+      cond;
       value = Error (`Active `Running);
       read; watch; pp
     } in
