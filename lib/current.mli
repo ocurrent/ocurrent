@@ -115,7 +115,6 @@ module Engine : sig
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : metadata list;
     jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
   }
 

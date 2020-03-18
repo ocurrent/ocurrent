@@ -41,7 +41,7 @@ module Step = struct
     id : id;
     config : Config.t;
     mutable jobs : actions Job_map.t;
-    mutable watches : job_metadata list;
+    mutable watches : actions list;
   }
 
   let id t = t.id
@@ -89,7 +89,7 @@ module Input = struct
   let get step (t : 'a t) =
     let value, metadata = t step in
     let { job_id; actions } = metadata in
-    step.watches <- metadata :: step.watches;
+    step.watches <- metadata.actions :: step.watches;
     begin match job_id with
       | None -> ()
       | Some job_id -> Step.register_job step job_id actions
@@ -112,7 +112,6 @@ module Engine = struct
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : metadata list;
     jobs : actions Job_map.t;
   }
 
@@ -130,7 +129,6 @@ module Engine = struct
   let booting = {
     value = Error (`Active `Running);
     analysis = Analysis.booting;
-    watches = [];
     jobs = Job_map.empty;
   }
 
@@ -140,8 +138,7 @@ module Engine = struct
 
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
-    let rec aux () =
-      let old = !last_result in
+    let rec aux old_watches =
       let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
       let step = Step.create config in
@@ -150,22 +147,23 @@ module Engine = struct
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       let watches = step.Step.watches in
-      List.iter (fun w -> w.actions#release) old.watches;
+      List.iter (fun w -> w#release) old_watches;
       last_result := {
         value = r;
         analysis = an;
-        watches;
         jobs = step.Step.jobs;
       };
       trace ~next !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       next >>= fun () ->
-      Lwt.pause () >>= aux
+      Lwt.pause () >>= fun () ->
+      aux watches
     in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
-      Lwt.pause () >>= aux
+      Lwt.pause () >>= fun () ->
+      aux []
     in
     { thread; last_result; config }
 
