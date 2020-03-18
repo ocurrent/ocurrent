@@ -19,7 +19,6 @@ let respond_error status body =
 
 type actions = <
   rebuild : (unit -> string) option;
-  cancel : (unit -> unit) option;
 >
 
 let lookup_actions ~engine job_id =
@@ -30,7 +29,6 @@ let lookup_actions ~engine job_id =
   | None ->
     object
       method rebuild = None
-      method cancel = None
     end
 
 let get_job ~actions job_id =
@@ -47,11 +45,11 @@ let get_job ~actions job_id =
       in
       Server.respond ~status:`OK ~headers ~body ()
 
-let cancel_job ~actions _job_id =
-  match actions#cancel with
+let cancel_job job_id =
+  match Current.Job.lookup_running job_id with
   | None -> respond_error `Bad_request "Job does not support cancel (already finished?)"
-  | Some cancel ->
-    cancel ();
+  | Some job ->
+    Current.Job.cancel job "Cancelled by user";
     Server.respond_redirect ~uri:(Uri.of_string "/") ()
 
 let rebuild_job ~actions _job_id =
@@ -124,8 +122,7 @@ let handle_request ~engine ~webhooks _conn request body =
               rebuild_job ~actions job_id
             | ["job"; date; log; "cancel"] ->
               let job_id = Fmt.strf "%s/%s" date log in
-              let actions = lookup_actions ~engine job_id in
-              cancel_job ~actions job_id
+              cancel_job job_id
             | ["job"; date; log; "start"] ->
               let job_id = Fmt.strf "%s/%s" date log in
               begin match Current.Job.lookup_running job_id with

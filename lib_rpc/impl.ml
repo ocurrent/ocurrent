@@ -88,14 +88,11 @@ module Make (Current : S.CURRENT) = struct
             method cancel_impl _params release_param_caps =
               release_param_caps ();
               Log.info (fun f -> f "cancel(%S)" job_id);
-              match lookup () with
+              match Current.Job.lookup_running job_id with
               | None -> Service.fail "Job is no longer active (cannot cancel)"
               | Some job ->
-                match job#cancel with
-                | None -> Service.fail "Job can no longer be cancelled"
-                | Some cancel ->
-                  cancel ();
-                  Service.return_empty ()
+                Current.Job.cancel job "Cancelled by user";
+                Service.return_empty ()
 
             method status_impl _params release_param_caps =
               let open Job.Status in
@@ -103,11 +100,16 @@ module Make (Current : S.CURRENT) = struct
               Log.info (fun f -> f "status(%S)" job_id);
               let response, results = Service.Response.create Results.init_pointer in
               Results.id_set results job_id;
+              let can_cancel =
+                match Current.Job.lookup_running job_id with
+                | Some job -> Current.Job.cancelled_state job = Ok ()
+                | None -> false
+              in
               begin match lookup () with
                 | None -> Results.description_set results "Inactive job"
                 | Some job ->
                   Results.description_set results (Fmt.strf "%t" job#pp);
-                  Results.can_cancel_set results (job#cancel <> None);
+                  Results.can_cancel_set results can_cancel;
                   Results.can_rebuild_set results (job#rebuild <> None);
               end;
               Service.return response

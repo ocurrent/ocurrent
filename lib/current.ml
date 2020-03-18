@@ -25,7 +25,6 @@ type job_id = string
 
 class type actions = object
   method pp : Format.formatter -> unit
-  method cancel : (unit -> unit) option
   method rebuild : (unit -> job_id) option
   method release : unit
 end
@@ -75,7 +74,6 @@ module Input = struct
       Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
       Error (`Msg (Printexc.to_string ex)), metadata @@ object
         method pp f = Fmt.exn f ex
-        method cancel = None
         method rebuild = None
         method release = ()
       end
@@ -84,7 +82,6 @@ module Input = struct
     of_fn @@ fun _env ->
     Ok x, metadata @@ object
       method pp f = Fmt.string f "Input.const"
-      method cancel = None
       method rebuild = None
       method release = ()
     end
@@ -212,7 +209,6 @@ module Var (T : Current_term.S.T) = struct
     t.current, Input.metadata @@
     object
       method pp f = Fmt.string f t.name
-      method cancel = None
       method rebuild = None
       method release = ()
     end
@@ -283,7 +279,6 @@ end = struct
     );  (* (else the previous thread will check [ref_count] before exiting) *)
     t.value, Input.metadata @@
     object
-      method cancel = None
       method rebuild = None   (* Might be useful to implement this *)
       method pp f = t.pp f
       method release =

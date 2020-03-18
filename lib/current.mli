@@ -25,10 +25,6 @@ class type actions = object
   method pp : Format.formatter -> unit
   (** Format a message for the user explaining what is being waited on. *)
 
-  method cancel : (unit -> unit) option
-  (** A function to call if the user explicitly requests the operation be cancelled,
-      or [None] if it is not something that can be cancelled. *)
-
   method rebuild : (unit -> job_id) option
   (** A function to call if the user explicitly requests the operation be done again,
       or [None] if it is not something that can be repeated. Returns the new job ID. *)

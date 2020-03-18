@@ -10,7 +10,6 @@ let save path value =
   Current.Input.of_fn @@ fun _env ->
   let actions = object
     method pp f = Fmt.pf f "Save %a" Fpath.pp path
-    method cancel = None
     method rebuild = None
     method release = ()
   end in

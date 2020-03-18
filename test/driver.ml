@@ -53,7 +53,7 @@ let current_watches = ref { Current.Engine.
                             watches = [];
                             jobs = Current.Job_map.empty }
 
-let actions_of msg =
+let job_id_of msg =
   let name w = Fmt.strf "%a" Current.Engine.pp_metadata w in
   let watches = (!current_watches).Current.Engine.watches in
   match List.find_opt (fun w -> name w = msg) watches with
@@ -62,17 +62,21 @@ let actions_of msg =
     (* Check that the job is in the index too. *)
     match Current.Engine.job_id md with
     | None -> Fmt.failwith "Job %S does not have an ID!" msg
-    | Some job_id ->
-      let jobs = (!current_watches).Current.Engine.jobs in
-      match Current.Job_map.find_opt job_id jobs with
-      | None -> Fmt.failwith "Job %S is not in the index! Have @[%a@]"
-                  job_id
-                  Fmt.(Dump.list string) (Current.Job_map.bindings jobs |> List.map fst)
-      | Some actions -> actions
+    | Some job_id -> job_id
+
+let actions_of msg =
+  let job_id = job_id_of msg in
+  let jobs = (!current_watches).Current.Engine.jobs in
+  match Current.Job_map.find_opt job_id jobs with
+  | None -> Fmt.failwith "Job %S is not in the index! Have @[%a@]"
+              job_id
+              Fmt.(Dump.list string) (Current.Job_map.bindings jobs |> List.map fst)
+  | Some actions -> actions
 
 let cancel msg =
-  match (actions_of msg)#cancel with
-  | Some c -> c ()
+  let job_id = job_id_of msg in
+  match Current.Job.lookup_running job_id with
+  | Some job -> Current.Job.cancel job "Cancelled by user"
   | None -> Fmt.failwith "Watch %S cannot be cancelled" msg
 
 let rebuild msg =

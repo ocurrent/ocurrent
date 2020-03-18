@@ -7,7 +7,6 @@ module type CURRENT = sig
 
   class type actions = object
     method pp : Format.formatter -> unit
-    method cancel : (unit -> unit) option
     method rebuild : (unit -> string) option
     method release : unit
   end
@@ -18,6 +17,8 @@ module type CURRENT = sig
     val lookup_running : string -> t option
     val wait_for_log_data : t -> unit Lwt.t
     val approve_early_start : t -> unit
+    val cancel : t -> string -> unit
+    val cancelled_state : t -> (unit, [`Msg of string]) result
   end
 
   module Engine : sig
