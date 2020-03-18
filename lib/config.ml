@@ -32,6 +32,8 @@ let v ?auto_release ?confirm () =
 
 let default = v ()
 
+let now : t option ref = ref None
+
 let rec confirmed l t =
   match t.confirm with
   | Some threshold when Level.compare l threshold >= 0 ->

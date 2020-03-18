@@ -42,15 +42,11 @@ module Step = struct
 
   type t = {
     id : id;
-    config : Config.t;
   }
 
   let id t = t.id
 
-  let create config =
-    { config; id = object end }
-
-  let config t = t.config
+  let create () = { id = object end }
 end
 
 module Input = struct
@@ -124,7 +120,7 @@ module Engine = struct
     let rec aux old_watches =
       let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
-      let step = Step.create config in
+      let step = Step.create () in
       let t0 = Unix.gettimeofday () in
       let r, an = Executor.run ~env:step f in
       let t1 = Unix.gettimeofday () in
@@ -149,7 +145,11 @@ module Engine = struct
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
       Lwt.pause () >>= fun () ->
-      aux []
+      if !Config.now <> None then failwith "Engine is already running (Config.now already set)!";
+      Config.now := Some config;
+      Lwt.finalize
+        (fun () -> aux [])
+        (fun () -> Config.now := None; Lwt.return_unit)
     in
     { thread; last_result; config }
 

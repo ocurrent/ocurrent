@@ -344,56 +344,58 @@ module Output(Op : S.PUBLISHER) = struct
 
   let set ?(schedule=Schedule.default) ctx key value =
     Current.Input.of_fn @@ fun step ->
-    Log.debug (fun f -> f "set: %a" Op.pp (key, value));
-    let key_digest = Op.Key.digest key in
-    let value = Value.v value in
-    let step_id = Current.Step.id step in
-    (* Ensure the output exists and has [o.desired = value]: *)
-    let o =
-      match Outputs.find_opt key_digest !outputs with
-      | Some o ->
-        (* Output already exists in the memory cache. Update it if needed. *)
-        let changed = not (Value.equal value o.desired) in
-        if o.last_set = step_id then (
-          if changed then
-            Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
-        ) else (
-          o.last_set <- step_id;
-          o.ctx <- ctx;
-          if changed then (
-            o.desired <- value;
-            match o.op with
-            | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
-            | `Active _ | `Finished _ | `Retry -> ()
+    match !Current.Config.now with
+    | None -> Error (`Active `Ready), None
+    | Some config ->
+      Log.debug (fun f -> f "set: %a" Op.pp (key, value));
+      let key_digest = Op.Key.digest key in
+      let value = Value.v value in
+      let step_id = Current.Step.id step in
+      (* Ensure the output exists and has [o.desired = value]: *)
+      let o =
+        match Outputs.find_opt key_digest !outputs with
+        | Some o ->
+          (* Output already exists in the memory cache. Update it if needed. *)
+          let changed = not (Value.equal value o.desired) in
+          if o.last_set = step_id then (
+            if changed then
+              Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
+          ) else (
+            o.last_set <- step_id;
+            o.ctx <- ctx;
+            if changed then (
+              o.desired <- value;
+              match o.op with
+              | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
+              | `Active _ | `Finished _ | `Retry -> ()
+            );
           );
-        );
-        o
-      | None ->
-        (* Not in memory cache. Restore from disk if available, or create a new output if not.
-           Either way, [o.desired] is set to [value]. *)
-        let o = get_output ~step_id ctx key value in
-        outputs := Outputs.add key_digest o !outputs;
-        Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
-        o
-    in
-    (* Ensure a build is in progress if we need one: *)
-    let config = Current.Step.config step in
-    maybe_start ~config o;
-    (* Return the current state: *)
-    register_actions ~config ~schedule ~value o;
-    let v =
-      match o.op with
-      | `Finished x -> Ok x
-      | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
-      | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
-      | `Active op ->
-        let a =
-          let started = Job.start_time op.job in
-          if Lwt.state started = Lwt.Sleep then `Ready else `Running
-        in
-        Error (`Active a)
-    in
-    v, o.job_id
+          o
+        | None ->
+          (* Not in memory cache. Restore from disk if available, or create a new output if not.
+             Either way, [o.desired] is set to [value]. *)
+          let o = get_output ~step_id ctx key value in
+          outputs := Outputs.add key_digest o !outputs;
+          Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
+          o
+      in
+      (* Ensure a build is in progress if we need one: *)
+      maybe_start ~config o;
+      (* Return the current state: *)
+      register_actions ~config ~schedule ~value o;
+      let v =
+        match o.op with
+        | `Finished x -> Ok x
+        | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
+        | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
+        | `Active op ->
+          let a =
+            let started = Job.start_time op.job in
+            if Lwt.state started = Lwt.Sleep then `Ready else `Running
+          in
+          Error (`Active a)
+      in
+      v, o.job_id
 
   let reset () =
     outputs := Outputs.empty;

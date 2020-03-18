@@ -17,6 +17,9 @@ module Config : sig
   val get_confirm : t -> Level.t option
 
   val cmdliner : t Cmdliner.Term.t
+
+  val now : t option ref
+  (** [None] initially, then set to the configuration and never changes. *)
 end
 
 type job_id = string
@@ -42,8 +45,6 @@ module Step : sig
   val id : t -> id
   (** [id t] is a unique value for this evaluation step.
       This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
-
-  val config : t -> Config.t
 end
 
 module Input : sig
