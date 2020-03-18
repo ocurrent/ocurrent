@@ -63,6 +63,11 @@ module Input : sig
       @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
       @param actions Ways to interact with this input. *)
 
+  val register : ?job_id:job_id -> actions -> unit
+  (** [register ~job_id actions] is used to register handlers for cancelling and rebuilding jobs.
+      @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
+      @param actions Ways to interact with this input. *)
+
   val of_fn : (Step.t -> 'a Current_term.Output.t * metadata) -> 'a t
   (** [of_fn f] is an input that calls [f config] when it is evaluated.
       When [f] is called, the caller gets a ref-count on the watches and will

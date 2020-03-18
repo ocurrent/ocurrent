@@ -34,24 +34,21 @@ type job_metadata = {
   actions : actions;
 }
 
+let watches : actions list ref = ref []         (* Will call #release at end-of-step *)
+let active_jobs : actions Job_map.t ref = ref Job_map.empty
+
 module Step = struct
   type id = < >
 
   type t = {
     id : id;
     config : Config.t;
-    mutable jobs : actions Job_map.t;
-    mutable watches : actions list;
   }
 
   let id t = t.id
 
   let create config =
-    let jobs = Job_map.empty in
-    { config; jobs; watches = []; id = object end }
-
-  let register_job t id actions =
-    t.jobs <- Job_map.add id actions t.jobs
+    { config; id = object end }
 
   let config t = t.config
 end
@@ -67,6 +64,13 @@ module Input = struct
 
   let metadata ?job_id actions =
     { job_id; actions }
+
+  let register ?job_id actions =
+    watches := actions :: !watches;
+    begin match job_id with
+      | None -> ()
+      | Some job_id -> active_jobs := Job_map.add job_id actions !active_jobs
+    end
 
   let of_fn f step =
     try f step
@@ -89,11 +93,7 @@ module Input = struct
   let get step (t : 'a t) =
     let value, metadata = t step in
     let { job_id; actions } = metadata in
-    step.watches <- metadata.actions :: step.watches;
-    begin match job_id with
-      | None -> ()
-      | Some job_id -> Step.register_job step job_id actions
-    end;
+    register ?job_id actions;
     (value, job_id)
 
   let map_result fn t step =
@@ -146,18 +146,21 @@ module Engine = struct
       let r, an = Executor.run ~env:step f in
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
-      let watches = step.Step.watches in
+      let new_jobs = !active_jobs in
+      active_jobs := Job_map.empty;
+      let new_watches = !watches in
+      watches := [];
       List.iter (fun w -> w#release) old_watches;
       last_result := {
         value = r;
         analysis = an;
-        jobs = step.Step.jobs;
+        jobs = new_jobs;
       };
       trace ~next !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       next >>= fun () ->
       Lwt.pause () >>= fun () ->
-      aux watches
+      aux new_watches
     in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
