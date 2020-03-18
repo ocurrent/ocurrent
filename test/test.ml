@@ -168,15 +168,14 @@ let test_state _switch () =
 module Test_input = struct
   type 'a t = unit
   type job_id = unit
-  type env = unit
 
-  let get () () = Error (`Msg "Can't happen"), None
+  let get () = Error (`Msg "Can't happen"), None
 end
 
 module Term = Current_term.Make(Test_input)
 
 let test_all_labelled () =
-  let test x = fst (Term.Executor.run ~env:() (fun () -> Term.all_labelled x)) in
+  let test x = fst (Term.Executor.run (fun () -> Term.all_labelled x)) in
   Alcotest.check engine_result "all_ok" (Ok ()) @@ test [
     "Alpine", Term.return ();
     "Debian", Term.return ();

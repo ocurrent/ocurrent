@@ -9,9 +9,7 @@ module Make (Input : S.INPUT) = struct
     fn : 'a Dyn.t;
   }
 
-  type context = {
-    user_env : Input.env;
-  }
+  type context = unit ref
 
   type 'a t = context -> 'a node
 
@@ -142,7 +140,7 @@ module Make (Input : S.INPUT) = struct
     | Error (`Active a) -> make (An.bind_input ~env ~info x.md (An.Active a)) (Dyn.active a)
     | Ok y ->
       let input = f y in
-      let v, id = Input.get ctx.user_env input in
+      let v, id = Input.get input in
       let md = An.bind_input ~env ~info x.md ?id (
           match v with
           | Error (`Msg e) -> An.Fail e
@@ -274,14 +272,9 @@ module Make (Input : S.INPUT) = struct
     in
     make md fn
 
-  let env =
-    let env = !bind_context in
-    cache @@ fun ctx ->
-    make (An.return ~env None) (Dyn.return ctx.user_env)
-
   module Executor = struct
-    let run ~env:user_env f =
-      let ctx = { user_env } in
+    let run f =
+      let ctx = ref () in
       try
         let x = f () ctx in
         Dyn.run x.fn, x.md

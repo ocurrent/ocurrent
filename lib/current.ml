@@ -42,8 +42,6 @@ module Input = struct
 
   type 'a t = unit -> 'a Current_term.Output.t * job_id option
 
-  type env = unit
-
   let register_actions ?job_id actions =
     watches := actions :: !watches;
     begin match job_id with
@@ -58,10 +56,10 @@ module Input = struct
       Error (`Msg (Printexc.to_string ex)), None
 
   let const x =
-    of_fn @@ fun _env ->
+    of_fn @@ fun () ->
     Ok x, None
 
-  let get () (t : 'a t) = t ()
+  let get (t : 'a t) = t ()
 
   let map_result fn t step =
     let x, md = t step in
@@ -119,7 +117,7 @@ module Engine = struct
       let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
       let t0 = Unix.gettimeofday () in
-      let r, an = Executor.run ~env:() f in
+      let r, an = Executor.run f in
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       let new_jobs = !active_jobs in
