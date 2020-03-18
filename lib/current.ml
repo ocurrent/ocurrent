@@ -56,16 +56,11 @@ end
 module Input = struct
   type nonrec job_id = job_id
 
-  type metadata = job_metadata
-
-  type 'a t = Step.t -> 'a Current_term.Output.t * metadata
+  type 'a t = Step.t -> 'a Current_term.Output.t * job_id option
 
   type env = Step.t
 
-  let metadata ?job_id actions =
-    { job_id; actions }
-
-  let register ?job_id actions =
+  let register_actions ?job_id actions =
     watches := actions :: !watches;
     begin match job_id with
       | None -> ()
@@ -76,25 +71,13 @@ module Input = struct
     try f step
     with ex ->
       Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
-      Error (`Msg (Printexc.to_string ex)), metadata @@ object
-        method pp f = Fmt.exn f ex
-        method rebuild = None
-        method release = ()
-      end
+      Error (`Msg (Printexc.to_string ex)), None
 
   let const x =
     of_fn @@ fun _env ->
-    Ok x, metadata @@ object
-      method pp f = Fmt.string f "Input.const"
-      method rebuild = None
-      method release = ()
-    end
+    Ok x, None
 
-  let get step (t : 'a t) =
-    let value, metadata = t step in
-    let { job_id; actions } = metadata in
-    register ?job_id actions;
-    (value, job_id)
+  let get step (t : 'a t) = t step
 
   let map_result fn t step =
     let x, md = t step in
@@ -207,12 +190,7 @@ module Var (T : Current_term.S.T) = struct
     component "%s" t.name |>
     let> () = return () in
     Input.of_fn @@ fun _env ->
-    t.current, Input.metadata @@
-    object
-      method pp f = Fmt.string f t.name
-      method rebuild = None
-      method release = ()
-    end
+    t.current, None
 
   let set t v =
     t.current <- v;
@@ -274,19 +252,19 @@ end = struct
   let run t =
     Input.of_fn @@ fun _env ->
     t.ref_count <- t.ref_count + 1;
-    if not t.active then (
-      t.active <- true;
-      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
-    );  (* (else the previous thread will check [ref_count] before exiting) *)
-    t.value, Input.metadata @@
-    object
+    Input.register_actions @@ object
       method rebuild = None   (* Might be useful to implement this *)
       method pp f = t.pp f
       method release =
         assert (t.ref_count > 0);
         t.ref_count <- t.ref_count - 1;
         if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
-    end
+    end;
+    if not t.active then (
+      t.active <- true;
+      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
+    );  (* (else the previous thread will check [ref_count] before exiting) *)
+    t.value, None
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
