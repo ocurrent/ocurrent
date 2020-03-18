@@ -15,12 +15,13 @@ let render ~actions ~job_id ~log =
       ]
   in
   let cancel_button =
-    if actions#cancel = None then []
-    else
+    match Current.Job.lookup_running job_id with
+    | Some job when Current.Job.cancelled_state job = Ok () ->
       [form ~a:[action "cancel"; a_method `Post]
          [ input ~a:[a_input_type `Submit; a_value "Cancel"] ();
            input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Main.csrf_token] () ]
       ]
+    | _ -> []
   in
   let start_button =
     match Current.Job.lookup_running job_id with

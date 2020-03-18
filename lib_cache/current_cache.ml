@@ -297,7 +297,6 @@ module Output(Op : S.PUBLISHER) = struct
         Current.Input.metadata ~job_id @@
         object
           method pp f = pp_output f o
-          method cancel = None
           method rebuild = Some rebuild
           method release = ()
         end
@@ -321,7 +320,6 @@ module Output(Op : S.PUBLISHER) = struct
               Fmt.pf f "%a will be invalid after %a"
                 pp_op (key, value)
                 pp_duration_rough (Duration.of_f remaining_time)
-          method cancel = None
           method rebuild = Some rebuild
           method release = ()
         end
@@ -377,7 +375,6 @@ module Output(Op : S.PUBLISHER) = struct
       Error (`Active a), Current.Input.metadata ?job_id:o.job_id @@
       object
         method pp f = pp_output f o
-        method cancel = Some (fun () -> Job.cancel op.job "Cancelled by user")
         method rebuild = None
         method release =
           o.ref_count <- o.ref_count - 1;
