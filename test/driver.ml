@@ -50,37 +50,27 @@ let test_pipeline =
 let current_watches = ref { Current.Engine.
                             value = Error (`Active `Ready);
                             analysis = Current.Analysis.booting;
-                            watches = [];
                             jobs = Current.Job_map.empty }
 
-let job_id_of msg =
-  let name w = Fmt.strf "%a" Current.Engine.pp_metadata w in
-  let watches = (!current_watches).Current.Engine.watches in
-  match List.find_opt (fun w -> name w = msg) watches with
-  | None -> Fmt.failwith "No such watch %S." msg
-  | Some md ->
-    (* Check that the job is in the index too. *)
-    match Current.Engine.job_id md with
-    | None -> Fmt.failwith "Job %S does not have an ID!" msg
-    | Some job_id -> job_id
+let pp_job f j = j#pp f
 
-let actions_of msg =
-  let job_id = job_id_of msg in
-  let jobs = (!current_watches).Current.Engine.jobs in
-  match Current.Job_map.find_opt job_id jobs with
-  | None -> Fmt.failwith "Job %S is not in the index! Have @[%a@]"
-              job_id
-              Fmt.(Dump.list string) (Current.Job_map.bindings jobs |> List.map fst)
-  | Some actions -> actions
+let find_by_descr msg =
+  let jobs = (!current_watches).Current.Engine.jobs |> Current.Job_map.bindings in
+  match List.find_opt (fun (_, job) -> Fmt.strf "%t" job#pp = msg) jobs with
+  | None ->
+    Fmt.failwith "@[<v2>No job with description %S. We have:@,%a@]" msg
+      Fmt.(Dump.list pp_job) (List.map snd jobs)
+  | Some x -> x
 
 let cancel msg =
-  let job_id = job_id_of msg in
+  let job_id, _actions = find_by_descr msg in
   match Current.Job.lookup_running job_id with
   | Some job -> Current.Job.cancel job "Cancelled by user"
   | None -> Fmt.failwith "Watch %S cannot be cancelled" msg
 
 let rebuild msg =
-  match (actions_of msg)#rebuild with
+  let _job_id, actions = find_by_descr msg in
+  match actions#rebuild with
   | None -> Fmt.failwith "Job %S cannot be rebuilt!" msg
   | Some rebuild -> rebuild () |> ignore
 
@@ -95,9 +85,8 @@ let test ?config ~name v actions =
   let trace ~next step_result =
     if !i = 0 then raise Exit;
     current_watches := step_result;
-    let { Current.Engine.watches; value = x; _} = step_result in
+    let { Current.Engine.value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
-    Logs.info (fun f -> f "@[<v>Depends on: %a@]" Fmt.(Dump.list Current.Engine.pp_metadata) watches);
     begin
       if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
       try actions !i with

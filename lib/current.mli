@@ -17,6 +17,9 @@ module Config : sig
   val get_confirm : t -> Level.t option
 
   val cmdliner : t Cmdliner.Term.t
+
+  val now : t option ref
+  (** [None] initially, then set to the configuration and never changes. *)
 end
 
 type job_id = string
@@ -35,42 +38,24 @@ class type actions = object
       reaches zero. *)
 end
 
-module Step : sig
-  type t
-  type id
-
-  val id : t -> id
-  (** [id t] is a unique value for this evaluation step.
-      This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
-
-  val config : t -> Config.t
-end
-
 module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
 
-  type metadata
-  (** Information about a value of the input at some point. *)
-
   val const : 'a -> 'a t
   (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
 
-  val metadata :
-    ?job_id:job_id ->
-    actions -> metadata
-  (** [metadata actions] is used to provide metadata about a value.
+  val register_actions : ?job_id:job_id -> actions -> unit
+  (** [register_actions ~job_id actions] is used to register handlers for
+      cancelling and rebuilding jobs.
+      Once evaluation is complete, [actions#release] will be called.
+      If the ref-count drops to zero then you can then cancel the job.
       @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
       @param actions Ways to interact with this input. *)
 
-  val of_fn : (Step.t -> 'a Current_term.Output.t * metadata) -> 'a t
-  (** [of_fn f] is an input that calls [f config] when it is evaluated.
-      When [f] is called, the caller gets a ref-count on the watches and will
-      call [release] exactly once when each watch is no longer needed.
-
-      Note: the engine calls [f] in an evaluation before calling [release]
-      on the previous watches, so if the ref-count drops to zero then you can
-      cancel the job. *)
+  val of_fn : (unit -> 'a Current_term.Output.t * job_id option) -> 'a t
+  (** [of_fn f] is an input that calls [f ()] when it is evaluated.
+      [f] can call [register] to attach actions to a job. *)
 
   val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
   (** [map_result fn t] transforms the result of [t] with [fn]. The metadata remains the same.
@@ -115,7 +100,6 @@ module Engine : sig
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : metadata list;
     jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
   }
 
@@ -154,6 +138,17 @@ module Engine : sig
   (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
       Call this on each metrics collection if you have exactly one pipeline. The default web
       UI does this automatically. *)
+
+  module Step : sig
+    type t
+    (** A unique ID representing the current iteration.
+        This is used by the cache to warn about attempts to set the same output
+        to two different values at the same time. *)
+
+    val equal : t -> t -> bool
+
+    val now : unit -> t
+  end
 end
 
 module Var (T : Current_term.S.T) : sig

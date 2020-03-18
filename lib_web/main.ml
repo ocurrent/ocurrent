@@ -56,7 +56,7 @@ let settings config =
 
 let dashboard engine =
   let config = Current.Engine.config engine in
-  let { Current.Engine.value; analysis = _; watches = _; jobs = _ } = Current.Engine.state engine in
+  let { Current.Engine.value; analysis = _; jobs = _ } = Current.Engine.state engine in
   template [
     div [
       object_ ~a:[a_data "/pipeline.svg"] [txt "Pipeline diagram"];

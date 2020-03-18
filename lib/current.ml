@@ -34,67 +34,32 @@ type job_metadata = {
   actions : actions;
 }
 
-module Step = struct
-  type id = < >
-
-  type t = {
-    id : id;
-    config : Config.t;
-    mutable jobs : actions Job_map.t;
-    mutable watches : job_metadata list;
-  }
-
-  let id t = t.id
-
-  let create config =
-    let jobs = Job_map.empty in
-    { config; jobs; watches = []; id = object end }
-
-  let register_job t id actions =
-    t.jobs <- Job_map.add id actions t.jobs
-
-  let config t = t.config
-end
+let watches : actions list ref = ref []         (* Will call #release at end-of-step *)
+let active_jobs : actions Job_map.t ref = ref Job_map.empty
 
 module Input = struct
   type nonrec job_id = job_id
 
-  type metadata = job_metadata
+  type 'a t = unit -> 'a Current_term.Output.t * job_id option
 
-  type 'a t = Step.t -> 'a Current_term.Output.t * metadata
-
-  type env = Step.t
-
-  let metadata ?job_id actions =
-    { job_id; actions }
+  let register_actions ?job_id actions =
+    watches := actions :: !watches;
+    begin match job_id with
+      | None -> ()
+      | Some job_id -> active_jobs := Job_map.add job_id actions !active_jobs
+    end
 
   let of_fn f step =
     try f step
     with ex ->
       Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
-      Error (`Msg (Printexc.to_string ex)), metadata @@ object
-        method pp f = Fmt.exn f ex
-        method rebuild = None
-        method release = ()
-      end
+      Error (`Msg (Printexc.to_string ex)), None
 
   let const x =
-    of_fn @@ fun _env ->
-    Ok x, metadata @@ object
-      method pp f = Fmt.string f "Input.const"
-      method rebuild = None
-      method release = ()
-    end
+    of_fn @@ fun () ->
+    Ok x, None
 
-  let get step (t : 'a t) =
-    let value, metadata = t step in
-    let { job_id; actions } = metadata in
-    step.watches <- metadata :: step.watches;
-    begin match job_id with
-      | None -> ()
-      | Some job_id -> Step.register_job step job_id actions
-    end;
-    (value, job_id)
+  let get (t : 'a t) = t ()
 
   let map_result fn t step =
     let x, md = t step in
@@ -107,12 +72,21 @@ include Current_term.Make(Input)
 type 'a term = 'a t
 
 module Engine = struct
+  module Step = struct
+    type t = < >
+    let create () = object end
+    let equal = (=)
+    let current_step = ref (create ())
+    let now () = !current_step
+    let advance () =
+      current_step := create ()
+  end
+
   type metadata = job_metadata
 
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    watches : metadata list;
     jobs : actions Job_map.t;
   }
 
@@ -130,7 +104,6 @@ module Engine = struct
   let booting = {
     value = Error (`Active `Running);
     analysis = Analysis.booting;
-    watches = [];
     jobs = Job_map.empty;
   }
 
@@ -140,32 +113,39 @@ module Engine = struct
 
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
-    let rec aux () =
-      let old = !last_result in
+    let rec aux old_watches =
       let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
-      let step = Step.create config in
       let t0 = Unix.gettimeofday () in
-      let r, an = Executor.run ~env:step f in
+      let r, an = Executor.run f in
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
-      let watches = step.Step.watches in
-      List.iter (fun w -> w.actions#release) old.watches;
+      let new_jobs = !active_jobs in
+      active_jobs := Job_map.empty;
+      let new_watches = !watches in
+      watches := [];
+      List.iter (fun w -> w#release) old_watches;
       last_result := {
         value = r;
         analysis = an;
-        watches;
-        jobs = step.Step.jobs;
+        jobs = new_jobs;
       };
       trace ~next !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       next >>= fun () ->
-      Lwt.pause () >>= aux
+      Lwt.pause () >>= fun () ->
+      Step.advance ();
+      aux new_watches
     in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
-      Lwt.pause () >>= aux
+      Lwt.pause () >>= fun () ->
+      if !Config.now <> None then failwith "Engine is already running (Config.now already set)!";
+      Config.now := Some config;
+      Lwt.finalize
+        (fun () -> aux [])
+        (fun () -> Config.now := None; Lwt.return_unit)
     in
     { thread; last_result; config }
 
@@ -206,12 +186,7 @@ module Var (T : Current_term.S.T) = struct
     component "%s" t.name |>
     let> () = return () in
     Input.of_fn @@ fun _env ->
-    t.current, Input.metadata @@
-    object
-      method pp f = Fmt.string f t.name
-      method rebuild = None
-      method release = ()
-    end
+    t.current, None
 
   let set t v =
     t.current <- v;
@@ -273,19 +248,19 @@ end = struct
   let run t =
     Input.of_fn @@ fun _env ->
     t.ref_count <- t.ref_count + 1;
-    if not t.active then (
-      t.active <- true;
-      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
-    );  (* (else the previous thread will check [ref_count] before exiting) *)
-    t.value, Input.metadata @@
-    object
+    Input.register_actions @@ object
       method rebuild = None   (* Might be useful to implement this *)
       method pp f = t.pp f
       method release =
         assert (t.ref_count > 0);
         t.ref_count <- t.ref_count - 1;
         if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
-    end
+    end;
+    if not t.active then (
+      t.active <- true;
+      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
+    );  (* (else the previous thread will check [ref_count] before exiting) *)
+    t.value, None
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in

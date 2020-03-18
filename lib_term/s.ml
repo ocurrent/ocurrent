@@ -22,10 +22,7 @@ module type INPUT = sig
 
   type job_id
 
-  type env
-  (** A context which the caller can associate with an execution. *)
-
-  val get : env -> 'a t -> 'a Output.t * job_id option
+  val get : 'a t -> 'a Output.t * job_id option
 end
 
 module type ANALYSIS = sig
@@ -208,12 +205,9 @@ module type EXECUTOR = sig
   type 'a term
   (** See [TERM]. *)
 
-  type env
-  (** See [INPUT]. *)
-
   type analysis
   (** See [ANALYSIS]. *)
 
-  val run : env:env -> (unit -> 'a term) -> 'a Output.t * analysis
-  (** [run ~env f] evaluates term [f ()], returning the current output and its analysis. *)
+  val run : (unit -> 'a term) -> 'a Output.t * analysis
+  (** [run f] evaluates term [f ()], returning the current output and its analysis. *)
 end

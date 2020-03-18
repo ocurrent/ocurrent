@@ -75,7 +75,7 @@ module Output(Op : S.PUBLISHER) = struct
     key : Op.Key.t;
     mutable build_number : int64;         (* Number of recorded (incl failed) builds with this key. *)
     mutable ref_count : int;              (* The number of watchers waiting for the result (for auto-cancel). *)
-    mutable last_set : Current.Step.id;   (* Last evaluation step setting this output. *)
+    mutable last_set : Current.Engine.Step.t; (* Last evaluation step setting this output. *)
     mutable job_id : Current.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
@@ -275,7 +275,7 @@ module Output(Op : S.PUBLISHER) = struct
     in
     { key; current; desired; ctx; op; job_id; last_set = step_id; ref_count = 0; mtime; build_number }
 
-  (* Return the input metadata for a resolved (non-active) output. *)
+  (* Register the actions for a resolved (non-active) output. *)
   let resolved o ~schedule ~value ~config =
     let key = o.key in
     match o.job_id with
@@ -294,8 +294,7 @@ module Output(Op : S.PUBLISHER) = struct
       in
       match schedule.Schedule.valid_for with
       | None ->
-        Current.Input.metadata ~job_id @@
-        object
+        Current.Input.register_actions ~job_id @@ object
           method pp f = pp_output f o
           method rebuild = Some rebuild
           method release = ()
@@ -311,7 +310,7 @@ module Output(Op : S.PUBLISHER) = struct
               !Job.sleep remaining_time >|= Current.Engine.update
             )
         );
-        Current.Input.metadata ~job_id @@
+        Current.Input.register_actions ~job_id @@
         object
           method pp f =
             if remaining_time <= 0.0 then
@@ -324,68 +323,79 @@ module Output(Op : S.PUBLISHER) = struct
           method release = ()
         end
 
-  let set ?(schedule=Schedule.default) ctx key value =
-    Current.Input.of_fn @@ fun step ->
-    Log.debug (fun f -> f "set: %a" Op.pp (key, value));
-    let key_digest = Op.Key.digest key in
-    let value = Value.v value in
-    let step_id = Current.Step.id step in
-    (* Ensure the output exists and has [o.desired = value]: *)
-    let o =
-      match Outputs.find_opt key_digest !outputs with
-      | Some o ->
-        (* Output already exists in the memory cache. Update it if needed. *)
-        let changed = not (Value.equal value o.desired) in
-        if o.last_set = step_id then (
-          if changed then
-            Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
-        ) else (
-          o.last_set <- step_id;
-          o.ctx <- ctx;
-          if changed then (
-            o.desired <- value;
-            match o.op with
-            | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
-            | `Active _ | `Finished _ | `Retry -> ()
-          );
-        );
-        o
-      | None ->
-        (* Not in memory cache. Restore from disk if available, or create a new output if not.
-           Either way, [o.desired] is set to [value]. *)
-        let o = get_output ~step_id ctx key value in
-        outputs := Outputs.add key_digest o !outputs;
-        Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
-        o
-    in
-    (* Ensure a build is in progress if we need one: *)
-    let config = Current.Step.config step in
-    maybe_start ~config o;
-    (* Return the current state: *)
+  let register_actions ~schedule ~value ~config o =
     match o.op with
-    | `Finished x -> Ok x, resolved ~schedule ~value ~config o
-    | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), resolved ~schedule ~value ~config o
-    | `Retry -> Error (`Msg "(retry)"), resolved ~schedule ~value ~config o  (* (probably can't happen) *)
-    | `Active op ->
-      let a =
-        let started = Job.start_time op.job in
-        if Lwt.state started = Lwt.Sleep then `Ready else `Running
-      in
+    | `Finished _ | `Error _ | `Retry -> resolved ~schedule ~value ~config o
+    | `Active _ ->
       o.ref_count <- o.ref_count + 1;
-      Error (`Active a), Current.Input.metadata ?job_id:o.job_id @@
-      object
+      Current.Input.register_actions ?job_id:o.job_id @@ object
         method pp f = pp_output f o
         method rebuild = None
         method release =
           o.ref_count <- o.ref_count - 1;
           if o.ref_count = 0 && Op.auto_cancel then (
-              match o.op with
-              | `Active op ->
-                op.autocancelled <- true;
-                Job.cancel op.job "Auto-cancelling job because it is no longer needed"
-              | _ -> ()
+            match o.op with
+            | `Active op ->
+              op.autocancelled <- true;
+              Job.cancel op.job "Auto-cancelling job because it is no longer needed"
+            | _ -> ()
           )
       end
+
+  let set ?(schedule=Schedule.default) ctx key value =
+    Current.Input.of_fn @@ fun () ->
+    match !Current.Config.now with
+    | None -> Error (`Active `Ready), None
+    | Some config ->
+      Log.debug (fun f -> f "set: %a" Op.pp (key, value));
+      let key_digest = Op.Key.digest key in
+      let value = Value.v value in
+      let step_id = Current.Engine.Step.now () in
+      (* Ensure the output exists and has [o.desired = value]: *)
+      let o =
+        match Outputs.find_opt key_digest !outputs with
+        | Some o ->
+          (* Output already exists in the memory cache. Update it if needed. *)
+          let changed = not (Value.equal value o.desired) in
+          if o.last_set = step_id then (
+            if changed then
+              Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
+          ) else (
+            o.last_set <- step_id;
+            o.ctx <- ctx;
+            if changed then (
+              o.desired <- value;
+              match o.op with
+              | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
+              | `Active _ | `Finished _ | `Retry -> ()
+            );
+          );
+          o
+        | None ->
+          (* Not in memory cache. Restore from disk if available, or create a new output if not.
+             Either way, [o.desired] is set to [value]. *)
+          let o = get_output ~step_id ctx key value in
+          outputs := Outputs.add key_digest o !outputs;
+          Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
+          o
+      in
+      (* Ensure a build is in progress if we need one: *)
+      maybe_start ~config o;
+      (* Return the current state: *)
+      register_actions ~config ~schedule ~value o;
+      let v =
+        match o.op with
+        | `Finished x -> Ok x
+        | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
+        | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
+        | `Active op ->
+          let a =
+            let started = Job.start_time op.job in
+            if Lwt.state started = Lwt.Sleep then `Ready else `Running
+          in
+          Error (`Active a)
+      in
+      v, o.job_id
 
   let reset () =
     outputs := Outputs.empty;
