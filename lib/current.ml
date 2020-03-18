@@ -37,24 +37,12 @@ type job_metadata = {
 let watches : actions list ref = ref []         (* Will call #release at end-of-step *)
 let active_jobs : actions Job_map.t ref = ref Job_map.empty
 
-module Step = struct
-  type id = < >
-
-  type t = {
-    id : id;
-  }
-
-  let id t = t.id
-
-  let create () = { id = object end }
-end
-
 module Input = struct
   type nonrec job_id = job_id
 
-  type 'a t = Step.t -> 'a Current_term.Output.t * job_id option
+  type 'a t = unit -> 'a Current_term.Output.t * job_id option
 
-  type env = Step.t
+  type env = unit
 
   let register_actions ?job_id actions =
     watches := actions :: !watches;
@@ -73,7 +61,7 @@ module Input = struct
     of_fn @@ fun _env ->
     Ok x, None
 
-  let get step (t : 'a t) = t step
+  let get () (t : 'a t) = t ()
 
   let map_result fn t step =
     let x, md = t step in
@@ -86,6 +74,16 @@ include Current_term.Make(Input)
 type 'a term = 'a t
 
 module Engine = struct
+  module Step = struct
+    type t = < >
+    let create () = object end
+    let equal = (=)
+    let current_step = ref (create ())
+    let now () = !current_step
+    let advance () =
+      current_step := create ()
+  end
+
   type metadata = job_metadata
 
   type results = {
@@ -120,9 +118,8 @@ module Engine = struct
     let rec aux old_watches =
       let next = Lwt_condition.wait propagate in
       Log.debug (fun f -> f "Evaluating...");
-      let step = Step.create () in
       let t0 = Unix.gettimeofday () in
-      let r, an = Executor.run ~env:step f in
+      let r, an = Executor.run ~env:() f in
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       let new_jobs = !active_jobs in
@@ -139,6 +136,7 @@ module Engine = struct
       Log.debug (fun f -> f "Waiting for inputs to change...");
       next >>= fun () ->
       Lwt.pause () >>= fun () ->
+      Step.advance ();
       aux new_watches
     in
     let thread =

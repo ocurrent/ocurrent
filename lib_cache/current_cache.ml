@@ -75,7 +75,7 @@ module Output(Op : S.PUBLISHER) = struct
     key : Op.Key.t;
     mutable build_number : int64;         (* Number of recorded (incl failed) builds with this key. *)
     mutable ref_count : int;              (* The number of watchers waiting for the result (for auto-cancel). *)
-    mutable last_set : Current.Step.id;   (* Last evaluation step setting this output. *)
+    mutable last_set : Current.Engine.Step.t; (* Last evaluation step setting this output. *)
     mutable job_id : Current.job_id option; (* Current or last log *)
     mutable current : string option;      (* The current digest value, if known. *)
     mutable desired : Value.t;            (* The value we want. *)
@@ -343,14 +343,14 @@ module Output(Op : S.PUBLISHER) = struct
       end
 
   let set ?(schedule=Schedule.default) ctx key value =
-    Current.Input.of_fn @@ fun step ->
+    Current.Input.of_fn @@ fun () ->
     match !Current.Config.now with
     | None -> Error (`Active `Ready), None
     | Some config ->
       Log.debug (fun f -> f "set: %a" Op.pp (key, value));
       let key_digest = Op.Key.digest key in
       let value = Value.v value in
-      let step_id = Current.Step.id step in
+      let step_id = Current.Engine.Step.now () in
       (* Ensure the output exists and has [o.desired = value]: *)
       let o =
         match Outputs.find_opt key_digest !outputs with

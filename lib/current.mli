@@ -38,15 +38,6 @@ class type actions = object
       reaches zero. *)
 end
 
-module Step : sig
-  type t
-  type id
-
-  val id : t -> id
-  (** [id t] is a unique value for this evaluation step.
-      This can be useful to detect if e.g. the same output has been set to two different values in one step. *)
-end
-
 module Input : sig
   type 'a t
   (** An input that produces an ['a term]. *)
@@ -62,8 +53,8 @@ module Input : sig
       @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
       @param actions Ways to interact with this input. *)
 
-  val of_fn : (Step.t -> 'a Current_term.Output.t * job_id option) -> 'a t
-  (** [of_fn f] is an input that calls [f step] when it is evaluated.
+  val of_fn : (unit -> 'a Current_term.Output.t * job_id option) -> 'a t
+  (** [of_fn f] is an input that calls [f ()] when it is evaluated.
       [f] can call [register] to attach actions to a job. *)
 
   val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
@@ -147,6 +138,17 @@ module Engine : sig
   (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
       Call this on each metrics collection if you have exactly one pipeline. The default web
       UI does this automatically. *)
+
+  module Step : sig
+    type t
+    (** A unique ID representing the current iteration.
+        This is used by the cache to warn about attempts to set the same output
+        to two different values at the same time. *)
+
+    val equal : t -> t -> bool
+
+    val now : unit -> t
+  end
 end
 
 module Var (T : Current_term.S.T) : sig
