@@ -97,65 +97,6 @@ module Analysis : Current_term.S.ANALYSIS with
   type 'a term := 'a t and
   type job_id := job_id
 
-module Engine : sig
-  type t
-
-  type metadata
-
-  type results = {
-    value : unit Current_term.Output.t;
-    analysis : Analysis.t;
-    jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
-  }
-
-  val create :
-    ?config:Config.t ->
-    ?trace:(next:unit Lwt.t -> results -> unit Lwt.t) ->
-    (unit -> unit term) ->
-    t
-  (** [create pipeline] is a new engine running [pipeline].
-      The engine will evaluate [t]'s pipeline immediately, and again whenever
-      one of its inputs changes. *)
-
-  val update : unit -> unit
-  (** Trigger a reevaluation of the pipeline.
-      Inputs should call this whenever they might now produce a different result
-      (e.g. an active input becomes finished). *)
-
-  val state : t -> results
-  (** The most recent results from evaluating the pipeline. *)
-
-  val jobs : results -> actions Job_map.t
-
-  val thread : t -> 'a Lwt.t
-  (** [thread t] is the engine's thread.
-      Use this to monitor the engine (in case it crashes). *)
-
-  val actions : metadata -> actions
-
-  val job_id : metadata -> job_id option
-
-  val config : t -> Config.t
-
-  val pp_metadata : metadata Fmt.t
-
-  val update_metrics : results -> unit
-  (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
-      Call this on each metrics collection if you have exactly one pipeline. The default web
-      UI does this automatically. *)
-
-  module Step : sig
-    type t
-    (** A unique ID representing the current iteration.
-        This is used by the cache to warn about attempts to set the same output
-        to two different values at the same time. *)
-
-    val equal : t -> t -> bool
-
-    val now : unit -> t
-  end
-end
-
 module Var (T : Current_term.S.T) : sig
   type t
   (** A variable with a current value of type [T.t Current_term.Output.t]. *)
@@ -317,6 +258,65 @@ module Job : sig
 
   val timestamp : (unit -> float) ref
   val sleep : (float -> unit Lwt.t) ref
+end
+
+module Engine : sig
+  type t
+
+  type metadata
+
+  type results = {
+    value : unit Current_term.Output.t;
+    analysis : Analysis.t;
+    jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
+  }
+
+  val create :
+    ?config:Config.t ->
+    ?trace:(next:unit Lwt.t -> results -> unit Lwt.t) ->
+    (unit -> unit term) ->
+    t
+  (** [create pipeline] is a new engine running [pipeline].
+      The engine will evaluate [t]'s pipeline immediately, and again whenever
+      one of its inputs changes. *)
+
+  val update : unit -> unit
+  (** Trigger a reevaluation of the pipeline.
+      Inputs should call this whenever they might now produce a different result
+      (e.g. an active input becomes finished). *)
+
+  val state : t -> results
+  (** The most recent results from evaluating the pipeline. *)
+
+  val jobs : results -> actions Job_map.t
+
+  val thread : t -> 'a Lwt.t
+  (** [thread t] is the engine's thread.
+      Use this to monitor the engine (in case it crashes). *)
+
+  val actions : metadata -> actions
+
+  val job_id : metadata -> job_id option
+
+  val config : t -> Config.t
+
+  val pp_metadata : metadata Fmt.t
+
+  val update_metrics : results -> unit
+  (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
+      Call this on each metrics collection if you have exactly one pipeline. The default web
+      UI does this automatically. *)
+
+  module Step : sig
+    type t
+    (** A unique ID representing the current iteration.
+        This is used by the cache to warn about attempts to set the same output
+        to two different values at the same time. *)
+
+    val equal : t -> t -> bool
+
+    val now : unit -> t
+  end
 end
 
 module Process : sig
