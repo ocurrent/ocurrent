@@ -40,12 +40,12 @@ let watch update =
 
 let pp f = Fmt.string f "watch"
 
-let monitor = Current.monitor ~read ~watch ~pp
+let monitor = Current.Monitor.create ~read ~watch ~pp
 
 let input () =
   Current.component "input" |>
   let> () = Current.return () in
-  monitor
+  Current.Monitor.input monitor
 
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)
 

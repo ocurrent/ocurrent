@@ -64,24 +64,33 @@ end
 
 module Job_map : Map.S with type key = job_id
 
-val monitor :
-  read:(unit -> 'a or_error Lwt.t) ->
-  watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
-  pp:(Format.formatter -> unit) ->
-  'a Input.t
-(** [monitor ~read ~watch ~pp] is an input that uses [read] to read the current
-    value of some external resource and [watch] to watch for changes. When the
-    input is needed, it first calls [watch refresh] to start watching the
-    resource. When this completes, it uses [read ()] to read the current value.
-    Whenever the watch thread calls [refresh] it marks the value as being
-    out-of-date and will call [read] to get a new value. When the input is no
-    longer required, it will call the shutdown function returned by [watch] to
-    stop watching the resource. If it is needed later, it will run [watch] to
-    start watching it again. This function takes care to perform only one user
-    action (installing the watch, reading the value, or turning off the watch)
-    at a time. For example, if [refresh] is called while already reading a
-    value then it will wait for the current read to complete and then perform a
-    second one. *)
+module Monitor : sig
+  type 'a t
+  (** An ['a t] is a monitor that outputs values of type ['a]. *)
+
+  val create :
+    read:(unit -> 'a or_error Lwt.t) ->
+    watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
+    pp:(Format.formatter -> unit) ->
+    'a t
+  (** [create ~read ~watch ~pp] is a monitor that uses [read] to read the current
+      value of some external resource and [watch] to watch for changes.
+      When the monitor is needed, it first calls [watch refresh] to start watching the
+      resource. When this completes, it uses [read ()] to read the current value.
+      Whenever the watch thread calls [refresh] it marks the value as being
+      out-of-date and will call [read] to get a new value. When the monitor is no
+      longer required, it will call the shutdown function returned by [watch] to
+      stop watching the resource. If it is needed later, it will run [watch] to
+      start watching it again. This function takes care to perform only one user
+      action (installing the watch, reading the value, or turning off the watch)
+      at a time. For example, if [refresh] is called while already reading a
+      value then it will wait for the current read to complete and then perform a
+      second one. *)
+
+  val input : 'a t -> 'a Input.t
+  (** [input t] enables [t] and returns the input for it. When the input is
+      released, the monitor will be disabled. Call this in your [let>] block. *)
+end
 
 include Current_term.S.TERM with type 'a input := 'a Input.t
 

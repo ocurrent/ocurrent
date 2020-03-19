@@ -16,7 +16,7 @@ type t = {
   iid : int;
   account : string;
   api : Api.t;
-  repos : Api.Repo.t list Current.Input.t;
+  repos : Api.Repo.t list Current.Monitor.t;
 }
 
 let installation_repositories_cond = Lwt_condition.create ()
@@ -66,7 +66,7 @@ let v ~iid ~account ~api =
     let thread = aux (Lwt_condition.wait installation_repositories_cond) in
     Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit) in
   let pp f = Fmt.string f account in
-  let repos = Current.monitor ~read ~watch ~pp in
+  let repos = Current.Monitor.create ~read ~watch ~pp in
   { iid; account; api; repos }
 
 let api t = t.api
@@ -74,4 +74,4 @@ let api t = t.api
 let repositories t =
   Current.component "list repos" |>
   let> t = t in
-  t.repos
+  Current.Monitor.input t.repos

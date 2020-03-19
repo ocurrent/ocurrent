@@ -197,13 +197,7 @@ module Var (T : Current_term.S.T) = struct
     Engine.update ()
 end
 
-module Monitor : sig
-  val create :
-    read:(unit -> 'a or_error Lwt.t) ->
-    watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
-    pp:(Format.formatter -> unit) ->
-    'a Input.t
-end = struct
+module Monitor = struct
   type 'a t = {
     read : unit -> 'a or_error Lwt.t;
     watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
@@ -245,7 +239,7 @@ end = struct
     else if t.need_refresh then get_value ~unwatch t
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
-  let run t =
+  let input t =
     Input.of_fn @@ fun _env ->
     t.ref_count <- t.ref_count + 1;
     Input.register_actions @@ object
@@ -264,18 +258,15 @@ end = struct
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
-    let t = {
+    {
       ref_count = 0;
       active = false;
       need_refresh = true;
       cond;
       value = Error (`Active `Running);
       read; watch; pp
-    } in
-    run t
+    }
 end
-
-let monitor = Monitor.create
 
 module Level = Level
 
