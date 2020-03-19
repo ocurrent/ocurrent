@@ -4,8 +4,6 @@ type 'a or_error = ('a, [`Msg of string]) result
 
 module Config = Config
 
-module Job_map = Job.Map
-
 module Metrics = struct
   open Prometheus
 
@@ -26,43 +24,18 @@ type job_id = string
 class type actions = object
   method pp : Format.formatter -> unit
   method rebuild : (unit -> job_id) option
-  method release : unit
 end
-
-type job_metadata = {
-  job_id : job_id option;
-  actions : actions;
-}
-
-let watches : actions list ref = ref []         (* Will call #release at end-of-step *)
-let active_jobs : actions Job_map.t ref = ref Job_map.empty
 
 module Input = struct
   type nonrec job_id = job_id
 
-  type 'a t = unit -> 'a Current_term.Output.t * job_id option
+  type 'a t = 'a Current_term.Output.t * job_id option
 
-  let register_actions ?job_id actions =
-    watches := actions :: !watches;
-    begin match job_id with
-      | None -> ()
-      | Some job_id -> active_jobs := Job_map.add job_id actions !active_jobs
-    end
+  let const x = Ok x, None
 
-  let of_fn f step =
-    try f step
-    with ex ->
-      Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
-      Error (`Msg (Printexc.to_string ex)), None
+  let get (t : 'a t) = t
 
-  let const x =
-    of_fn @@ fun () ->
-    Ok x, None
-
-  let get (t : 'a t) = t ()
-
-  let map_result fn t step =
-    let x, md = t step in
+  let map_result fn (x, md) =
     let y = try fn x with ex -> Error (`Msg (Printexc.to_string ex)) in
     y, md
 end
@@ -72,6 +45,8 @@ include Current_term.Make(Input)
 type 'a term = 'a t
 
 module Engine = struct
+  let active_jobs : actions Job.Map.t ref = ref Job.Map.empty
+
   module Step = struct
     type t = < >
     let create () = object end
@@ -82,12 +57,10 @@ module Engine = struct
       current_step := create ()
   end
 
-  type metadata = job_metadata
-
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    jobs : actions Job_map.t;
+    jobs : actions Job.Map.t;
   }
 
   type t = {
@@ -95,6 +68,8 @@ module Engine = struct
     last_result : results ref;
     config : Config.t;
   }
+
+  let watches : (unit -> unit) list ref = ref []         (* Functions to call at end-of-step *)
 
   let propagate = Lwt_condition.create ()
 
@@ -104,7 +79,7 @@ module Engine = struct
   let booting = {
     value = Error (`Active `Running);
     analysis = Analysis.booting;
-    jobs = Job_map.empty;
+    jobs = Job.Map.empty;
   }
 
   let default_trace ~next:_ r =
@@ -115,16 +90,17 @@ module Engine = struct
     let last_result = ref booting in
     let rec aux old_watches =
       let next = Lwt_condition.wait propagate in
+      active_jobs := Job.Map.empty;
       Log.debug (fun f -> f "Evaluating...");
       let t0 = Unix.gettimeofday () in
       let r, an = Executor.run f in
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       let new_jobs = !active_jobs in
-      active_jobs := Job_map.empty;
+      active_jobs := Job.Map.empty;
       let new_watches = !watches in
       watches := [];
-      List.iter (fun w -> w#release) old_watches;
+      List.iter (fun w -> w ()) old_watches;
       last_result := {
         value = r;
         analysis = an;
@@ -149,6 +125,9 @@ module Engine = struct
     in
     { thread; last_result; config }
 
+  let on_disable fn =
+    watches := fn :: !watches
+
   let state t = !(t.last_result)
 
   let jobs s = s.jobs
@@ -156,12 +135,6 @@ module Engine = struct
   let config t = t.config
 
   let thread t = t.thread
-
-  let actions m = m.actions
-
-  let job_id m = m.job_id
-
-  let pp_metadata f m = m.actions#pp f
 
   let update_metrics results =
     let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats results.analysis in
@@ -185,7 +158,6 @@ module Var (T : Current_term.S.T) = struct
     let open Syntax in
     component "%s" t.name |>
     let> () = return () in
-    Input.of_fn @@ fun _env ->
     t.current, None
 
   let set t v =
@@ -197,13 +169,7 @@ module Var (T : Current_term.S.T) = struct
     Engine.update ()
 end
 
-module Monitor : sig
-  val create :
-    read:(unit -> 'a or_error Lwt.t) ->
-    watch:((unit -> unit) -> (unit -> unit Lwt.t) Lwt.t) ->
-    pp:(Format.formatter -> unit) ->
-    'a Input.t
-end = struct
+module Monitor = struct
   type 'a t = {
     read : unit -> 'a or_error Lwt.t;
     watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
@@ -245,17 +211,13 @@ end = struct
     else if t.need_refresh then get_value ~unwatch t
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
-  let run t =
-    Input.of_fn @@ fun _env ->
+  let input t =
     t.ref_count <- t.ref_count + 1;
-    Input.register_actions @@ object
-      method rebuild = None   (* Might be useful to implement this *)
-      method pp f = t.pp f
-      method release =
+    Engine.on_disable (fun () ->
         assert (t.ref_count > 0);
         t.ref_count <- t.ref_count - 1;
         if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
-    end;
+      );
     if not t.active then (
       t.active <- true;
       Lwt.async (fun () -> enable t >|= fun `Finished -> ())
@@ -264,18 +226,15 @@ end = struct
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
-    let t = {
+    {
       ref_count = 0;
       active = false;
       need_refresh = true;
       cond;
       value = Error (`Active `Running);
       read; watch; pp
-    } in
-    run t
+    }
 end
-
-let monitor = Monitor.create
 
 module Level = Level
 
@@ -304,8 +263,14 @@ end
 let state_dir = Disk_store.state_dir
 
 module Db = Db
-module Job = Job
 module Process = Process
 module Switch = Switch
 module Pool = Pool
 module Log_matcher = Log_matcher
+
+module Job = struct
+  include Job
+
+  let register_actions job_id actions =
+    Engine.active_jobs := Job.Map.add job_id actions !Engine.active_jobs
+end

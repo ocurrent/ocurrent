@@ -18,7 +18,7 @@ let render_row (id, job) =
 let render () =
   let jobs = Current.Job.jobs () in
   Main.template (
-    if Current.Job_map.is_empty jobs then [
+    if Current.Job.Map.is_empty jobs then [
       txt "There are no active jobs."
     ] else [
       table ~a:[a_class ["table"]]
@@ -28,6 +28,6 @@ let render () =
               th [txt "Start time"];
             ]
           ])
-        (Current.Job_map.bindings jobs |> List.map render_row)
+        (Current.Job.Map.bindings jobs |> List.map render_row)
     ]
   )

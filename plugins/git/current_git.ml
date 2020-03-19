@@ -106,8 +106,8 @@ module Local = struct
 
   type t = {
     repo : Fpath.t;
-    head : [`Ref of string | `Commit of Commit_id.t] Current.Input.t;
-    mutable heads : Commit.t Current.Input.t Ref_map.t;
+    head : [`Ref of string | `Commit of Commit_id.t] Current.Monitor.t;
+    mutable heads : Commit.t Current.Monitor.t Ref_map.t;
   }
 
   let pp_repo f t = Fpath.pp f t.repo
@@ -121,7 +121,7 @@ module Local = struct
       let id = { Commit_id.repo = Fpath.to_string t.repo; gref; hash } in
       Ok { Commit.repo = t.repo; id }
 
-  let make_input t gref =
+  let make_monitor t gref =
     let dot_git = Fpath.(t.repo / ".git") in
     if not (Astring.String.is_prefix ~affix:"refs/" gref) then
       Fmt.failwith "Reference %S should start \"refs/\"" gref;
@@ -147,32 +147,32 @@ module Local = struct
     let pp f =
       Fmt.pf f "%a#%s" pp_repo t gref
     in
-    Current.monitor ~read ~watch ~pp
+    Current.Monitor.create ~read ~watch ~pp
 
   let commit_of_ref t gref =
     match Ref_map.find_opt gref t.heads with
     | Some i -> i
     | None ->
-      let i = make_input t gref in
+      let i = make_monitor t gref in
       t.heads <- Ref_map.add gref i t.heads;
       i
 
   let head t =
     Current.component "head" |>
     let> () = Current.return () in
-    t.head
+    Current.Monitor.input t.head
 
   let head_commit t =
     Current.component "head commit" |>
     let> h = head t in
     match h with
     | `Commit id -> Current.Input.const { Commit.repo = t.repo; id }
-    | `Ref gref -> commit_of_ref t gref
+    | `Ref gref -> Current.Monitor.input @@ commit_of_ref t gref
 
   let commit_of_ref t gref =
     Current.component "commit_of_ref %s" gref |>
     let> () = Current.return () in
-    commit_of_ref t gref
+    Current.Monitor.input @@ commit_of_ref t gref
 
   let read_head repo =
     let path = Fpath.(repo / ".git" / "HEAD") in
@@ -209,7 +209,7 @@ module Local = struct
     let pp f =
       Fmt.pf f "HEAD(%a)" Fpath.pp repo
     in
-    Current.monitor ~read ~watch ~pp
+    Current.Monitor.create ~read ~watch ~pp
 
   let v repo =
     let repo = Fpath.normalize @@ Fpath.append (Fpath.v (Sys.getcwd ())) repo in
