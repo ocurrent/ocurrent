@@ -50,12 +50,12 @@ let test_pipeline =
 let current_watches = ref { Current.Engine.
                             value = Error (`Active `Ready);
                             analysis = Current.Analysis.booting;
-                            jobs = Current.Job_map.empty }
+                            jobs = Current.Job.Map.empty }
 
 let pp_job f j = j#pp f
 
 let find_by_descr msg =
-  let jobs = (!current_watches).Current.Engine.jobs |> Current.Job_map.bindings in
+  let jobs = (!current_watches).Current.Engine.jobs |> Current.Job.Map.bindings in
   match List.find_opt (fun (_, job) -> Fmt.strf "%t" job#pp = msg) jobs with
   | None ->
     Fmt.failwith "@[<v2>No job with description %S. We have:@,%a@]" msg

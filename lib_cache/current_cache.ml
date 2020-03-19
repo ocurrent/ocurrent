@@ -294,10 +294,9 @@ module Output(Op : S.PUBLISHER) = struct
       in
       match schedule.Schedule.valid_for with
       | None ->
-        Current.Input.register_actions ~job_id @@ object
+        Current.Job.register_actions job_id @@ object
           method pp f = pp_output f o
           method rebuild = Some rebuild
-          method release = ()
         end
       | Some duration ->
         let remaining_time = Duration.to_f duration +. o.mtime -. !Job.timestamp () in
@@ -310,7 +309,7 @@ module Output(Op : S.PUBLISHER) = struct
               !Job.sleep remaining_time >|= Current.Engine.update
             )
         );
-        Current.Input.register_actions ~job_id @@
+        Current.Job.register_actions job_id @@
         object
           method pp f =
             if remaining_time <= 0.0 then
@@ -320,7 +319,6 @@ module Output(Op : S.PUBLISHER) = struct
                 pp_op (key, value)
                 pp_duration_rough (Duration.of_f remaining_time)
           method rebuild = Some rebuild
-          method release = ()
         end
 
   let register_actions ~schedule ~value ~config o =
@@ -328,10 +326,7 @@ module Output(Op : S.PUBLISHER) = struct
     | `Finished _ | `Error _ | `Retry -> resolved ~schedule ~value ~config o
     | `Active _ ->
       o.ref_count <- o.ref_count + 1;
-      Current.Input.register_actions ?job_id:o.job_id @@ object
-        method pp f = pp_output f o
-        method rebuild = None
-        method release =
+      Current.Engine.on_disable (fun () ->
           o.ref_count <- o.ref_count - 1;
           if o.ref_count = 0 && Op.auto_cancel then (
             match o.op with
@@ -340,6 +335,10 @@ module Output(Op : S.PUBLISHER) = struct
               Job.cancel op.job "Auto-cancelling job because it is no longer needed"
             | _ -> ()
           )
+        );
+      Current.Job.register_actions (Option.get o.job_id) @@ object
+        method pp f = pp_output f o
+        method rebuild = None
       end
 
   let set ?(schedule=Schedule.default) ctx key value =

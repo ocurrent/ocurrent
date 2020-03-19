@@ -31,34 +31,18 @@ class type actions = object
   method rebuild : (unit -> job_id) option
   (** A function to call if the user explicitly requests the operation be done again,
       or [None] if it is not something that can be repeated. Returns the new job ID. *)
-
-  method release : unit
-  (** Called to release the caller's reference to the watch (reduce the
-      ref-count by 1). Some inputs may cancel a build if the ref-count
-      reaches zero. *)
 end
 
 module Input : sig
   type 'a t = 'a Current_term.Output.t * job_id option
-  (** An input that produces an ['a term]. *)
 
   val const : 'a -> 'a t
   (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
-
-  val register_actions : ?job_id:job_id -> actions -> unit
-  (** [register_actions ~job_id actions] is used to register handlers for
-      cancelling and rebuilding jobs.
-      Once evaluation is complete, [actions#release] will be called.
-      If the ref-count drops to zero then you can then cancel the job.
-      @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
-      @param actions Ways to interact with this input. *)
 
   val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
   (** [map_result fn t] transforms the result of [t] with [fn]. The metadata remains the same.
       If [fn] raises an exception, this is converted to [Error]. *)
 end
-
-module Job_map : Map.S with type key = job_id
 
 module Monitor : sig
   type 'a t
@@ -182,6 +166,8 @@ end
 module Job : sig
   type t
 
+  module Map : Map.S with type key = job_id
+
   val create : switch:Switch.t -> label:string -> config:Config.t -> unit -> t
   (** [create ~switch ~label ~config ()] is a new job.
       @param switch Turning this off will cancel the job.
@@ -222,7 +208,7 @@ module Job : sig
   val lookup_running : job_id -> t option
   (** If [lookup_running job_id] is the job [j] with id [job_id], if [is_running j]. *)
 
-  val jobs : unit -> t Job_map.t
+  val jobs : unit -> t Map.t
   (** [jobs ()] is the set of active jobs, whether they are currently used in a pipeline or not.
       This is any job which is running or ready to run (i.e. every job which hasn't closed its log file). *)
 
@@ -252,6 +238,9 @@ module Job : sig
   (** [cancelled_state t] is [Ok ()] if the job hasn't been cancelled, or [Error (`Msg reason)] if it has.
       This should not be used after the switch has been turned off. *)
 
+  val register_actions : job_id -> actions -> unit
+  (** [register_actions job_id actions] is used to register handlers for e.g. rebuilding jobs. *)
+
   (**/**)
 
   (* For unit tests we need our own test clock: *)
@@ -263,12 +252,10 @@ end
 module Engine : sig
   type t
 
-  type metadata
-
   type results = {
     value : unit Current_term.Output.t;
     analysis : Analysis.t;
-    jobs : actions Job_map.t;        (** The jobs currently being used (whether running or finished). *)
+    jobs : actions Job.Map.t;        (** The jobs currently being used (whether running or finished). *)
   }
 
   val create :
@@ -288,24 +275,24 @@ module Engine : sig
   val state : t -> results
   (** The most recent results from evaluating the pipeline. *)
 
-  val jobs : results -> actions Job_map.t
+  val jobs : results -> actions Job.Map.t
 
   val thread : t -> 'a Lwt.t
   (** [thread t] is the engine's thread.
       Use this to monitor the engine (in case it crashes). *)
 
-  val actions : metadata -> actions
-
-  val job_id : metadata -> job_id option
-
   val config : t -> Config.t
-
-  val pp_metadata : metadata Fmt.t
 
   val update_metrics : results -> unit
   (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
       Call this on each metrics collection if you have exactly one pipeline. The default web
       UI does this automatically. *)
+
+  val on_disable : (unit -> unit) -> unit
+  (** [on_disable fn] schedules [fn ()] to be called after the next evaluation.
+      You can increment a ref-count when calling this and then check it when the
+      callback is called. If it is then zero, the operation is no longer required
+      and you can e.g. cancel the job. *)
 
   module Step : sig
     type t

@@ -24,7 +24,7 @@ type actions = <
 let lookup_actions ~engine job_id =
   let state = Current.Engine.state engine in
   let jobs = state.Current.Engine.jobs in
-  match Current.Job_map.find_opt job_id jobs with
+  match Current.Job.Map.find_opt job_id jobs with
   | Some a -> (a :> actions)
   | None ->
     object
