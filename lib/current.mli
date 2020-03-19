@@ -39,7 +39,7 @@ class type actions = object
 end
 
 module Input : sig
-  type 'a t
+  type 'a t = 'a Current_term.Output.t * job_id option
   (** An input that produces an ['a term]. *)
 
   val const : 'a -> 'a t
@@ -52,10 +52,6 @@ module Input : sig
       If the ref-count drops to zero then you can then cancel the job.
       @param job_id An ID that can be used to refer to this job later (to request a rebuild, etc).
       @param actions Ways to interact with this input. *)
-
-  val of_fn : (unit -> 'a Current_term.Output.t * job_id option) -> 'a t
-  (** [of_fn f] is an input that calls [f ()] when it is evaluated.
-      [f] can call [register] to attach actions to a job. *)
 
   val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
   (** [map_result fn t] transforms the result of [t] with [fn]. The metadata remains the same.

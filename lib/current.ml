@@ -40,7 +40,7 @@ let active_jobs : actions Job_map.t ref = ref Job_map.empty
 module Input = struct
   type nonrec job_id = job_id
 
-  type 'a t = unit -> 'a Current_term.Output.t * job_id option
+  type 'a t = 'a Current_term.Output.t * job_id option
 
   let register_actions ?job_id actions =
     watches := actions :: !watches;
@@ -49,20 +49,11 @@ module Input = struct
       | Some job_id -> active_jobs := Job_map.add job_id actions !active_jobs
     end
 
-  let of_fn f step =
-    try f step
-    with ex ->
-      Log.warn (fun f -> f "Uncaught exception from input: %a" Fmt.exn ex);
-      Error (`Msg (Printexc.to_string ex)), None
+  let const x = Ok x, None
 
-  let const x =
-    of_fn @@ fun () ->
-    Ok x, None
+  let get (t : 'a t) = t
 
-  let get (t : 'a t) = t ()
-
-  let map_result fn t step =
-    let x, md = t step in
+  let map_result fn (x, md) =
     let y = try fn x with ex -> Error (`Msg (Printexc.to_string ex)) in
     y, md
 end
@@ -185,7 +176,6 @@ module Var (T : Current_term.S.T) = struct
     let open Syntax in
     component "%s" t.name |>
     let> () = return () in
-    Input.of_fn @@ fun _env ->
     t.current, None
 
   let set t v =
@@ -240,7 +230,6 @@ module Monitor = struct
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
   let input t =
-    Input.of_fn @@ fun _env ->
     t.ref_count <- t.ref_count + 1;
     Input.register_actions @@ object
       method rebuild = None   (* Might be useful to implement this *)

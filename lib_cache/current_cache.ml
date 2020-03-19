@@ -343,7 +343,6 @@ module Output(Op : S.PUBLISHER) = struct
       end
 
   let set ?(schedule=Schedule.default) ctx key value =
-    Current.Input.of_fn @@ fun () ->
     match !Current.Config.now with
     | None -> Error (`Active `Ready), None
     | Some config ->

@@ -7,7 +7,6 @@ let save path value =
   Current.component "save" |>
   let> path = path
   and> value = value in
-  Current.Input.of_fn @@ fun _env ->
   match Bos.OS.File.read path with
   | Ok old when old = value ->
     Log.info (fun f -> f "No change for %a" Fpath.pp path);
