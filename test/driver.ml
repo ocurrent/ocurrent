@@ -23,7 +23,7 @@ let init_logging () =
   Logs.set_reporter reporter
 
 module SVar = Current.Var(struct
-    type t = string * unit Current.t
+    type t = string * (unit -> unit Current.t)
     let equal = (==)
     let pp f (test, _pipeline) = Fmt.pf f "%s" test
   end)
@@ -36,7 +36,8 @@ let i = ref 1
 
 let test_pipeline =
   Current.component "choose pipeline" |>
-  let** name, t = SVar.get selected in
+  let** name, make_pipeline = SVar.get selected in
+  let t = make_pipeline () in
   let data =
     let+ a = Current.Analysis.get t in
     Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp a);
@@ -80,7 +81,7 @@ let rebuild msg =
 let test ?config ~name v actions =
   Git.reset ();
   Docker.reset ();
-  SVar.set selected (Ok (name, v ()));
+  SVar.set selected (Ok (name, v));
   i := 1;
   let trace ~next step_result =
     if !i = 0 then raise Exit;
