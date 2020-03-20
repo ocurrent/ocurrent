@@ -11,6 +11,10 @@ module Metrics = struct
   let memory_cache_items =
     let help = "Number of results cached in RAM" in
     Gauge.v_label ~label_name:"id" ~help ~namespace ~subsystem "memory_cache_items"
+
+  let evaluations_total =
+    let help = "Number of evaluations performed" in
+    Counter.v ~help ~namespace ~subsystem "evaluations_total"
 end
 
 module Schedule = struct
@@ -379,8 +383,9 @@ module Output(Op : S.PUBLISHER) = struct
       in
       (* Ensure a build is in progress if we need one: *)
       maybe_start ~config o;
-      (* Return the current state: *)
+      Prometheus.Counter.inc_one Metrics.evaluations_total;
       register_actions ~config ~schedule ~value o;
+      (* Return the current state: *)
       let v =
         match o.op with
         | `Finished x -> Ok x
