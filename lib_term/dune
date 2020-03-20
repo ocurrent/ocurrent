@@ -3,5 +3,6 @@
  (name current_term)
  (libraries
    bos
-   fmt)
+   fmt
+   current_incr)
  (preprocess (pps ppx_deriving.std)))

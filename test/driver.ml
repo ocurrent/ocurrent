@@ -1,8 +1,6 @@
 open Lwt.Infix
 open Current.Syntax
 
-exception Expect_skip
-
 let () =
   Printexc.record_backtrace true
 
@@ -44,7 +42,10 @@ let test_pipeline =
     let url _ = None in
     Fmt.strf "%a" (Current.Analysis.pp_dot ~url) a
   in
-  let path = Current.return (Fpath.v (Fmt.strf "%s.%d.dot" name !i)) in
+  let path =
+    let+ _ = data in
+    Fpath.v (Fmt.strf "%s.%d.dot" name !i)
+  in
   let* () = Current_fs.save path data in
   t
 
@@ -83,6 +84,7 @@ let test ?config ~name v actions =
   Docker.reset ();
   SVar.set selected (Ok (name, v));
   i := 1;
+  Current_incr.propagate ();
   let trace ~next step_result =
     if !i = 0 then raise Exit;
     current_watches := step_result;
@@ -91,14 +93,20 @@ let test ?config ~name v actions =
     begin
       if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
       try actions !i with
-      | Expect_skip -> ()
       | Exit ->
         SVar.set selected (Error (`Msg "test-over"));
         i := -1
     end;
     incr i;
-    Lwt.pause () >|= fun () ->
-    if Lwt.state next = Lwt.Sleep then failwith "No inputs ready (tests stuck)!"
+    let rec wait i =
+      match i with
+      | 0 -> failwith "No inputs ready (tests stuck)!"
+      | i when Lwt.state next = Lwt.Sleep ->
+        Lwt.pause () >>= fun () ->
+        wait (i - 1)
+      | _ -> Lwt.return_unit
+    in
+    wait 3      (* Wait a few turns for things to become ready *)
   in
   let engine = Current.Engine.create ?config ~trace (fun () -> test_pipeline) in
   Lwt.catch

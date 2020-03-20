@@ -18,8 +18,8 @@ module Config : sig
 
   val cmdliner : t Cmdliner.Term.t
 
-  val now : t option ref
-  (** [None] initially, then set to the configuration and never changes. *)
+  val now : t option Current_incr.t
+  (** The configuration of the engine, if any. *)
 end
 
 type job_id = string
@@ -34,7 +34,7 @@ class type actions = object
 end
 
 module Input : sig
-  type 'a t = 'a Current_term.Output.t * job_id option
+  type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
 
   val const : 'a -> 'a t
   (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
@@ -228,7 +228,7 @@ module Job : sig
   val with_handler : t -> on_cancel:(string -> unit Lwt.t) -> (unit -> 'a Lwt.t) -> 'a Lwt.t
   (** [with_handler t ~on_cancel fn] is like [fn ()], but if the job is cancelled while [fn] is running
       then [on_cancel reason] is called. Even if cancelled, [fn] is still run to completion.
-      If the job has already been cancelled then [fn reason] is called immediately (but [fn] still runs). *)
+      If the job has already been cancelled then [on_cancel reason] is called immediately (but [fn] still runs). *)
 
   val cancel : t -> string -> unit
   (** [cancel msg] requests that [t] be cancelled. This runs all registered cancel hooks and marks the job as cancelled.

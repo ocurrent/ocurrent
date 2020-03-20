@@ -9,6 +9,7 @@
    current
    current.cache
    current.term
+   current_incr
    current_docker_test
    current_fs
    current_git_test

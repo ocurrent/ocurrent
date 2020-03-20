@@ -16,8 +16,4 @@ val cancel : string -> unit
 val rebuild : string -> unit
 (** [rebuild msg] triggers a rebuild of the job named [msg]. *)
 
-exception Expect_skip
-(** The [actions] callback can raise this if it's OK if the next step's inputs
-    are ready immediately. Needed for the case of cache invalidation. *)
-
 val test_case_gc : string -> (Lwt_switch.t -> unit -> unit Lwt.t) -> unit Alcotest_lwt.test_case
