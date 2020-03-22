@@ -20,15 +20,19 @@ An OCurrent pipeline is written using an OCaml eDSL. When OCurrent evaluates it,
 it records the inputs used (e.g. the current set of open PRs and the head of each
 one), monitors them, and automatically recalculates when an input changes.
 
-The [OCurrent wiki][] contains documentation and examples.
-In particular, you might like to start by reading about the
-[example pipelines][] or how to [write your own plugins][writing-plugins].
-
 Larger uses of OCurrent include the
 [OCaml Docker base image builder][docker-base-images] and
 [ocaml-ci][], which is the CI that tests this repository itself.
 
-# Licensing
+## Documentation
+
+The [OCurrent wiki][] contains user documentation and examples.
+In particular, you might like to start by reading about the
+[example pipelines][] or how to [write your own plugins][writing-plugins].
+
+For technical docs, see the [API Documentation][].
+
+## Licensing
 
 OCurrent is licensed under the Apache License, Version 2.0.
 See [LICENSE][] for the full license text.
@@ -38,4 +42,5 @@ See [LICENSE][] for the full license text.
 [writing-plugins]: https://github.com/ocurrent/ocurrent/wiki/Writing-plugins
 [example pipelines]: https://github.com/ocurrent/ocurrent/wiki/Example-pipelines
 [OCurrent wiki]: https://github.com/ocurrent/ocurrent/wiki
+[API Documentation]: https://ocurrent.github.io/ocurrent/index.html
 [LICENSE]: ./LICENSE
