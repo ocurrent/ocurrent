@@ -22,7 +22,7 @@ module type INPUT = sig
 
   type job_id
 
-  val get : 'a t -> 'a Output.t * job_id option
+  val get : 'a t -> ('a Output.t * job_id option) Current_incr.t
 end
 
 module type ANALYSIS = sig
@@ -58,7 +58,7 @@ module type TERM = sig
   type 'a input
   (** See [INPUT]. *)
 
-  type +'a t
+  type 'a t
   (** An ['a t] is a term that produces a value of type ['a]. *)
 
   type description
@@ -208,6 +208,6 @@ module type EXECUTOR = sig
   type analysis
   (** See [ANALYSIS]. *)
 
-  val run : (unit -> 'a term) -> 'a Output.t * analysis
+  val run : (unit -> 'a term) -> ('a Output.t * analysis) Current_incr.t
   (** [run f] evaluates term [f ()], returning the current output and its analysis. *)
 end

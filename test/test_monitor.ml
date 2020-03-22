@@ -77,6 +77,7 @@ let trace step ~next:_ { Current.Engine.value = out; _ } =
   | 1 ->
     (* Although there is data ready, we shouldn't have started the read yet
        because we're still enabling the watch. *)
+    Lwt.pause () >>= fun () ->
     Alcotest.check result "Initially pending" (Error (`Active `Running)) out;
     assert (!w <> None);
     let w = get_watch () in
@@ -138,6 +139,7 @@ let trace step ~next:_ { Current.Engine.value = out; _ } =
     Lwt.return_unit
   | 9 ->
     Alcotest.check result "Pending again" (Error (`Active `Running)) out;
+    Lwt.pause () >>= fun () ->
     let w = get_watch () in
     Lwt.wakeup w.set_ready ();
     data := Some (Ok "baz");

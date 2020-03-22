@@ -9,146 +9,140 @@ module Make (Input : S.INPUT) = struct
     fn : 'a Dyn.t;
   }
 
-  type context = unit ref
-
-  type 'a t = context -> 'a node
+  type 'a t = 'a node Current_incr.t
 
   type description = string
 
   let make md fn =
-    { md; fn }
+    Current_incr.const { md; fn }
+
+  let make_cc md fn =
+    Current_incr.write { md; fn }
 
   let bind_context = ref None
 
   let with_bind_context bc f x =
-    assert (!bind_context = None);
+    let old = !bind_context in
     bind_context := Some bc;
-    let r = f x in
-    bind_context := None;
-    r
-
-  let cache f =
-    let last = ref None in
-    fun ctx ->
-      match !last with
-      | Some (prev_ctx, cached) when prev_ctx == ctx -> cached
-      | _ ->
-        let r = f ctx in
-        last := Some (ctx, r);
-        r
+    Fun.protect
+      (fun () -> f x)
+      ~finally:(fun () -> bind_context := old)
 
   let active s =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.active ~env s) (Dyn.active s)
 
   let return ?label x =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.return ~env label) (Dyn.return x)
 
   let map_input ~label source x =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.map_input ~env source label) (Dyn.of_output x)
 
   let option_input ~label source x =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.option_input ~env source label) (Dyn.of_output x)
 
   let fail msg =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.fail ~env msg) (Dyn.fail msg)
 
   let state ?(hidden=false) t =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let t = t ctx in
-    let an = An.state ~env ~hidden t.md in
-    make an (Dyn.state t.fn)
+    Current_incr.of_cc begin
+      Current_incr.read t @@ fun t ->
+      let an = An.state ~env ~hidden t.md in
+      make_cc an (Dyn.state t.fn)
+    end
 
   let catch ?(hidden=false) t =
-    let env = !bind_context in
-    cache @@ fun ctx ->
-    let t = t ctx in
-    let an = An.catch ~env ~hidden t.md in
-    make an (Dyn.catch t.fn)
+    Current_incr.of_cc begin
+      let env = !bind_context in
+      Current_incr.read t @@ fun t ->
+      let an = An.catch ~env ~hidden t.md in
+      make_cc an (Dyn.catch t.fn)
+    end
 
   let of_output x =
     let env = !bind_context in
-    cache @@ fun _ctx ->
     make (An.of_output ~env x) (Dyn.of_output x)
 
   let component fmt = Fmt.strf ("@[<v>" ^^ fmt ^^ "@]")
 
   let bind ?info (f:'a -> 'b t) (x:'a t) =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let x = x ctx in
-    let md = An.bind ~env ?info x.md in
-    match Dyn.run x.fn with
-    | Error (`Msg e) -> make (md (An.Fail e)) (Dyn.fail e)
-    | Error (`Active a) -> make (md (An.Active a)) (Dyn.active a)
-    | Ok y ->
-      let md = md An.Pass in
-      let f2 = with_bind_context md f y in
-      f2 ctx
+    Current_incr.of_cc begin
+      Current_incr.read x @@ fun x ->
+      let md = An.bind ~env ?info x.md in
+      match Dyn.run x.fn with
+      | Error (`Msg e) -> make_cc (md (An.Fail e)) (Dyn.fail e)
+      | Error (`Active a) -> make_cc (md (An.Active a)) (Dyn.active a)
+      | Ok y ->
+        let md = md An.Pass in
+        let f2 = with_bind_context md f y in
+        Current_incr.read f2 @@ fun r ->
+        Current_incr.write r
+    end
 
   let msg_of_exn = function
     | Failure m -> m
     | ex -> Printexc.to_string ex
 
   let map f x =
-    let env = !bind_context in
-    cache @@ fun ctx ->
-    let x = x ctx in
-    match Dyn.map f x.fn with
-    | fn -> make x.md fn
-    | exception ex ->
-      let msg = msg_of_exn ex in
-      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
+    Current_incr.of_cc begin
+      let env = !bind_context in
+      Current_incr.read x @@ fun x ->
+      match Dyn.map f x.fn with
+      | fn -> make_cc x.md fn
+      | exception ex ->
+        let msg = msg_of_exn ex in
+        make_cc (An.map_failed ~env x.md msg) (Dyn.fail msg)
+    end
 
   let map_error f x =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let x = x ctx in
-    match Dyn.map_error f x.fn with
-    | fn -> make x.md fn
-    | exception ex ->
-      let msg = msg_of_exn ex in
-      make (An.map_failed ~env x.md msg) (Dyn.fail msg)
+    Current_incr.of_cc begin
+      Current_incr.read x @@ fun x ->
+      match Dyn.map_error f x.fn with
+      | fn -> make_cc x.md fn
+      | exception ex ->
+        let msg = msg_of_exn ex in
+        make_cc (An.map_failed ~env x.md msg) (Dyn.fail msg)
+    end
 
   let ignore_value x = map ignore x
 
   let pair a b =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let a = a ctx in
-    let b = b ctx in
-    let md = An.pair ~env a.md b.md in
-    let fn = Dyn.pair a.fn b.fn in
-    make md fn
+    Current_incr.of_cc begin
+      Current_incr.read a @@ fun a ->
+      Current_incr.read b @@ fun b ->
+      let md = An.pair ~env a.md b.md in
+      let fn = Dyn.pair a.fn b.fn in
+      make_cc md fn
+    end
 
   let bind_input ~info (f:'a -> 'b Input.t) (x:'a t) =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let x = x ctx in
-    match Dyn.run x.fn with
-    | Error (`Msg e) -> make (An.bind_input ~env ~info x.md (An.Fail e)) (Dyn.fail e)
-    | Error (`Active a) -> make (An.bind_input ~env ~info x.md (An.Active a)) (Dyn.active a)
-    | Ok y ->
-      let input = f y in
-      let v, id = Input.get input in
-      let md = An.bind_input ~env ~info x.md ?id (
-          match v with
-          | Error (`Msg e) -> An.Fail e
-          | Error (`Active a) -> An.Active a
-          | Ok _ -> An.Pass
-        )
-      in
-      make md (Dyn.of_output v)
+    Current_incr.of_cc begin
+      Current_incr.read x @@ fun x ->
+      let md = An.bind_input ~env ~info x.md in
+      match Dyn.run x.fn with
+      | Error (`Msg e) -> make_cc (md (An.Fail e)) (Dyn.fail e)
+      | Error (`Active a) -> make_cc (md (An.Active a)) (Dyn.active a)
+      | Ok y ->
+        let input = f y in
+        Current_incr.read (Input.get input) @@ fun (v, id) ->
+        let md = An.bind_input ~env ~info x.md ?id (
+            match v with
+            | Error (`Msg e) -> An.Fail e
+            | Error (`Active a) -> An.Active a
+            | Ok _ -> An.Pass
+          )
+        in
+        make_cc md (Dyn.of_output v)
+    end
 
   module Syntax = struct
     let (let**) x f info = bind ~info f x
@@ -195,55 +189,56 @@ module Make (Input : S.INPUT) = struct
     | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
     | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
 
-  let option_map (f : 'a t -> 'b t) (input : 'a option t) =
+  let option_map (f : 'a t -> 'b t) (input : 'a option t) : 'b option t =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let input = input ctx in
-    match Dyn.run input.fn with
-    | Error _ as r ->
-      (* Not ready; use static version. *)
-      let f = f (option_input ~label:`Blocked input.md r) ctx in
-      let md = An.option_map ~env ~f:f.md input.md in
-      make md (Dyn.of_output r)
-    | Ok None ->
-      (* Show what would have been done. *)
-      let r = Error (`Msg "(none)") in
-      let f = f (option_input input.md ~label:`Not_selected r) ctx in
-      let md = An.option_map ~env ~f:f.md input.md in
-      make md (Dyn.of_output (Ok None))
-    | Ok (Some item) ->
-      let results =
-        (let+ y = f (option_input input.md ~label:`Selected (Ok item)) in Some y) ctx
-      in
-      { results with md = An.option_map ~env ~f:results.md input.md }
+    Current_incr.of_cc begin
+      Current_incr.read input @@ fun input ->
+      match Dyn.run input.fn with
+      | Error _ as r ->
+        (* Not ready; use static version. *)
+        Current_incr.read (f (option_input ~label:`Blocked input.md r)) @@ fun f ->
+        let md = An.option_map ~env ~f:f.md input.md in
+        make_cc md (Dyn.of_output r)
+      | Ok None ->
+        (* Show what would have been done. *)
+        let r = Error (`Msg "(none)") in
+        Current_incr.read (f (option_input input.md ~label:`Not_selected r)) @@ fun f ->
+        let md = An.option_map ~env ~f:f.md input.md in
+        make_cc md (Dyn.of_output (Ok None))
+      | Ok (Some item) ->
+        Current_incr.read (f (option_input input.md ~label:`Selected (Ok item))) @@ fun (results : 'b node) ->
+        let fn = Dyn.map Option.some results.fn in
+        Current_incr.write { fn; md = An.option_map ~env ~f:results.md input.md }
+    end
 
   let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let input = input ctx in
-    match Dyn.run input.fn with
-    | Error _ as r ->
-      (* Not ready; use static version of map. *)
-      let f = f (map_input input.md ~label:(Error `Blocked) r) ctx in
-      let md = An.list_map ~env ~f:f.md input.md in
-      make md (Dyn.of_output r)
-    | Ok [] ->
-      (* Empty list; show what would have been done. *)
-      let no_items = Error (`Msg "(empty list)") in
-      let f = f (map_input input.md ~label:(Error `Empty_list) no_items) ctx in
-      let md = An.list_map ~env ~f:f.md input.md in
-      make md (Dyn.return [])
-    | Ok items ->
-      (* Ready. Expand inputs. *)
-      let rec aux = function
-        | [] -> return []
-        | x :: xs ->
-          let+ y = f (map_input ~label:(Ok (Fmt.to_to_string pp x)) input.md (Ok x))
-          and+ ys = aux xs in
-          y :: ys
-      in
-      let results = aux items ctx in
-      { results with md = An.list_map ~env ~f:results.md input.md }
+    Current_incr.of_cc begin
+      Current_incr.read input @@ fun input ->
+      match Dyn.run input.fn with
+      | Error _ as r ->
+        (* Not ready; use static version of map. *)
+        Current_incr.read (f (map_input input.md ~label:(Error `Blocked) r)) @@ fun f ->
+        let md = An.list_map ~env ~f:f.md input.md in
+        make_cc md (Dyn.of_output r)
+      | Ok [] ->
+        (* Empty list; show what would have been done. *)
+        let no_items = Error (`Msg "(empty list)") in
+        Current_incr.read (f (map_input input.md ~label:(Error `Empty_list) no_items)) @@ fun f ->
+        let md = An.list_map ~env ~f:f.md input.md in
+        make_cc md (Dyn.return [])
+      | Ok items ->
+        (* Ready. Expand inputs. *)
+        let rec aux = function
+          | [] -> return []
+          | x :: xs ->
+            let+ y = f (map_input ~label:(Ok (Fmt.to_to_string pp x)) input.md (Ok x))
+            and+ ys = aux xs in
+            y :: ys
+        in
+        Current_incr.read (aux items) @@ fun results ->
+        Current_incr.write { results with md = An.list_map ~env ~f:results.md input.md }
+    end
 
   let list_iter ~pp f xs =
     let+ (_ : unit list) = list_map ~pp f xs in
@@ -262,35 +257,38 @@ module Make (Input : S.INPUT) = struct
 
   let gate ~on t =
     let env = !bind_context in
-    cache @@ fun ctx ->
-    let t = t ctx in
-    let on = on ctx in
-    let md = An.gate ~env ~on:on.md t.md in
-    let fn =
-      Dyn.bind on.fn @@ fun () ->
-      t.fn
-    in
-    make md fn
+    Current_incr.of_cc begin
+      Current_incr.read t @@ fun t ->
+      Current_incr.read on @@ fun on ->
+      let md = An.gate ~env ~on:on.md t.md in
+      let fn =
+        Dyn.bind on.fn @@ fun () ->
+        t.fn
+      in
+      make_cc md fn
+    end
 
   module Executor = struct
-    let run f =
-      let ctx = ref () in
+    let run (f : unit -> 'a t) =
       try
-        let x = f () ctx in
-        Dyn.run x.fn, x.md
+        Current_incr.of_cc begin
+          Current_incr.read (f ()) @@ fun { md; fn } ->
+          Current_incr.write (Dyn.run fn, md)
+        end
       with ex ->
         let msg = Printexc.to_string ex in
-        let fn = Dyn.fail msg |> Dyn.run in
+        let fn = Dyn.fail msg in
         let md = An.fail ~env:None msg in
-        fn, md
+        Current_incr.const (Dyn.run fn, md)
   end
 
   module Analysis = struct
     include An
 
     let get t =
-      cache @@ fun ctx ->
-      let t = t ctx in
-      make t.md @@ Dyn.return t.md
+      Current_incr.of_cc begin
+        Current_incr.read t @@ fun t ->
+        make_cc t.md @@ Dyn.return t.md
+      end
   end
 end

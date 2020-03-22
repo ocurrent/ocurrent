@@ -169,13 +169,13 @@ module Test_input = struct
   type 'a t = unit
   type job_id = unit
 
-  let get () = Error (`Msg "Can't happen"), None
+  let get () = Current_incr.const (Error (`Msg "Can't happen"), None)
 end
 
 module Term = Current_term.Make(Test_input)
 
 let test_all_labelled () =
-  let test x = fst (Term.Executor.run (fun () -> Term.all_labelled x)) in
+  let test x = fst (Current_incr.observe (Term.Executor.run (fun () -> Term.all_labelled x))) in
   Alcotest.check engine_result "all_ok" (Ok ()) @@ test [
     "Alpine", Term.return ();
     "Debian", Term.return ();

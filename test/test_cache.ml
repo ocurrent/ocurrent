@@ -130,8 +130,6 @@ let expires _switch () =
     Alcotest.(check string) "Result correct" "done,done" !result;
     Clock.set clock 7.0
   | 3 ->
-    raise Driver.Expect_skip
-  | 4 ->
     let b = Builds.find "a" !builds in
     Clock.set clock 8.0;
     Alcotest.check database "Disk store empty again" [] @@ disk_cache ();
@@ -303,15 +301,19 @@ let output_autocancel _switch () =
     Alcotest.(check string) "Changing to baz" "bar-changing" p.Publish.state;
     V.set input @@ Ok "new";
   | 4 ->
+    (* At this point, we've noticed that the baz operation is no longer needed and sent a cancellation request.
+       The job is over, but there's a pause because we re-evaluate. *)
+    ()
+  | 5 ->
     Alcotest.(check string) "Changed during publish" "cancelled-changing" p.Publish.state;
     Publish.complete p @@ Ok ();
-  | 5 ->
+  | 6 ->
     Alcotest.(check string) "Success" "new" p.Publish.state;
     Driver.rebuild "Set foo to new (completed)";
-  | 6 ->
+  | 7 ->
     Alcotest.(check string) "Re-publish has started" "new-changing" p.Publish.state;
     Publish.complete p @@ Ok ();
-  | 7 ->
+  | 8 ->
     Alcotest.(check string) "Success" "new" p.Publish.state;
     raise Exit
   | _ ->
@@ -337,8 +339,8 @@ let output_retry _switch () =
     assert false
 
 let output_retry_new _switch () =
-  OC2.reset ();
-  let p = Publish2.create () in
+  OC.reset ();
+  let p = Publish.create () in
   V.set input @@ Ok "1";
   let pipeline () = set p "foo" (V.get input) in
   Driver.test ~name:"cache.output_retry_new" pipeline @@ function

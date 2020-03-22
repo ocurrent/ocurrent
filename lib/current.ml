@@ -29,15 +29,18 @@ end
 module Input = struct
   type nonrec job_id = job_id
 
-  type 'a t = 'a Current_term.Output.t * job_id option
+  type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
 
-  let const x = Ok x, None
+  let const x = Current_incr.const (Ok x, None)
 
   let get (t : 'a t) = t
 
-  let map_result fn (x, md) =
-    let y = try fn x with ex -> Error (`Msg (Printexc.to_string ex)) in
-    y, md
+  let map_result fn t =
+    Current_incr.of_cc begin
+      Current_incr.read t @@ fun (x, md) ->
+      let y = try fn x with ex -> Error (`Msg (Printexc.to_string ex)) in
+      Current_incr.write (y, md)
+    end
 end
 
 include Current_term.Make(Input)
@@ -45,7 +48,12 @@ include Current_term.Make(Input)
 type 'a term = 'a t
 
 module Engine = struct
-  let active_jobs : actions Job.Map.t ref = ref Job.Map.empty
+  (* Active jobs are ones which are referenced by the active pipeline.
+     These are the only ones which can have actions attached.
+     There are a list of actions objects for each job because the same job may
+     appear multiple times in a pipeline. We only use the head object at any
+     one time, but we need to cope with that disappearing. *)
+  let active_jobs : actions list Job.Map.t ref = ref Job.Map.empty
 
   module Step = struct
     type t = < >
@@ -69,7 +77,20 @@ module Engine = struct
     config : Config.t;
   }
 
-  let watches : (unit -> unit) list ref = ref []         (* Functions to call at end-of-step *)
+  (* Functions to call at end-of-propagate.
+     When an incremental calculation that performed some side-effect (e.g.
+     incrementing a ref-counter) needs to be re-done, we add the compensating
+     operation here. We run them only once the propagation is complete so that
+     if the replacement computation also increments the ref-counter then we
+     won't destroy the job just to recreate it immediately. *)
+  let release_queue = Queue.create ()
+
+  let rec flush_release_queue () =
+    match Queue.take_opt release_queue with
+    | None -> ()
+    | Some fn ->
+      fn ();
+      flush_release_queue ()
 
   let propagate = Lwt_condition.create ()
 
@@ -88,45 +109,55 @@ module Engine = struct
 
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
-    let rec aux old_watches =
+    let rec aux outcome =
       let next = Lwt_condition.wait propagate in
-      active_jobs := Job.Map.empty;
       Log.debug (fun f -> f "Evaluating...");
       let t0 = Unix.gettimeofday () in
-      let r, an = Executor.run f in
+      Current_incr.propagate ();
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
-      let new_jobs = !active_jobs in
-      active_jobs := Job.Map.empty;
-      let new_watches = !watches in
-      watches := [];
-      List.iter (fun w -> w ()) old_watches;
+      (* Release all the old inputs, now we've had a chance to create any replacements. *)
+      flush_release_queue ();
+      let (r, an) = Current_incr.observe outcome in
       last_result := {
         value = r;
         analysis = an;
-        jobs = new_jobs;
+        jobs = Job.Map.map List.hd !active_jobs;
       };
       trace ~next !last_result >>= fun () ->
       Log.debug (fun f -> f "Waiting for inputs to change...");
       next >>= fun () ->
       Lwt.pause () >>= fun () ->
       Step.advance ();
-      aux new_watches
+      aux outcome
     in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
       Lwt.pause () >>= fun () ->
-      if !Config.now <> None then failwith "Engine is already running (Config.now already set)!";
-      Config.now := Some config;
+      if Current_incr.observe Config.now <> None then
+        failwith "Engine is already running (Config.now already set)!";
+      Current_incr.change Config.active_config (Some config);
       Lwt.finalize
-        (fun () -> aux [])
-        (fun () -> Config.now := None; Lwt.return_unit)
+        (fun () ->
+           Lwt.catch
+             (fun () -> aux (Executor.run f))
+             (fun ex ->
+                if ex = Exit then (
+                  (* Clean up, for unit-tests *)
+                  Current_incr.propagate ();
+                  flush_release_queue ();
+                );
+                Lwt.fail ex
+             )
+        )
+        (fun () -> Current_incr.change Config.active_config None; Lwt.return_unit)
     in
     { thread; last_result; config }
 
   let on_disable fn =
-    watches := fn :: !watches
+    Current_incr.on_release @@ fun () ->
+    Queue.add fn release_queue
 
   let state t = !(t.last_result)
 
@@ -147,25 +178,29 @@ end
 
 module Var (T : Current_term.S.T) = struct
   type t = {
-    mutable current : T.t Current_term.Output.t;
+    current : T.t Current_term.Output.t Current_incr.var;
     name : string;
   }
 
   let create ~name current =
+    let current = Current_incr.var current in
     { current; name }
 
   let get t =
     let open Syntax in
     component "%s" t.name |>
     let> () = return () in
-    t.current, None
+    Current_incr.of_cc begin
+      Current_incr.read (Current_incr.of_var t.current) @@ fun v ->
+      Current_incr.write (v, None)
+    end
 
   let set t v =
-    t.current <- v;
+    Current_incr.change t.current v;
     Engine.update ()
 
   let update t f =
-    t.current <- f t.current;
+    Current_incr.change t.current (f (Current_incr.observe (Current_incr.of_var t.current)));
     Engine.update ()
 end
 
@@ -174,7 +209,7 @@ module Monitor = struct
     read : unit -> 'a or_error Lwt.t;
     watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
     pp : Format.formatter -> unit;
-    mutable value : 'a Current_term.Output.t;
+    value : 'a Current_term.Output.t Current_incr.var;
     mutable ref_count : int;              (* Number of terms using this input *)
     mutable need_refresh : bool;          (* Update detected after current read started *)
     mutable active : bool;                (* Monitor thread is running *)
@@ -193,17 +228,17 @@ module Monitor = struct
     unwatch () >>= fun () ->
     if t.ref_count > 0 then enable t
     else (
-      assert (t.active);
+      assert t.active;
       t.active <- false;
       (* Clear the saved value, so that if we get activated again then we don't
          start by serving up the previous value, which could be quite stale by then. *)
-      t.value <- Error (`Active `Running);
+      Current_incr.change t.value @@ Error (`Active `Running);
       Lwt.return `Finished
     )
   and get_value ~unwatch t =
     t.need_refresh <- false;
     t.read () >>= fun v ->
-    t.value <- (v :> _ Current_term.Output.t);
+    Current_incr.change t.value @@ (v :> _ Current_term.Output.t);
     Engine.update ();
     wait ~unwatch t
   and wait ~unwatch t =
@@ -212,17 +247,24 @@ module Monitor = struct
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
   let input t =
-    t.ref_count <- t.ref_count + 1;
-    Engine.on_disable (fun () ->
-        assert (t.ref_count > 0);
-        t.ref_count <- t.ref_count - 1;
-        if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
-      );
-    if not t.active then (
-      t.active <- true;
-      Lwt.async (fun () -> enable t >|= fun `Finished -> ())
-    );  (* (else the previous thread will check [ref_count] before exiting) *)
-    t.value, None
+    Current_incr.of_cc begin
+      t.ref_count <- t.ref_count + 1;
+      Engine.on_disable (fun () ->
+          assert (t.ref_count > 0);
+          t.ref_count <- t.ref_count - 1;
+          if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
+        );
+      if not t.active then (
+        t.active <- true;
+        Lwt.async (fun () ->
+            (* [pause] to ensure we're outside of any existing propagate here. *)
+            Lwt.pause () >>= fun () ->
+            enable t >|= fun `Finished -> ()
+          )
+      );  (* (else the previous thread will check [ref_count] before exiting) *)
+      Current_incr.read (Current_incr.of_var t.value) @@ fun value ->
+      Current_incr.write (value, None)
+    end
 
   let create ~read ~watch ~pp =
     let cond = Lwt_condition.create () in
@@ -231,7 +273,7 @@ module Monitor = struct
       active = false;
       need_refresh = true;
       cond;
-      value = Error (`Active `Running);
+      value = Current_incr.var (Error (`Active `Running));
       read; watch; pp
     }
 end
@@ -272,5 +314,21 @@ module Job = struct
   include Job
 
   let register_actions job_id actions =
-    Engine.active_jobs := Job.Map.add job_id actions !Engine.active_jobs
+    let add = function
+      | None -> Some [actions]
+      | Some xs -> Some (actions :: xs)
+    in
+    let remove xs =
+      let rec aux = function
+        | [] -> assert false
+        | x :: xs when x == actions -> xs
+        | x :: xs -> x :: aux xs
+      in
+      match aux (Option.get xs) with
+      | [] -> None
+      | xs -> Some xs
+    in
+    Engine.active_jobs := Job.Map.update job_id add !Engine.active_jobs;
+    Engine.on_disable @@ fun () ->
+    Engine.active_jobs := Job.Map.update job_id remove !Engine.active_jobs
 end

@@ -4,6 +4,7 @@
  (libraries
    current
    current.term
+   current_incr
    duration
    fmt
    logs

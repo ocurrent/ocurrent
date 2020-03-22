@@ -5,6 +5,7 @@
    bos
    cmdliner
    current_term
+   current_incr
    duration
    fmt
    fpath

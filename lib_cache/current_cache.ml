@@ -91,6 +91,8 @@ module Output(Op : S.PUBLISHER) = struct
       | `Retry                            (* Need to try again. *)
     ];
     mutable mtime : float;                (* Time last operation completed (if finished or error). *)
+    mutable expires : (float * unit Lwt.t) option;     (* Time and sleeping thread (for cancellation). *)
+    notify : unit Current_incr.var;       (* Async thread sets this to update results. *)
   }
 
   (* State model:
@@ -158,9 +160,13 @@ module Output(Op : S.PUBLISHER) = struct
     | Some o -> invalidate_output o
     | None -> Db.invalidate ~op:Op.id key
 
+  let notify t =
+    Current_incr.change t.notify () ~eq:(fun _ _ -> false);
+    Current.Engine.update ()
+
   (* If output isn't in (or moving to) the desired state, start a thread to do that,
      unless we already tried that and failed. Only call this if the output is currently
-     wanted. *)
+     wanted. If called from an async thread, you must call [notify] afterwards too. *)
   let rec maybe_start ~config output =
     match output.op with
     | `Error _ -> () (* Wait for error to be cleared. *)
@@ -189,11 +195,13 @@ module Output(Op : S.PUBLISHER) = struct
         (* Once we start publishing, we don't know the state: *)
         invalidate_output output;
         publish ~config output
+  and maybe_restart ~config output =
+    maybe_start ~config output;
+    notify output
   and publish ~config output =
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let job = Job.create ~switch ~label:Op.id ~config () in
-    Lwt.on_termination (Job.start_time job) Current.Engine.update;
     output.job_id <- Some (Job.id job);
     let op = { value = output.desired; job; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
@@ -202,17 +210,23 @@ module Output(Op : S.PUBLISHER) = struct
     Job.log job "New job: %t" pp_op;
     Lwt.async
       (fun () ->
+         Job.start_time job >>= fun _ ->
+         Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
+         notify output
+      );
+    Lwt.async
+      (fun () ->
          Lwt.finalize
            (fun () ->
               Lwt.catch
                 (fun () -> Op.publish ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
-              >|= fun outcome ->
+              >>= fun outcome ->
+              Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
               let end_time = Unix.gmtime @@ !Job.timestamp () in
               if op.autocancelled then (
                 output.op <- `Retry;
-                invalidate_output output;
-                if output.ref_count > 0 then maybe_start ~config output
+                invalidate_output output
               ) else (
                 (* Record the result *)
                 let running =
@@ -250,15 +264,47 @@ module Output(Op : S.PUBLISHER) = struct
                   ~build:output.build_number
                   outcome;
                 output.build_number <- Int64.succ output.build_number;
-                (* While we were pushing, we might have decided we wanted something else.
-                   If so, start pushing that now. *)
-                if output.ref_count > 0 then maybe_start ~config output
               )
            )
            (fun () ->
-              Current.Switch.turn_off switch >|= Current.Engine.update
+              Current.Switch.turn_off switch >|= fun () ->
+              (* While we were working, we might have decided we wanted something else.
+                 If so, start that now. *)
+              if output.ref_count > 0 then maybe_restart ~config output
            )
       )
+
+  let limit_expires t time =
+    let set () =
+      let remaining_time = time -. !Job.timestamp () in
+      let thread =
+        Lwt.catch
+          (fun () ->
+             !Job.sleep remaining_time >>= fun () ->
+             Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
+             invalidate t.key;
+             let config = Option.get (Current_incr.observe Current.Config.now) in
+             maybe_restart ~config t
+          )
+          (function
+            | Lwt.Canceled ->
+              Lwt.return_unit
+            | ex ->
+              Log.err (fun f -> f "Expiry thread failed: %a" Fmt.exn ex);
+              Lwt.return_unit
+          )
+      in
+      t.expires <- Some (time, thread)
+    in
+    match t.expires with
+    | Some (prev, _) when prev <= time -> ()            (* Already expiring by [time] *)
+    | Some (_, thread) -> Lwt.cancel thread; set ()
+    | None -> set ()
+
+  let cancel_expires t =
+    match t.expires with
+    | Some (_, thread) -> Lwt.cancel thread; t.expires <- None
+    | None -> ()
 
   (* Create a new in-memory output, initialising it from the database. *)
   let get_output ~step_id ctx key desired =
@@ -277,10 +323,13 @@ module Output(Op : S.PUBLISHER) = struct
         Some value, Some job_id, op, finished, Int64.succ build
       | None -> None, None, `Retry, Unix.gettimeofday (), 0L
     in
-    { key; current; desired; ctx; op; job_id; last_set = step_id; ref_count = 0; mtime; build_number }
+    let notify = Current_incr.var () in
+    { key; current; desired; ctx; op; job_id; last_set = step_id;
+      ref_count = 0; mtime; build_number; notify; expires = None }
 
-  (* Register the actions for a resolved (non-active) output. *)
-  let resolved o ~schedule ~value ~config =
+  (* Register the actions for a resolved (non-active) output.
+     Report it as changed when a rebuild is requested (manually or via the schedule). *)
+  let register_resolved o ~schedule ~value ~config =
     let key = o.key in
     match o.job_id with
     | None -> assert false
@@ -289,8 +338,7 @@ module Output(Op : S.PUBLISHER) = struct
         match o.op with
         | `Finished _ | `Error _ | `Retry ->
           o.op <- `Retry;
-          maybe_start ~config o;
-          Current.Engine.update ();
+          maybe_restart ~config o;
           Option.get o.job_id
         | `Active _ ->
           Log.info (fun f -> f "Rebuild(%a): already rebuilding" pp_op (key, value));
@@ -303,15 +351,14 @@ module Output(Op : S.PUBLISHER) = struct
           method rebuild = Some rebuild
         end
       | Some duration ->
-        let remaining_time = Duration.to_f duration +. o.mtime -. !Job.timestamp () in
+        let expires = Duration.to_f duration +. o.mtime in
+        let remaining_time = expires -. !Job.timestamp () in
         if remaining_time <= 0.0 then (
           Log.info (fun f -> f "Result for %a has expired" pp_op (key, value));
           invalidate key;
           Current.Engine.update ()    (* Trigger an immediate recalculation *)
         ) else (
-          Lwt.async (fun () ->
-              !Job.sleep remaining_time >|= Current.Engine.update
-            )
+          limit_expires o expires
         );
         Current.Job.register_actions job_id @@
         object
@@ -327,8 +374,9 @@ module Output(Op : S.PUBLISHER) = struct
 
   let register_actions ~schedule ~value ~config o =
     match o.op with
-    | `Finished _ | `Error _ | `Retry -> resolved ~schedule ~value ~config o
+    | `Finished _ | `Error _ | `Retry -> register_resolved ~schedule ~value ~config o
     | `Active _ ->
+      cancel_expires o;
       o.ref_count <- o.ref_count + 1;
       Current.Engine.on_disable (fun () ->
           o.ref_count <- o.ref_count - 1;
@@ -346,59 +394,63 @@ module Output(Op : S.PUBLISHER) = struct
       end
 
   let set ?(schedule=Schedule.default) ctx key value =
-    match !Current.Config.now with
-    | None -> Error (`Active `Ready), None
-    | Some config ->
-      Log.debug (fun f -> f "set: %a" Op.pp (key, value));
-      let key_digest = Op.Key.digest key in
-      let value = Value.v value in
-      let step_id = Current.Engine.Step.now () in
-      (* Ensure the output exists and has [o.desired = value]: *)
-      let o =
-        match Outputs.find_opt key_digest !outputs with
-        | Some o ->
-          (* Output already exists in the memory cache. Update it if needed. *)
-          let changed = not (Value.equal value o.desired) in
-          if o.last_set = step_id then (
-            if changed then
-              Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
-          ) else (
-            o.last_set <- step_id;
-            o.ctx <- ctx;
-            if changed then (
-              o.desired <- value;
-              match o.op with
-              | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
-              | `Active _ | `Finished _ | `Retry -> ()
+    Current_incr.of_cc begin
+      Current_incr.read Current.Config.now @@ function
+      | None -> Current_incr.write (Error (`Active `Ready), None)
+      | Some config ->
+        Log.debug (fun f -> f "set: %a" Op.pp (key, value));
+        let key_digest = Op.Key.digest key in
+        let value = Value.v value in
+        let step_id = Current.Engine.Step.now () in
+        (* Ensure the output exists and has [o.desired = value]: *)
+        let o =
+          match Outputs.find_opt key_digest !outputs with
+          | Some o ->
+            (* Output already exists in the memory cache. Update it if needed. *)
+            let changed = not (Value.equal value o.desired) in
+            if o.last_set = step_id then (
+              if changed then
+                Fmt.failwith "Error: output %a set to different values in the same step!" pp_op (key, value);
+            ) else (
+              o.last_set <- step_id;
+              o.ctx <- ctx;
+              if changed then (
+                o.desired <- value;
+                match o.op with
+                | `Error _ -> o.op <- `Retry   (* Clear error when the desired value changes. *)
+                | `Active _ | `Finished _ | `Retry -> ()
+              );
             );
-          );
-          o
-        | None ->
-          (* Not in memory cache. Restore from disk if available, or create a new output if not.
-             Either way, [o.desired] is set to [value]. *)
-          let o = get_output ~step_id ctx key value in
-          outputs := Outputs.add key_digest o !outputs;
-          Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
-          o
-      in
-      (* Ensure a build is in progress if we need one: *)
-      maybe_start ~config o;
-      Prometheus.Counter.inc_one Metrics.evaluations_total;
-      register_actions ~config ~schedule ~value o;
-      (* Return the current state: *)
-      let v =
-        match o.op with
-        | `Finished x -> Ok x
-        | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
-        | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
-        | `Active op ->
-          let a =
-            let started = Job.start_time op.job in
-            if Lwt.state started = Lwt.Sleep then `Ready else `Running
-          in
-          Error (`Active a)
-      in
-      v, o.job_id
+            o
+          | None ->
+            (* Not in memory cache. Restore from disk if available, or create a new output if not.
+               Either way, [o.desired] is set to [value]. *)
+            let o = get_output ~step_id ctx key value in
+            outputs := Outputs.add key_digest o !outputs;
+            Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
+            o
+        in
+        (* Ensure a build is in progress if we need one: *)
+        maybe_start ~config o;
+        (* Read from [o.notify] so that we re-evaluate the following when something changes. *)
+        Current_incr.read (Current_incr.of_var o.notify) @@ fun () ->
+        Prometheus.Counter.inc_one Metrics.evaluations_total;
+        register_actions ~config ~schedule ~value o;
+        (* Return the current state: *)
+        let v =
+          match o.op with
+          | `Finished x -> Ok x
+          | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
+          | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
+          | `Active op ->
+            let a =
+              let started = Job.start_time op.job in
+              if Lwt.state started = Lwt.Sleep then `Ready else `Running
+            in
+            Error (`Active a)
+        in
+        Current_incr.write (v, o.job_id)
+    end
 
   let reset () =
     outputs := Outputs.empty;
