@@ -137,14 +137,89 @@ let test_leak () =
   Alcotest.(check int) "Memory usage constant" 0 @@ h1 - h0;
   change x 0    (* Stop [x] from being GC'd before here *)
 
+module String_map = Map.Make(String)
+module Separate_strings = Current_incr.Separate(String_map)
+
+(* Check we can process individual set elements separately. *)
+let test_separate () =
+  log := Msg.empty;
+  let active = var true in
+  let count_each = ref 0 in
+  let count_output_updates = ref 0 in
+  let suffix = var "1" in
+  let x = var (String_map.singleton "a" ()) in
+  let z =
+      of_cc begin
+        read (of_var active) @@ function
+        | false -> write "disabled"
+        | true ->
+          let y =
+            (* Process each element of [x] individually. *)
+            Separate_strings.map (of_var x) @@ fun x ->
+            printf "process %s" x;
+            if x = "b" then (
+              read (of_var suffix) @@ fun suffix ->
+              incr count_each;
+              write ~eq:String.equal (x ^ suffix)
+            ) else (
+              incr count_each;
+              write ~eq:String.equal (x ^ "-fixed")
+            )
+          in
+          (* Combine the results *)
+          read y @@ fun results ->
+          incr count_output_updates;
+          results
+          |> String_map.bindings
+          |> List.map (fun (k, v) -> Printf.sprintf "%s.%s" k v)
+          |> String.concat ","
+          |> write
+      end
+  in
+  let update f =
+    Current_incr.observe (Current_incr.of_var x) |> f |> Current_incr.change x;
+    Current_incr.propagate ()
+  in
+  Alcotest.(check string) "Initial value" "a.a-fixed" @@ observe z;
+  Alcotest.(check int) "One eval" 1 !count_each;
+  Alcotest.(check int) "One output" 1 !count_output_updates;
+  (* Add b - only runs [b] step. *)
+  update (String_map.add "b" ());
+  Alcotest.(check string) "Add b" "a.a-fixed,b.b1" @@ observe z;
+  Alcotest.(check int) "One more eval" 2 !count_each;
+  Alcotest.(check int) "Another output" 2 !count_output_updates;
+  (* Change suffix. Only runs for [b]. *)
+  change suffix "2";
+  propagate ();
+  Alcotest.(check string) "Change suffix" "a.a-fixed,b.b2" @@ observe z;
+  Alcotest.(check int) "One more eval" 3 !count_each;
+  Alcotest.(check int) "Another output" 3 !count_output_updates;
+  (* Remove add. Nothing needs to run. *)
+  update (String_map.remove "a");
+  Alcotest.(check string) "Remove a" "b.b2" @@ observe z;
+  Alcotest.(check int) "No more evals" 3 !count_each;
+  Alcotest.(check int) "Another output" 4 !count_output_updates;
+  (* Push a change that doesn't affect the final output. *)
+  change suffix "2" ~eq:(fun _ _ -> false);
+  propagate ();
+  Alcotest.(check int) "One more eval" 4 !count_each;
+  Alcotest.(check int) "No output change" 4 !count_output_updates;
+  Alcotest.(check (list string)) "Check logs" ["process b"] @@ Msg.elements !log;
+  (* Disable the whole thing. *)
+  change active false;
+  propagate ();
+  Alcotest.(check (list string)) "Check logs" [] @@ Msg.elements !log;
+  ()
+
 let () =
   Alcotest.run "incr" [
     "basic", [
-      Alcotest.test_case  "simple"  `Quick test_simple;
-      Alcotest.test_case  "release" `Quick test_release;
-      Alcotest.test_case  "eq"      `Quick test_eq;
-      Alcotest.test_case  "expand"  `Quick test_expand;
-      Alcotest.test_case  "nested"  `Quick test_nested;
-      Alcotest.test_case  "leak"    `Quick test_leak;
+      Alcotest.test_case  "simple"   `Quick test_simple;
+      Alcotest.test_case  "release"  `Quick test_release;
+      Alcotest.test_case  "eq"       `Quick test_eq;
+      Alcotest.test_case  "expand"   `Quick test_expand;
+      Alcotest.test_case  "nested"   `Quick test_nested;
+      Alcotest.test_case  "leak"     `Quick test_leak;
+      Alcotest.test_case  "separate" `Quick test_separate;
     ]
   ]

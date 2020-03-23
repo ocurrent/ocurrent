@@ -14,6 +14,7 @@ module Commit : sig
   val owner_name : t -> string
   val hash : t -> string
   val pp : t Fmt.t
+  val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
   val uri : t -> Uri.t
 end
@@ -42,6 +43,7 @@ module Repo : sig
   val ci_refs : t Current.t -> Commit.t list Current.t
   val head_commit : t Current.t -> Commit.t Current.t
   val pp : t Fmt.t
+  val compare : t -> t -> int
 end
 
 (* Private API *)

@@ -15,6 +15,11 @@ module type T = sig
   val pp : t Fmt.t
 end
 
+module type ORDERED = sig
+  include Map.OrderedType
+  val pp : t Fmt.t
+end
+
 module type INPUT = sig
   type 'a t
   (** An input that was used while evaluating a term.
@@ -96,12 +101,13 @@ module type TERM = sig
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
 
-  val list_map : pp:'a Fmt.t -> ('a t -> 'b t) -> 'a list t -> 'b list t
-  (** [list_map ~pp f xs] adds [f] to the end of each input term
+  val list_map : (module ORDERED with type t = 'a) -> ('a t -> 'b t) -> 'a list t -> 'b list t
+  (** [list_map (module T) f xs] adds [f] to the end of each input term
       and collects all the results into a single list.
-      @param pp Label the instances. *)
+      @param T Used to display labels for each item, and to avoid recreating pipelines
+               unnecessarily. *)
 
-  val list_iter : pp:'a Fmt.t -> ('a t -> unit t) -> 'a list t -> unit t
+  val list_iter : (module ORDERED with type t = 'a) -> ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
   val list_seq : 'a t list -> 'a list t

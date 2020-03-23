@@ -3,6 +3,7 @@
 type t
 val api : t -> Api.t
 val pp : t Fmt.t
+val compare : t -> t -> int
 
 val repositories : t Current.t -> Api.Repo.t list Current.t
 

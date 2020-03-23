@@ -54,6 +54,15 @@ val on_release : (unit -> unit) -> unit
 val map : ('a -> 'b) -> 'a t -> 'b t
 (** A convenience function to read a value, apply a function to it, and write the result. *)
 
+module Separate (Map : Map.S) : sig
+  (** Processing each item of a set efficiently. *)
+
+  val map : unit Map.t t -> (Map.key -> 'b cc) -> 'b Map.t t
+  (** [map x fn] applies [fn] to each element of [x] and returns a map from
+      input elements to results. When new elements are added to [x], it only
+      runs [fn] on the new elements, rather than on all elements. *)
+end
+
 (** {2 External operations}
 
     These functions are used to interface between the changeable system and other systems (e.g. Lwt). *)

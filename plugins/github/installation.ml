@@ -25,6 +25,8 @@ let input_installation_repositories_webhook () = Lwt_condition.broadcast install
 
 let pp f t = Fmt.string f t.account
 
+let compare a b = compare a.iid b.iid
+
 let list_repositories_endpoint = Uri.of_string "https://api.github.com/installation/repositories"
 
 let list_repositories ~api ~token ~account =

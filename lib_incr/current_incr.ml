@@ -23,3 +23,5 @@ let change ?(eq=(==)) = Modifiable.change ~eq
 let propagate = Modifiable.propagate
 let observe = Modifiable.deref
 let on_release = Modifiable.on_release
+
+module Separate = Modifiable.Separate

@@ -38,11 +38,11 @@ let pipeline ~app () =
     let+ base = Docker.pull ~schedule:weekly "ocurrent/opam:alpine-3.10-ocaml-4.08" in
     `Contents (dockerfile ~base)
   in
-  Github.App.installations app |> Current.list_iter ~pp:Github.Installation.pp @@ fun installation ->
+  Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
   let repos = Github.Installation.repositories installation in
-  repos |> Current.list_iter ~pp:Github.Api.Repo.pp @@ fun repo ->
+  repos |> Current.list_iter (module Github.Api.Repo) @@ fun repo ->
   Github.Api.Repo.ci_refs repo
-  |> Current.list_iter ~pp:Github.Api.Commit.pp @@ fun head ->
+  |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   Docker.build ~pool ~pull:false ~dockerfile (`Git src)
   |> Current.state

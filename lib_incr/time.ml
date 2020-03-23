@@ -182,3 +182,11 @@ let clear_forget t =
   assert (is_valid t);
   assert (t.on_forget <> None);
   t.on_forget <- None
+
+let next t =
+  assert (not (is_last t));
+  t.next
+
+let prev t =
+  assert (not (is_first t));
+  t.prev

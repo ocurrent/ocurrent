@@ -122,6 +122,15 @@ module Commit_id = struct
 
   let pp_id = Ref.pp
 
+  let compare {owner_name; id; hash} b =
+    match compare hash b.hash with
+    | 0 ->
+      begin match Ref.compare id b.id with
+        | 0 -> compare owner_name b.owner_name
+        | x -> x
+      end
+    | x -> x
+
   let pp f { owner_name; id; hash } =
     Fmt.pf f "%s@ %a@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
 
@@ -512,6 +521,8 @@ module Commit = struct
 
   let id (_, commit_id) = Commit_id.to_git commit_id
 
+  let compare (_, a) (_, b) = Commit_id.compare a b
+
   let owner_name (_, id) = id.Commit_id.owner_name
 
   let repo_id t =
@@ -536,6 +547,7 @@ module Repo = struct
 
   let id = snd
   let pp = Fmt.using id Repo_id.pp
+  let compare a b = Repo_id.compare (id a) (id b)
 
   let head_commit t =
     Current.component "head" |>

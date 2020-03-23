@@ -46,6 +46,12 @@ val set_forget : t -> (unit -> unit) -> unit
 val clear_forget : t -> unit
 (** [clear_forget t] reverses the effect of [set_forget]. *)
 
+val next : t -> t
+(** [next t] is the time immediately after [t] (which must not be the last time). *)
+
+val prev : t -> t
+(** [prev t] is the time immediately before [t] (which must not be the first time). *)
+
 (* Algorithm due to:
    Two Simplified Algorithms for Maintaining Order in a List
    Bender et al., 2002 *)
