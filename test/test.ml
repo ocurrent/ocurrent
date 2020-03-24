@@ -165,6 +165,28 @@ let test_state _switch () =
   Driver.test ~name:"state" pipeline @@ function
   | _ -> raise Exit
 
+let test_pair _switch () =
+  let show label x = (* Make it show up on the diagram so we can see the input state. *)
+    Current.component "%s" label |>
+    let> () = x in
+    Current.Input.const ()
+  in
+  let check name expected x =
+    let+ s = Current.state (show name x) in
+    Alcotest.check engine_result name expected s
+  in
+  let pipeline () =
+    let ok = Current.return () in
+    let pending = Current.active `Running in
+    let failed = Current.fail "failed" in
+    Current.all [
+      check "Blocked-1" (Error (`Msg "failed")) (Current.all [ok; pending; failed]);
+      check "Blocked-2" (Error (`Msg "failed")) (Current.all [failed; pending; ok]);
+      check "Blocked-3" (Error (`Active `Running)) (Current.all [pending; ok]);
+    ]
+  in
+  Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
+
 module Test_input = struct
   type 'a t = unit
   type job_id = unit
@@ -213,6 +235,7 @@ let () =
         Driver.test_case_gc "option-some" test_option_some;
         Driver.test_case_gc "option-none" test_option_none;
         Driver.test_case_gc "state"       test_state;
+        Driver.test_case_gc "pair"        test_pair;
       ];
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;

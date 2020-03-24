@@ -27,8 +27,10 @@ let map_error f x =
 
 let pair a b =
   match a, b with
-  | (Error _ as e), _ -> e
-  | _, (Error _ as e) -> e
+  | (Error (`Msg _) as e), _
+  | _, (Error (`Msg _) as e) -> e
+  | (Error (`Active _) as e), _
+  | _, (Error (`Active _) as e) -> e
   | Ok x, Ok y -> Ok (x, y)
 
 let active a = Error (`Active a)
