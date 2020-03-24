@@ -112,6 +112,7 @@ module Make (Job : sig type id end) = struct
     | Pass, Pass -> Pass
 
   let pair ~env a b =
+    let state = pair_state a b in
     let a = simplify a in
     let b = simplify b in
     let single_context =
@@ -121,29 +122,29 @@ module Make (Job : sig type id end) = struct
     | true, Constant None, _ -> b
     | true, _, Constant None -> a
     | _ ->
-      make ~env (Pair (a, b)) (pair_state a b)
+      make ~env (Pair (a, b)) state
 
   let bind ~env ?(info="") x state =
     match info, env with
     | "", Some bind -> bind
     | _ ->
-      let x = simplify x in
-      let ty = Bind (x, info) in
       let state =
         match x.state with
         | Blocked | Active _ | Fail _ -> Blocked
         | Pass -> state
       in
+      let x = simplify x in
+      let ty = Bind (x, info) in
       make ~env ty state
 
   let bind_input ~env ~info ?id x state =
-    let x = simplify x in
-    let ty = Bind_input {x; info; id} in
     let state =
       match x.state with
       | Blocked | Active _ | Fail _ -> Blocked
       | Pass -> state
     in
+    let x = simplify x in
+    let ty = Bind_input {x; info; id} in
     make ~env ty state
 
   let list_map ~env ~f items =
