@@ -83,7 +83,16 @@ let v3 commit =
   Current.all @@ List.map gated_deploy binaries
 
 let test_v3 _switch () =
-  Driver.test ~name:"v3" (with_commit v3) @@ function
+  let final_stats =
+    { Current_term.S.
+      ok = 8;
+      failed = 1;
+      ready = 0;
+      running = 1;
+      blocked = 6;
+    }
+  in
+  Driver.test ~name:"v3" (with_commit v3) ~final_stats @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 ->
     Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] @@ Ok ();
@@ -188,16 +197,15 @@ let test_pair _switch () =
   Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
 
 module Test_input = struct
-  type 'a t = unit
-  type job_id = unit
-
-  let get () = Current_incr.const (Error (`Msg "Can't happen"), None)
+  type job_id = string
+  type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
+  let get x = x
 end
 
 module Term = Current_term.Make(Test_input)
 
 let test_all_labelled () =
-  let test x = fst (Current_incr.observe (Term.Executor.run (fun () -> Term.all_labelled x))) in
+  let test x = Current_incr.observe (Term.Executor.run (Term.all_labelled x)) in
   Alcotest.check engine_result "all_ok" (Ok ()) @@ test [
     "Alpine", Term.return ();
     "Debian", Term.return ();
@@ -219,6 +227,18 @@ let test_all_labelled () =
     "Debian", Term.fail "ENOSPACE";
   ]
 
+let job x =
+  let info = Term.component "job" in
+  Term.primitive ~info (fun () -> Current_incr.const (Ok (), Some x)) @@ Term.return ()
+
+let test_job_id () =
+  let pipeline =
+    let j = Term.map ignore (job "1") in
+    Term.Analysis.job_id j
+  in
+  let job_id = Current_incr.observe (Term.Executor.run pipeline) in
+  Alcotest.(check (result (option string) reject)) "Got job ID" (Ok (Some "1")) job_id
+
 module Cli = Alcotest.Cli.Make(Lwt)
 
 let () =
@@ -239,6 +259,7 @@ let () =
       ];
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;
+        Alcotest_lwt.test_case_sync "job_id"       `Quick test_job_id;
       ];
       "cache", Test_cache.tests;
       "monitor", Test_monitor.tests;

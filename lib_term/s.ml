@@ -29,28 +29,20 @@ module type ANALYSIS = sig
   type 'a term
   (** See [TERM]. *)
 
-  type t
-  (** Information about the dependency graph of a term.
-      This is useful to display the term's state as a diagram. *)
-
   type job_id
 
-  val booting : t
-  (** [booting] is a dummy analysis; useful while booting. *)
+  val job_id : 'a term -> job_id option term
+  (** [job_id t] is the job ID of [t], if any.
+      Raises an exception if [t] is not a primitive (or a map of one). *)
 
-  val get : _ term -> t term
-
-  val job_id : t -> job_id option
-  (** [job_id t] is the job ID of [t], if any. *)
-
-  val pp : t Fmt.t
+  val pp : _ term Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 
-  val pp_dot : url:(job_id -> string option) -> t Fmt.t
+  val pp_dot : url:(job_id -> string option) -> _ term Fmt.t
   (** [pp_dot ~url] formats a [t] as a graphviz dot graph.
       @param url Generates a URL from an ID. *)
 
-  val stats : t -> stats
+  val stats : _ term -> stats
   (** [stats t] count how many stages are in each state. *)
 end
 
@@ -147,10 +139,11 @@ module type TERM = sig
       [x] is ready, so using [bind] makes static analysis less useful. You can
       use the [info] argument to provide some information here. *)
 
-  val bind_input : info:description -> ('a -> 'b input) -> 'a t -> 'b t
-  (** [bind_input ~info f x] is a term that first runs [x] to get [y] and then
-      behaves as the input [f y]. [info] is used to describe the operation
-      in the analysis result. *)
+  val primitive : info:description -> ('a -> 'b input) -> 'a t -> 'b t
+  (** [primitive ~info f x] is a term that evaluates [f] on each new value of [x].
+      This is used to provide the primitive operations, which can then be
+      combined using the other combinators in this module.
+      [info] is used to label the operation in the diagram. *)
 
   val component : ('a, Format.formatter, unit, description) format4 -> 'a
   (** [component name] is used to annotate binds, so that the system can show a
@@ -205,9 +198,6 @@ module type EXECUTOR = sig
   type 'a term
   (** See [TERM]. *)
 
-  type analysis
-  (** See [ANALYSIS]. *)
-
-  val run : (unit -> 'a term) -> ('a Output.t * analysis) Current_incr.t
-  (** [run f] evaluates term [f ()], returning the current output and its analysis. *)
+  val run : 'a term -> 'a Output.t Current_incr.t
+  (** [run t] is the output value of [t] (i.e. without the static analysis part). *)
 end

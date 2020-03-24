@@ -21,37 +21,22 @@ let init_logging () =
   Logs.set_reporter reporter
 
 module SVar = Current.Var(struct
-    type t = string * (unit -> unit Current.t)
+    type t = (unit -> unit Current.t)
     let equal = (==)
-    let pp f (test, _pipeline) = Fmt.pf f "%s" test
+    let pp f _ = Fmt.string f "pipeline"
   end)
 let selected = SVar.create ~name:"current-test" (Error (`Msg "no-test"))
 
 module Git = Current_git_test
 module Docker = Current_docker_test
 
-let i = ref 1
-
 let test_pipeline =
   Current.component "choose pipeline" |>
-  let** name, make_pipeline = SVar.get selected in
-  let t = make_pipeline () in
-  let data =
-    let+ a = Current.Analysis.get t in
-    Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp a);
-    let url _ = None in
-    Fmt.strf "%a" (Current.Analysis.pp_dot ~url) a
-  in
-  let path =
-    let+ _ = data in
-    Fpath.v (Fmt.strf "%s.%d.dot" name !i)
-  in
-  let* () = Current_fs.save path data in
-  t
+  let** make_pipeline = SVar.get selected in
+  make_pipeline ()
 
 let current_watches = ref { Current.Engine.
                             value = Error (`Active `Ready);
-                            analysis = Current.Analysis.booting;
                             jobs = Current.Job.Map.empty }
 
 let pp_job f j = j#pp f
@@ -76,28 +61,46 @@ let rebuild msg =
   | None -> Fmt.failwith "Job %S cannot be rebuilt!" msg
   | Some rebuild -> rebuild () |> ignore
 
+let stats =
+  let pp f { Current_term.S.ok; ready; running; failed; blocked } =
+    Fmt.pf f "ok=%d,ready=%d,running=%d,failed=%d,blocked=%d" ok ready running failed blocked
+  in
+  Alcotest.testable pp (=)
+
 (* Write two SVG files for pipeline [v]: one containing the static analysis
    before it has been run, and another once a particular commit hash has been
    supplied to it. *)
-let test ?config ~name v actions =
+let test ?config ?final_stats ~name v actions =
   Git.reset ();
   Docker.reset ();
-  SVar.set selected (Ok (name, v));
-  i := 1;
+  SVar.set selected (Ok v);
+  let step = ref 1 in
   Current_incr.propagate ();
   let trace ~next step_result =
-    if !i = 0 then raise Exit;
+    if !step = 0 then raise Exit;
+    begin
+      Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp test_pipeline);
+      let path = Fmt.strf "%s.%d.dot" name !step in
+      let ch = open_out path in
+      let f = Format.formatter_of_out_channel ch in
+      let url _ = None in
+      Fmt.pf f "%a@!" (Current.Analysis.pp_dot ~url) test_pipeline;
+      close_out ch
+    end;
     current_watches := step_result;
     let { Current.Engine.value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
     begin
       if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
-      try actions !i with
+      try actions !step with
       | Exit ->
+        final_stats |> Option.iter (fun expected ->
+            Alcotest.check stats "Check final stats" expected @@ Current.Analysis.stats test_pipeline
+          );
         SVar.set selected (Error (`Msg "test-over"));
-        i := -1
+        step := -1
     end;
-    incr i;
+    incr step;
     let rec wait i =
       match i with
       | 0 -> failwith "No inputs ready (tests stuck)!"

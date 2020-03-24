@@ -12,6 +12,5 @@ module Make (Input : S.INPUT) : sig
     type job_id := Input.job_id
 
   module Executor : S.EXECUTOR with
-    type 'a term := 'a t and
-    type analysis := Analysis.t
+    type 'a term := 'a t
 end

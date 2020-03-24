@@ -150,8 +150,7 @@ let handle_request ~engine ~webhooks _conn request body =
       Style.get ()
     | `GET, ["pipeline.svg"] ->
       begin
-        let state = Current.Engine.state engine in
-        render_svg state.Current.Engine.analysis >>= function
+        render_svg (Current.Engine.pipeline engine) >>= function
         | Ok body ->
           let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in
           Server.respond_string ~status:`OK ~headers ~body ()
@@ -167,7 +166,7 @@ let handle_request ~engine ~webhooks _conn request body =
       let body = Jobs.render () in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["metrics"] ->
-      Current.Engine.(update_metrics (state engine));
+      Current.Engine.(update_metrics engine);
       let data = Prometheus.CollectorRegistry.(collect default) in
       let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
       let headers = Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4" in

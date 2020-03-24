@@ -2,6 +2,7 @@ val init_logging : unit -> unit
 
 val test :
   ?config:Current.Config.t ->
+  ?final_stats:Current_term.S.stats ->
   name:string ->
   (unit -> unit Current.t) ->
   (int -> unit) ->

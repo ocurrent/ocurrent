@@ -5,6 +5,7 @@ end
 
 type t = Key.t
 let mint () = object end
+let equal = (=)
 
 module Set = Set.Make(Key)
 module Map = Map.Make(Key)

@@ -1,44 +1,44 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n1 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n11 [label="head",fillcolor="#90ee90",style="filled"]
-  n10 [label="fetch",fillcolor="#90ee90",style="filled"]
-  n9 [label="build-win",fillcolor="#90ee90",style="filled"]
-  n8 [label="docker run make test",fillcolor="#ffa500",style="filled"]
-  n13 [label="build-mac",fillcolor="#90ee90",style="filled"]
-  n12 [label="docker run make test",fillcolor="#ffa500",style="filled"]
-  n15 [label="build-lin",fillcolor="#90ee90",style="filled"]
-  n14 [label="docker run make test",fillcolor="#ffa500",style="filled"]
-  n5 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
-  n4 [label="docker push foo/win",fillcolor="#d3d3d3",style="filled"]
-  n17 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
-  n16 [label="docker push foo/mac",fillcolor="#d3d3d3",style="filled"]
-  n19 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
-  n18 [label="docker push foo/lin",fillcolor="#d3d3d3",style="filled"]
-  n19 -> n18
-  n15 -> n19
-  n14 -> n19 [style="dashed"]
-  n12 -> n19 [style="dashed"]
-  n8 -> n19 [style="dashed"]
-  n17 -> n16
-  n13 -> n17
-  n14 -> n17 [style="dashed"]
-  n12 -> n17 [style="dashed"]
-  n8 -> n17 [style="dashed"]
-  n5 -> n4
-  n9 -> n5
-  n14 -> n5 [style="dashed"]
-  n12 -> n5 [style="dashed"]
-  n8 -> n5 [style="dashed"]
+  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
+  n16 [label="head",fillcolor="#90ee90",style="filled"]
+  n15 [label="fetch",fillcolor="#90ee90",style="filled"]
+  n14 [label="build-win",fillcolor="#90ee90",style="filled"]
+  n13 [label="docker run make test",fillcolor="#ffa500",style="filled"]
+  n18 [label="build-mac",fillcolor="#90ee90",style="filled"]
+  n17 [label="docker run make test",fillcolor="#ffa500",style="filled"]
+  n20 [label="build-lin",fillcolor="#90ee90",style="filled"]
+  n19 [label="docker run make test",fillcolor="#ffa500",style="filled"]
+  n8 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
+  n7 [label="docker push foo/win",fillcolor="#d3d3d3",style="filled"]
+  n22 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
+  n21 [label="docker push foo/mac",fillcolor="#d3d3d3",style="filled"]
+  n24 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
+  n23 [label="docker push foo/lin",fillcolor="#d3d3d3",style="filled"]
+  n24 -> n23
+  n20 -> n24
+  n19 -> n24 [style="dashed"]
+  n17 -> n24 [style="dashed"]
+  n13 -> n24 [style="dashed"]
+  n22 -> n21
+  n18 -> n22
+  n19 -> n22 [style="dashed"]
+  n17 -> n22 [style="dashed"]
+  n13 -> n22 [style="dashed"]
+  n8 -> n7
+  n14 -> n8
+  n19 -> n8 [style="dashed"]
+  n17 -> n8 [style="dashed"]
+  n13 -> n8 [style="dashed"]
+  n20 -> n19
+  n15 -> n20
+  n18 -> n17
+  n15 -> n18
+  n14 -> n13
   n15 -> n14
-  n10 -> n15
-  n13 -> n12
-  n10 -> n13
-  n9 -> n8
-  n10 -> n9
-  n11 -> n10
-  n1 -> n11
-  n2 -> n1
+  n16 -> n15
+  n2 -> n16
+  n3 -> n2
   }

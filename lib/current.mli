@@ -254,7 +254,6 @@ module Engine : sig
 
   type results = {
     value : unit Current_term.Output.t;
-    analysis : Analysis.t;
     jobs : actions Job.Map.t;        (** The jobs currently being used (whether running or finished). *)
   }
 
@@ -283,8 +282,10 @@ module Engine : sig
 
   val config : t -> Config.t
 
-  val update_metrics : results -> unit
-  (** [update_metrics results] reports how many pipeline stages are in each state via Prometheus.
+  val pipeline : t -> unit term
+
+  val update_metrics : t -> unit
+  (** [update_metrics t] reports how many pipeline stages are in each state via Prometheus.
       Call this on each metrics collection if you have exactly one pipeline. The default web
       UI does this automatically. *)
 

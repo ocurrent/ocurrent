@@ -1,5 +1,3 @@
-open Current.Syntax
-
 module Metrics = struct
   open Prometheus
 
@@ -34,17 +32,6 @@ let init ?(level=Logs.Info) () =
   Fmt_tty.setup_std_outputs ();
   Logs.set_level (Some level);
   Logs.set_reporter reporter
-
-let with_dot ~dotfile f () =
-  let result = f () in
-  let dot_data =
-    let+ a = Current.Analysis.get result in
-    Logs.debug (fun f -> f "Pipeline: @[%a@]" Current.Analysis.pp a);
-    let url _ = None in
-    Fmt.strf "%a" (Current.Analysis.pp_dot ~url) a
-  in
-  let* () = Current_fs.save (Current.return dotfile) dot_data in
-  result
 
 let run x =
   match Lwt_main.run x with

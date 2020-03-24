@@ -1,19 +1,19 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n1 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n5 [label="Blocked-3",fillcolor="#d3d3d3",style="filled"]
-  n4 [label="state",fillcolor="#90ee90",style="filled"]
-  n8 [label="Blocked-2",fillcolor="#d3d3d3",style="filled"]
-  n7 [label="state",fillcolor="#90ee90",style="filled"]
-  n12 [label="Blocked-1",fillcolor="#d3d3d3",style="filled"]
-  n11 [label="state",fillcolor="#90ee90",style="filled"]
-  n12 -> n11
-  n1 -> n12
-  n8 -> n7
-  n1 -> n8
-  n5 -> n4
-  n1 -> n5
-  n2 -> n1
+  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
+  n9 [label="Blocked-3",fillcolor="#d3d3d3",style="filled"]
+  n8 [label="state",fillcolor="#90ee90",style="filled"]
+  n16 [label="Blocked-2",fillcolor="#d3d3d3",style="filled"]
+  n15 [label="state",fillcolor="#90ee90",style="filled"]
+  n24 [label="Blocked-1",fillcolor="#d3d3d3",style="filled"]
+  n23 [label="state",fillcolor="#90ee90",style="filled"]
+  n24 -> n23
+  n2 -> n24
+  n16 -> n15
+  n2 -> n16
+  n9 -> n8
+  n2 -> n9
+  n3 -> n2
   }
