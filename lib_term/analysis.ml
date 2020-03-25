@@ -1,25 +1,6 @@
 module IntSet = Set.Make(struct type t = int let compare = compare end)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
-module Id : sig
-  type t
-  val mint : unit -> t
-
-  module Set : Set.S with type elt = t
-  module Map : Map.S with type key = t
-end = struct
-  module Key = struct
-    type t = < >
-    let compare = compare
-  end
-
-  type t = Key.t
-  let mint () = object end
-
-  module Set = Set.Make(Key)
-  module Map = Map.Make(Key)
-end
-
 module Make (Job : sig type id end) = struct
   type state =
     | Blocked
