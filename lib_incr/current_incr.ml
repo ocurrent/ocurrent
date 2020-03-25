@@ -17,6 +17,8 @@ let read x f d = Modifiable.read x (fun y -> f y d)
 
 let of_cc = Modifiable.create
 
+let map f x = of_cc (read x (fun x -> write (f x)))
+
 let change ?(eq=(==)) = Modifiable.change ~eq
 let propagate = Modifiable.propagate
 let observe = Modifiable.deref
