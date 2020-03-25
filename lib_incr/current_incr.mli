@@ -51,6 +51,9 @@ val on_release : (unit -> unit) -> unit
     Note that the order in which multiple such functions are called is somewhat
     unpredictable. *)
 
+val map : ('a -> 'b) -> 'a t -> 'b t
+(** A convenience function to read a value, apply a function to it, and write the result. *)
+
 (** {2 External operations}
 
     These functions are used to interface between the changeable system and other systems (e.g. Lwt). *)
