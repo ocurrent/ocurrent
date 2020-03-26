@@ -173,6 +173,13 @@ module Make (Input : S.INPUT) = struct
     let output = Current_incr.map (fun x -> Term x) results in
     node (Option_map { item = Term input; output }) (join results)
 
+  let rec list_seq : 'a t list -> 'a list t = function
+    | [] -> return []
+    | x :: xs ->
+      let+ y = x
+      and+ ys = list_seq xs in
+      y :: ys
+
   let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
     let results =
       input.v |> Current_incr.map @@ function
@@ -202,13 +209,6 @@ module Make (Input : S.INPUT) = struct
   let list_iter ~pp f xs =
     let+ (_ : unit list) = list_map ~pp f xs in
     ()
-
-  let rec list_seq : 'a t list -> 'a list t = function
-    | [] -> return []
-    | x :: xs ->
-      let+ y = x
-      and+ ys = list_seq xs in
-      y :: ys
 
   let option_seq : 'a t option -> 'a option t = function
     | None -> return None
