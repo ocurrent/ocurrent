@@ -502,15 +502,24 @@ module Commit = struct
           (Yojson.Safe.pretty_print ~std:true) body;
         let body = body |> Yojson.Safe.to_string |> Cohttp_lwt.Body.of_string in
         Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
-        Cohttp_lwt.Body.to_string body >|= fun body ->
-        match Cohttp.Response.status resp with
-        | `Created -> Ok ()
-        | err ->
-          Log.warn (fun f -> f "@[<v2>%a failed: %s@,%s@]"
-                       pp (key, status)
-                       (Cohttp.Code.string_of_status err)
-                       body);
-          Error (`Msg "Failed to set GitHub status")
+        Lwt.try_bind
+          (fun () -> Cohttp_lwt.Body.to_string body)
+          (fun body ->
+             match Cohttp.Response.status resp with
+             | `Created -> Lwt_result.return ()
+             | err ->
+               Log.warn (fun f -> f "@[<v2>%a failed: %s@,%s@]"
+                            pp (key, status)
+                            (Cohttp.Code.string_of_status err)
+                            body);
+               Lwt_result.fail (`Msg "Failed to set GitHub status")
+          )
+          (fun ex ->
+               Log.warn (fun f -> f "@[<v2>%a failed: %a@]"
+                            pp (key, status)
+                            Fmt.exn ex);
+               Lwt_result.fail (`Msg "Failed to set GitHub status")
+          )
   end
 
   module Set_status_cache = Current_cache.Output(Set_status)
