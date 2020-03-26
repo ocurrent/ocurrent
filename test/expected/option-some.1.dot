@@ -1,17 +1,17 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n1 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n5 [label="head",fillcolor="#90ee90",style="filled"]
-  n4 [label="fetch",fillcolor="#ffa500",style="filled"]
-  n3 [label="analyse",fillcolor="#d3d3d3",style="filled"]
-  subgraph cluster_0 {
-  style="dotted"n6 [label="lint",fillcolor="#d3d3d3",style="filled"]
+  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
+  n9 [label="head",fillcolor="#90ee90",style="filled"]
+  n8 [label="fetch",fillcolor="#ffa500",style="filled"]
+  n7 [label="analyse",fillcolor="#d3d3d3",style="filled"]
+  subgraph cluster_4 {
+  style="dotted"n13 [label="lint",fillcolor="#d3d3d3",style="filled"]
   }
-  n3 -> n6
-  n4 -> n3
-  n5 -> n4
-  n1 -> n5
-  n2 -> n1
+  n7 -> n13
+  n8 -> n7
+  n9 -> n8
+  n2 -> n9
+  n3 -> n2
   }

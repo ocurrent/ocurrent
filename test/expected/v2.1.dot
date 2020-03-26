@@ -1,20 +1,20 @@
 digraph pipeline {
   node [shape="box"]
   rankdir=LR
-  n2 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n1 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n7 [label="head",fillcolor="#90ee90",style="filled"]
-  n6 [label="fetch",fillcolor="#ffa500",style="filled"]
-  n5 [label="build",fillcolor="#d3d3d3",style="filled"]
-  n4 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
-  n3 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
-  n0 [label="docker push foo/bar",fillcolor="#d3d3d3",style="filled"]
-  n3 -> n0
-  n5 -> n3
-  n4 -> n3 [style="dashed"]
-  n5 -> n4
+  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
+  n8 [label="head",fillcolor="#90ee90",style="filled"]
+  n7 [label="fetch",fillcolor="#ffa500",style="filled"]
+  n6 [label="build",fillcolor="#d3d3d3",style="filled"]
+  n5 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
+  n4 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
+  n1 [label="docker push foo/bar",fillcolor="#d3d3d3",style="filled"]
+  n4 -> n1
+  n6 -> n4
+  n5 -> n4 [style="dashed"]
   n6 -> n5
   n7 -> n6
-  n1 -> n7
-  n2 -> n1
+  n8 -> n7
+  n2 -> n8
+  n3 -> n2
   }

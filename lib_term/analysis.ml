@@ -1,193 +1,45 @@
 module IntSet = Set.Make(struct type t = int let compare = compare end)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
-module Id : sig
-  type t
-  val mint : unit -> t
-
-  module Set : Set.S with type elt = t
-  module Map : Map.S with type key = t
-end = struct
-  module Key = struct
-    type t = < >
-    let compare = compare
-  end
-
-  type t = Key.t
-  let mint () = object end
-
-  module Set = Set.Make(Key)
-  module Map = Map.Make(Key)
-end
-
-module Make (Job : sig type id end) = struct
-  type state =
-    | Blocked
-    | Active of Output.active
-    | Pass
-    | Fail of string
-
-  type t = {
-    id : Id.t;
-    bind : t option;
-    ty : metadata_ty;
-    state : state;
-  }
-  and metadata_ty =
-    | Constant of string option
-    | Map_input of { source : t; info : (string, [`Blocked | `Empty_list]) result }
-    | Opt_input of { source : t; info : [`Blocked | `Selected | `Not_selected] }
-    | State of { source : t; hidden : bool }
-    | Catch of { source : t; hidden : bool }
-    | Map_failed of t      (* In [map f t], [f] raised an exception. *)
-    | Bind of t * string
-    | Bind_input of {x : t; info : string; id : Job.id option}
-    | Pair of t * t
-    | Gate_on of { ctrl : t; value : t }
-    | List_map of { items : t; fn : t }
-    | Option_map of { item : t; fn : t }
-
-  type env = t option
-
-  let make ~env ty state =
-    { id = Id.mint (); ty; bind = env; state }
-
-  let return ~env label =
-    make ~env (Constant label) Pass
-
-  let map_input ~env source info =
-    make ~env (Map_input {source; info})
-      (match info with
-       | Ok _ -> Pass
-       | Error (`Blocked | `Empty_list) -> Blocked)
-
-  let option_input ~env source info =
-    make ~env (Opt_input {source; info})
-      (match info with
-       | `Selected -> Pass
-       | `Blocked | `Not_selected -> Blocked)
-
-  let fail ~env msg =
-    make ~env (Constant None) (Fail msg)
-
-  let map_failed ~env t msg =
-    make ~env (Map_failed t) (Fail msg)
-
-  let state ~env ~hidden t =
-    make ~env (State { source = t; hidden }) Pass
-
-  let catch ~env ~hidden t =
-    let state =
-      match t.state with
-      | Fail _ -> Pass
-      | _  -> t.state
-    in
-    make ~env (Catch { source = t; hidden }) state
-
-  let active ~env a =
-    make ~env (Constant None) (Active a)
-
-  let of_output ~env = function
-    | Ok _ -> return ~env None
-    | Error `Msg m -> fail ~env m
-    | Error (`Active a) -> active ~env a
-
-  let ( =? ) a b =
-    match a, b with
-    | None, None -> true
-    | Some a, Some b -> a.id = b.id
-    | _ -> false
-
-  let simplify x =
-    match x.ty, x.bind with
-    | Constant None, Some c -> c
-    | _ -> x
-
-  let pair_state a b =
-    match a.state, b.state with
-    | _, Fail m
-    | Fail m, _ -> Fail m
-    | _, (Blocked | Active _)
-    | (Blocked | Active _), _ -> Blocked
-    | Pass, Pass -> Pass
-
-  let pair ~env a b =
-    let state = pair_state a b in
-    let a = simplify a in
-    let b = simplify b in
-    let single_context =
-      a.bind =? b.bind && b.bind =? env
-    in
-    match single_context, a.ty, b.ty with
-    | true, Constant None, _ -> b
-    | true, _, Constant None -> a
-    | _ ->
-      make ~env (Pair (a, b)) state
-
-  let bind ~env ?(info="") x state =
-    match info, env with
-    | "", Some bind -> bind
-    | _ ->
-      let state =
-        match x.state with
-        | Blocked | Active _ | Fail _ -> Blocked
-        | Pass -> state
-      in
-      let x = simplify x in
-      let ty = Bind (x, info) in
-      make ~env ty state
-
-  let bind_input ~env ~info ?id x state =
-    let state =
-      match x.state with
-      | Blocked | Active _ | Fail _ -> Blocked
-      | Pass -> state
-    in
-    let x = simplify x in
-    let ty = Bind_input {x; info; id} in
-    make ~env ty state
-
-  let list_map ~env ~f items =
-    make ~env (List_map { items; fn = f }) items.state
-
-  let option_map ~env ~f item =
-    make ~env (Option_map { item; fn = f }) item.state
-
-  let gate ~env ~on:ctrl value =
-    let ctrl = simplify ctrl in
-    let value = simplify value in
-    make ~env (Gate_on { ctrl; value }) (pair_state ctrl value)
+module Make (Meta : sig type job_id end) = struct
+  module Node = Node.Make(Meta)
+  open Node
 
   let pp f x =
     let seen = ref Id.Set.empty in
-    let rec aux f md =
-      if Id.Set.mem md.id !seen then
+    let rec aux f t =
+      let Term t = t in
+      if Id.Set.mem t.id !seen then
         Fmt.string f "..."
       else (
-        seen := Id.Set.add md.id !seen;
-        match md.ty with
+        seen := Id.Set.add t.id !seen;
+        match t.ty with
         | Constant None ->
-          begin match md.bind with
+          begin match t.bind with
             | Some ctx -> aux f ctx
-            | None -> Fmt.string f (if md.state = Blocked then "(input)" else "(const)")
+            | None ->
+              match Current_incr.observe t.v with
+              | Error (_, `Active _) -> Fmt.string f "(input)"
+              | _ -> Fmt.string f "(const)"
           end
         | Constant (Some l) -> Fmt.string f l
         | Map_input { source = _; info = Ok label } -> Fmt.string f label
         | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
         | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
-        | Opt_input { source; info = _ } -> Fmt.pf f "[%a]" aux source
-        | Bind (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
-        | Bind_input {x; info; id = _} -> Fmt.pf f "%a@;>>=@;%s" aux x info
+        | Opt_input { source } -> Fmt.pf f "[%a]" aux source
+        | Bind_in (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
+        | Bind_out x -> aux f (Current_incr.observe x)
+        | Primitive {x; info; meta = _ } -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
-        | List_map { items; fn } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux fn
-        | Option_map { item; fn } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux fn
+        | List_map { items; output } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux (Current_incr.observe output)
+        | Option_map { item; output } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux (Current_incr.observe output)
         | State x -> Fmt.pf f "state(@[%a@])" aux x.source
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x.source
-        | Map_failed x -> aux f x
+        | Map x -> aux f x
       )
     in
-    aux f x
+    aux f (Term x)
 
   module Node_set = Set.Make(struct type t = int let compare = compare end)
 
@@ -259,39 +111,48 @@ module Make (Job : sig type id end) = struct
       !pending_edges |> List.iter (fun (style, color, a, b) -> Dot.edge f ?style ?color a b);
       pending_edges := []
     in
-    let rec aux md =
-      match Id.Map.find_opt md.id !seen with
+    let rec aux (Term t) =
+      match Id.Map.find_opt t.id !seen with
       | Some x -> x
       | None ->
         let i = !next in
         incr next;
         let ctx =
-          match md.bind with
+          match t.bind with
           | None -> Out_node.empty
           | Some c -> aux c
         in
+        let v = Current_incr.observe t.v in
+        let error_from_self =
+          match v with
+          | Error (id, _) -> Id.equal id t.id
+          | Ok _ -> false
+        in
         let bg =
-          match md.state with
-          | Blocked -> "#d3d3d3"
-          | Active `Ready -> "#ffff00"
-          | Active `Running -> "#ffa500"
-          | Pass -> "#90ee90"
-          | Fail _ -> "#ff4500"
+          match v with
+          | Ok _ -> "#90ee90"
+          | Error _ when not error_from_self -> "#d3d3d3" (* Blocked *)
+          | Error (_, `Active `Ready) -> "#ffff00"
+          | Error (_, `Active `Running) -> "#ffa500"
+          | Error (_, `Msg _) -> "#ff4500"
         in
         let tooltip =
-          match md.state with
-          | Fail msg -> Some msg
+          match v with
+          | Error (_, `Msg msg) when error_from_self -> Some msg
           | _ -> None
         in
         let node ?id =
           let url = match id with None -> None | Some id -> url id in
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
-          match md.ty with
+          match t.ty with
           | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx.Out_node.trans i
           | Constant None when Out_node.is_empty ctx ->
-            node i (if md.state = Blocked then "(input)" else "(const)");
-            Out_node.singleton ~deps:ctx.Out_node.trans i
+            if Result.is_ok v then ctx
+            else (
+              node i (if error_from_self then "(const)" else "(input)");
+              Out_node.singleton ~deps:ctx.Out_node.trans i
+            )
           | Constant None -> ctx
           | Map_input { source; info } ->
             let label =
@@ -305,11 +166,11 @@ module Make (Job : sig type id end) = struct
             Out_node.connect (edge_to i) source;
             let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
             Out_node.singleton ~deps i
-          | Opt_input { source; info = _ } ->
+          | Opt_input { source } ->
             aux source
-          | Bind (x, name) ->
+          | Bind_in (x, name) ->
             let inputs =
-              match x.ty with
+              match t.ty with
               | Constant None -> Out_node.empty
               | _ -> aux x
             in
@@ -317,12 +178,14 @@ module Make (Job : sig type id end) = struct
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
             Out_node.singleton ~deps:all_inputs.Out_node.trans i
-          | Bind_input {x; info; id} ->
+          | Bind_out x -> aux (Current_incr.observe x)
+          | Primitive {x; info; meta} ->
             let inputs =
-              match x.ty with
-              | Constant None -> Out_node.empty
+              match x with
+              | Term { ty = Constant None; _ } -> Out_node.empty
               | _ -> aux x
             in
+            let id = Current_incr.observe meta in
             node ?id i info;
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
@@ -358,35 +221,40 @@ module Make (Job : sig type id end) = struct
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
             Out_node.singleton ~deps:all_inputs.trans i
-          | Map_failed x ->
-            (* Normally, we don't show separate boxes for map functions.
-               But we do if one fails. *)
+          | Map x ->
             let inputs = aux x in
-            node i "map";
-            let all_inputs = Out_node.union inputs ctx in
-            Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
-          | List_map { items; fn } ->
+            begin match v with
+              | Error (_, `Msg _) when error_from_self ->
+                (* Normally, we don't show separate boxes for map functions.
+                   But we do if one fails. *)
+                node i "map";
+                let all_inputs = Out_node.union inputs ctx in
+                Out_node.connect (edge_to i) all_inputs;
+                Out_node.singleton ~deps:all_inputs.Out_node.trans i
+              | _ ->
+                aux x
+            end
+          | List_map { items; output } ->
             ignore (aux items);
             Dot.begin_cluster f i;
-            let outputs = aux fn in
+            let outputs = aux (Current_incr.observe output) in
             Dot.end_cluster f;
             outputs
-          | Option_map { item; fn } ->
+          | Option_map { item; output } ->
             ignore (aux item);
             Dot.begin_cluster f i;
             Dot.pp_option f ("style", "dotted");
-            let outputs = aux fn in
+            let outputs = aux (Current_incr.observe output) in
             Dot.end_cluster f;
             outputs
         in
-        seen := Id.Map.add md.id outputs !seen;
+        seen := Id.Map.add t.id outputs !seen;
         outputs
     in
     Fmt.pf f "@[<v2>digraph pipeline {@,\
-                node [shape=\"box\"]@,\
-                rankdir=LR@,";
-    let _ = aux x in
+              node [shape=\"box\"]@,\
+              rankdir=LR@,";
+    let _ = aux (Term x) in
     flush_pending ();
     Fmt.pf f "}@]@."
 
@@ -399,51 +267,62 @@ module Make (Job : sig type id end) = struct
     let running = ref 0 in
     let failed = ref 0 in
     let blocked = ref 0 in
-    let rec aux md =
-      match Id.Map.find_opt md.id !seen with
+    let rec aux (Term t) =
+      match Id.Map.find_opt t.id !seen with
       | Some x -> x
       | None ->
         let i = !next in
         incr next;
         let ctx =
-          match md.bind with
+          match t.bind with
           | None -> Out_node.empty
           | Some c -> aux c
         in
+        let v = Current_incr.observe t.v in
+        let error_from_self =
+          match v with
+          | Error (id, _) -> Id.equal id t.id
+          | Ok _ -> false
+        in
         let count () =
-          match md.state with
-          | Pass -> incr ok
-          | Blocked -> incr blocked
-          | Active `Ready -> incr ready
-          | Active `Running -> incr running
-          | Fail _ -> incr failed
+          match v with
+          | Ok _ -> incr ok
+          | _ when not error_from_self -> incr blocked
+          | Error (_, `Active `Ready) -> incr ready
+          | Error (_, `Active `Running) -> incr running
+          | Error (_, `Msg _) -> incr failed
         in
         let outputs =
-          match md.ty with
+          match t.ty with
           | Constant (Some _) -> count (); Out_node.singleton ~deps:ctx.Out_node.trans i
           | Constant None when Out_node.is_empty ctx ->
-            count ();
-            Out_node.singleton ~deps:ctx.Out_node.trans i
+            if Result.is_ok v then ctx
+            else (
+              count ();
+              Out_node.singleton ~deps:ctx.Out_node.trans i
+            )
           | Constant None -> ctx
           | Map_input { source; info = _ } ->
             count ();
             let source = aux source in
             let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
             Out_node.singleton ~deps i
-          | Opt_input { source; info = _ } -> aux source
-          | Bind (x, _) ->
+          | Opt_input { source } ->
+            aux source
+          | Bind_in (x, _name) ->
             let inputs =
-              match x.ty with
+              match t.ty with
               | Constant None -> Out_node.empty
               | _ -> aux x
             in
             count ();
             let all_inputs = Out_node.union inputs ctx in
             Out_node.singleton ~deps:all_inputs.Out_node.trans i
-          | Bind_input {x; info = _; id = _} ->
+          | Bind_out x -> aux (Current_incr.observe x)
+          | Primitive {x; info = _; meta = _} ->
             let inputs =
-              match x.ty with
-              | Constant None -> Out_node.empty
+              match x with
+              | Term { ty = Constant None; _ } -> Out_node.empty
               | _ -> aux x
             in
             count ();
@@ -467,30 +346,26 @@ module Make (Job : sig type id end) = struct
             if not hidden then count ();
             let all_inputs = Out_node.union inputs ctx in
             Out_node.singleton ~deps:all_inputs.trans i
-          | Map_failed x ->
+          | Map x ->
             let inputs = aux x in
-            count ();
             let all_inputs = Out_node.union inputs ctx in
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
-          | List_map { items; fn } ->
+            begin match v with
+              | Error (_, `Msg _) when error_from_self ->
+                count ();
+                Out_node.singleton ~deps:all_inputs.Out_node.trans i
+              | _ ->
+                aux x
+            end
+          | List_map { items; output } ->
             ignore (aux items);
-            aux fn
-          | Option_map { item; fn } ->
+            aux (Current_incr.observe output)
+          | Option_map { item; output } ->
             ignore (aux item);
-            aux fn
+            aux (Current_incr.observe output)
         in
-        seen := Id.Map.add md.id outputs !seen;
+        seen := Id.Map.add t.id outputs !seen;
         outputs
     in
-    ignore (aux x);
+    ignore (aux (Term x));
     { S.ok = !ok; ready = !ready; running = !running; failed = !failed; blocked = !blocked  }
-
-  let booting =
-    active ~env:None `Running
-
-  let rec job_id t =
-    match t.ty with
-    | Bind_input i -> i.id
-    | Option_map x -> job_id x.fn
-    | _ -> None
 end

@@ -1,44 +1,57 @@
-type 'a t = 'a Output.t
+type 'a t = ('a, Id.t * [`Active of Output.active | `Msg of string]) result
 
 let return x = Ok x
-let fail msg = Error (`Msg msg)
-let of_output x = x
+let fail ~id msg = Error (id, `Msg msg)
 
-let state x = Ok x
+let strip_id = function
+  | Ok x -> Ok x
+  | Error (_, e) -> Error e
+
+let state x = Ok (strip_id x)
 
 let catch = function
-  | Ok _ | Error (`Msg _) as x -> Ok x
-  | Error (`Active _) as x -> x
+  | Ok _ as x -> Ok x
+  | Error (_, (`Msg _ as x)) -> Ok (Error x)
+  | Error (_, `Active _) as x -> x
+
+let msg_of_exn = function
+  | Failure m -> m
+  | ex -> Printexc.to_string ex
 
 let bind x f =
   match x with
   | Error _ as e -> e
   | Ok y -> f y
 
-let map f x =
+let map ~id f x =
   match x with
   | Error _ as e -> e
-  | Ok y -> Ok (f y)
+  | Ok y ->
+    match f y with
+    | y -> Ok y
+    | exception ex -> Error (id, `Msg (msg_of_exn ex))
 
-let map_error f x =
+let map_error ~id f x =
   match x with
-  | Error (`Msg m) -> Error (`Msg (f m))
+  | Error (_, `Msg m) ->
+    let m = try f m with ex -> msg_of_exn ex in
+    Error (id, `Msg m)
   | _ -> x
 
 let pair a b =
   match a, b with
-  | (Error (`Msg _) as e), _
-  | _, (Error (`Msg _) as e) -> e
-  | (Error (`Active _) as e), _
-  | _, (Error (`Active _) as e) -> e
+  | (Error (_, `Msg _) as e), _
+  | _, (Error (_, `Msg _) as e) -> e
+  | (Error (_, `Active _) as e), _
+  | _, (Error (_, `Active _) as e) -> e
   | Ok x, Ok y -> Ok (x, y)
 
-let active a = Error (`Active a)
+let active ~id a = Error (id, `Active a)
 
-let run x = x
+let run = strip_id
 
 let pp ok f = function
   | Ok x -> ok f x
-  | Error (`Active `Ready) -> Fmt.string f "(ready)"
-  | Error (`Active `Running) -> Fmt.string f "(running)"
-  | Error `Msg m -> Fmt.pf f "FAILED: %s" m
+  | Error (_, `Active `Ready) -> Fmt.string f "(ready)"
+  | Error (_, `Active `Running) -> Fmt.string f "(running)"
+  | Error (_, `Msg m) -> Fmt.pf f "FAILED: %s" m

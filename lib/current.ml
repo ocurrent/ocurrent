@@ -67,13 +67,13 @@ module Engine = struct
 
   type results = {
     value : unit Current_term.Output.t;
-    analysis : Analysis.t;
     jobs : actions Job.Map.t;
   }
 
   type t = {
     thread : 'a. 'a Lwt.t;
     last_result : results ref;
+    pipeline : unit term Lazy.t;
     config : Config.t;
   }
 
@@ -99,13 +99,14 @@ module Engine = struct
 
   let booting = {
     value = Error (`Active `Running);
-    analysis = Analysis.booting;
     jobs = Job.Map.empty;
   }
 
   let default_trace ~next:_ r =
     Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r.value);
     Lwt.return_unit
+
+  let pipeline t = Lazy.force t.pipeline
 
   let create ?(config=Config.default) ?(trace=default_trace) f =
     let last_result = ref booting in
@@ -118,10 +119,9 @@ module Engine = struct
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
       (* Release all the old inputs, now we've had a chance to create any replacements. *)
       flush_release_queue ();
-      let (r, an) = Current_incr.observe outcome in
+      let r = Current_incr.observe outcome in
       last_result := {
         value = r;
-        analysis = an;
         jobs = Job.Map.map List.hd !active_jobs;
       };
       trace ~next !last_result >>= fun () ->
@@ -131,6 +131,7 @@ module Engine = struct
       Step.advance ();
       aux outcome
     in
+    let pipeline = lazy (f ()) in
     let thread =
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
@@ -141,7 +142,9 @@ module Engine = struct
       Lwt.finalize
         (fun () ->
            Lwt.catch
-             (fun () -> aux (Executor.run f))
+             (fun () ->
+                aux (Executor.run (Lazy.force pipeline))
+             )
              (fun ex ->
                 if ex = Exit then (
                   (* Clean up, for unit-tests *)
@@ -153,7 +156,7 @@ module Engine = struct
         )
         (fun () -> Current_incr.change Config.active_config None; Lwt.return_unit)
     in
-    { thread; last_result; config }
+    { thread; last_result; config; pipeline }
 
   let on_disable fn =
     Current_incr.on_release @@ fun () ->
@@ -167,8 +170,8 @@ module Engine = struct
 
   let thread t = t.thread
 
-  let update_metrics results =
-    let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats results.analysis in
+  let update_metrics t =
+    let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats (pipeline t) in
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "ok") (float_of_int ok);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "ready") (float_of_int ready);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "running") (float_of_int running);
