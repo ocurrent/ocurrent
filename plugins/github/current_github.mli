@@ -50,6 +50,7 @@ module Api : sig
     (** [hash t] is the Git commit hash of [t]. *)
 
     val pp : t Fmt.t
+    val compare : t -> t -> int
 
     val uri : t -> Uri.t
     (** [uri t] is a URI for the GitHub web page showing [t]. *)
@@ -60,6 +61,7 @@ module Api : sig
 
     val id : t -> Repo_id.t
     val pp : t Fmt.t
+    val compare : t -> t -> int
 
     val ci_refs : t Current.t -> Commit.t list Current.t
     (** [ci_refs t] evaluates to the list of branches and open PRs in [t], excluding gh-pages. *)
@@ -118,6 +120,9 @@ module Installation : sig
   val repositories : t Current.t -> Api.Repo.t list Current.t
   (** [repositories t] evaluates to the list of repositories which the user
       configured for this installation. *)
+
+  val compare : t -> t -> int
+  (** Order by installation ID. *)
 end
 
 module App : sig

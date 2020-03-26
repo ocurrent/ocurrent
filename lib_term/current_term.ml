@@ -173,42 +173,60 @@ module Make (Input : S.INPUT) = struct
     let output = Current_incr.map (fun x -> Term x) results in
     node (Option_map { item = Term input; output }) (join results)
 
-  let list_map ~pp (f : 'a t -> 'b t) (input : 'a list t) =
-    let results =
-      input.v |> Current_incr.map @@ function
-      | Error _ as r ->
-        (* Not ready; use static version of map. *)
-        let output = f (map_input input ~label:(Error `Blocked) r) in
-        replace output r
-      | Ok [] ->
-        (* Empty list; show what would have been done. *)
-        let no_items = Error (Id.mint (), `Active `Ready) in
-        let output = f (map_input input ~label:(Error `Empty_list) no_items) in
-        replace output (Ok [])
-      | Ok items ->
-        (* Ready. Expand inputs. *)
-        let rec aux = function
-          | [] -> return []
-          | x :: xs ->
-            let+ y = f (map_input ~label:(Ok (Fmt.to_to_string pp x)) input (Ok x))
-            and+ ys = aux xs in
-            y :: ys
-        in
-        aux items
-    in
-    let output = Current_incr.map (fun x -> Term x) results in
-    node (List_map { items = Term input; output }) (join results)
-
-  let list_iter ~pp f xs =
-    let+ (_ : unit list) = list_map ~pp f xs in
-    ()
-
   let rec list_seq : 'a t list -> 'a list t = function
     | [] -> return []
     | x :: xs ->
       let+ y = x
       and+ ys = list_seq xs in
       y :: ys
+
+
+  let list_map (type a) (module M : S.ORDERED with type t = a) (f : a t -> 'b t) (input : a list t) =
+    let module Map = Map.Make(M) in
+    let module Sep = Current_incr.Separate(Map) in
+    (* Stage 1 : convert input list to a set.
+       This runs whenever the input list changes. *)
+    let as_map =
+      input.v |> Current_incr.map @@ function
+      | Ok items -> items |> List.fold_left (fun acc x -> Map.add x () acc) Map.empty
+      | _ -> Map.empty
+    in
+    (* Stage 2 : process each element separately.
+       We only process an element when it is first added to the set,
+       not on every change to the set. *)
+    let results =
+      Sep.map as_map @@ fun item ->
+      let label = Ok (Fmt.to_to_string M.pp item) in
+      Current_incr.write (f (map_input ~label input (Ok item)))
+    in
+    (* Stage 3 : combine results.
+       This runs whenever either the set of results changes, or the input list changes
+       (since the output order might need to change). *)
+    let results =
+      Current_incr.of_cc begin
+        Current_incr.read input.v @@ function
+        | Error _ as r ->
+          (* Not ready; use static version of map. *)
+          let output = f (map_input input ~label:(Error `Blocked) r) in
+          Current_incr.write @@ replace output r
+        | Ok [] ->
+          (* Empty list; show what would have been done. *)
+          let no_items = Error (Id.mint (), `Active `Ready) in
+          let output = f (map_input input ~label:(Error `Empty_list) no_items) in
+          Current_incr.write @@ replace output (Ok [])
+        | Ok items ->
+          Current_incr.read results @@ fun results ->
+          (* Convert result set to a results list. *)
+          let results = items |> List.map (fun item -> Map.find item results) |> list_seq in
+          Current_incr.write results
+      end
+    in
+    let output = Current_incr.map (fun x -> Term x) results in
+    node (List_map { items = Term input; output }) (join results)
+
+  let list_iter (type a) (module M : S.ORDERED with type t = a) f (xs : a list t) =
+    let+ (_ : unit list) = list_map (module M) f xs in
+    ()
 
   let option_seq : 'a t option -> 'a option t = function
     | None -> return None

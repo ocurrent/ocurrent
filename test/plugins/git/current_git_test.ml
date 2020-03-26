@@ -21,6 +21,7 @@ module Commit = struct
     Fmt.pf f "%s#%s" repo hash
 
   let equal = (=)
+  let compare = compare
   let digest { repo; hash } = Fmt.strf "%s#%s" repo hash
 end
 
