@@ -23,6 +23,8 @@ let input_webhook req _body =
   begin match event with
     | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
     | Some "installation" -> App.input_installation_webhook ()
-    | _ -> Api.input_webhook ()
+    | Some ("pull_request" | "push" | "create") -> Api.input_webhook ()
+    | Some x -> Log.warn (fun f -> f "Unknown GitHub event type %S" x)
+    | None -> Log.warn (fun f -> f "Missing GitHub event type in webhook!")
   end;
   Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body:"OK" ()
