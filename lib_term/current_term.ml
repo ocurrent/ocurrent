@@ -115,6 +115,9 @@ module Make (Input : S.INPUT) = struct
 
   open Syntax
 
+  let collapse ~key ~value ~input t =
+    node (Collapse { key; value; input = Term input; output = Term t }) t.v
+
   let rec all = function
     | [] -> return ()
     | [x] -> x
@@ -181,7 +184,7 @@ module Make (Input : S.INPUT) = struct
       y :: ys
 
 
-  let list_map (type a) (module M : S.ORDERED with type t = a) (f : a t -> 'b t) (input : a list t) =
+  let list_map (type a) (module M : S.ORDERED with type t = a) ?collapse_key (f : a t -> 'b t) (input : a list t) =
     let module Map = Map.Make(M) in
     let module Sep = Current_incr.Separate(Map) in
     (* Stage 1 : convert input list to a set.
@@ -196,8 +199,12 @@ module Make (Input : S.INPUT) = struct
        not on every change to the set. *)
     let results =
       Sep.map as_map @@ fun item ->
-      let label = Ok (Fmt.to_to_string M.pp item) in
-      Current_incr.write (f (map_input ~label input (Ok item)))
+      let label = Fmt.to_to_string M.pp item in
+      let input = map_input ~label:(Ok label) input (Ok item) in
+      let output = f input in
+      match collapse_key with
+      | None -> Current_incr.write output
+      | Some key -> Current_incr.write (collapse ~key ~value:label ~input output)
     in
     (* Stage 3 : combine results.
        This runs whenever either the set of results changes, or the input list changes
@@ -224,8 +231,8 @@ module Make (Input : S.INPUT) = struct
     let output = Current_incr.map (fun x -> Term x) results in
     node (List_map { items = Term input; output }) (join results)
 
-  let list_iter (type a) (module M : S.ORDERED with type t = a) f (xs : a list t) =
-    let+ (_ : unit list) = list_map (module M) f xs in
+  let list_iter (type a) (module M : S.ORDERED with type t = a) ?collapse_key f (xs : a list t) =
+    let+ (_ : unit list) = list_map (module M) ?collapse_key f xs in
     ()
 
   let option_seq : 'a t option -> 'a option t = function

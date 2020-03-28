@@ -84,7 +84,8 @@ let test ?config ?final_stats ~name v actions =
       let ch = open_out path in
       let f = Format.formatter_of_out_channel ch in
       let url _ = None in
-      Fmt.pf f "%a@!" (Current.Analysis.pp_dot ~url) test_pipeline;
+      let env = [] in
+      Fmt.pf f "%a@!" (Current.Analysis.pp_dot ~env ~url) test_pipeline;
       close_out ch
     end;
     current_watches := step_result;

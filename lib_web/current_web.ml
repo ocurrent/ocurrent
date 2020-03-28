@@ -64,9 +64,19 @@ let start_job j =
   let id = Current.Job.id j in
   Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ id)) ()
 
-let render_svg a =
-  let url id = Some (Fmt.strf "/job/%s" id) in
-  let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~url) a in
+let render_svg ~uri a =
+  let env = Uri.query uri |> List.filter_map (function
+      | (_, []) -> None
+      | (k, v :: _) -> Some (k, v)
+    ) in
+  let old_query = Uri.query uri in
+  let url = function
+    | `Collapse (k, v) ->
+      let query = (k, [v]) :: List.remove_assoc k old_query in
+      Some (Uri.make ~path:"/" ~query () |> Uri.to_string)
+    | `Job id -> Some (Fmt.strf "/job/%s" id)
+  in
+  let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~env ~url) a in
   let proc = Lwt_process.open_process_full dot_to_svg in
   Lwt_io.write proc#stdin dotfile >>= fun () ->
   Lwt_io.close proc#stdin >>= fun () ->
@@ -140,7 +150,7 @@ let handle_request ~engine ~webhooks _conn request body =
           respond_error `Bad_request "Bad CSRF token"
       end
     | `GET, ([] | ["index.html"]) ->
-      let body = Main.dashboard engine in
+      let body = Main.dashboard ~uri engine in
       Server.respond_string ~status:`OK ~body ()
     | `GET, ["job"; date; log] ->
       let job_id = Fmt.strf "%s/%s" date log in
@@ -150,7 +160,7 @@ let handle_request ~engine ~webhooks _conn request body =
       Style.get ()
     | `GET, ["pipeline.svg"] ->
       begin
-        render_svg (Current.Engine.pipeline engine) >>= function
+        render_svg ~uri (Current.Engine.pipeline engine) >>= function
         | Ok body ->
           let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in
           Server.respond_string ~status:`OK ~headers ~body ()

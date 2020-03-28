@@ -9,6 +9,12 @@ type stats = {
 }
 (** Counters showing how many pipeline stages are in each state. *)
 
+type 'j link = [
+  | `Collapse of string * string        (* [Collapse (k, v) is a link to the same page
+                                           with "?k=v" added to the environment. *)
+  | `Job of 'j                          (* [Job id] link to the job with ID [id]. *)
+]
+
 module type T = sig
   type t
   val equal : t -> t -> bool
@@ -43,9 +49,10 @@ module type ANALYSIS = sig
   val pp : _ term Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 
-  val pp_dot : url:(job_id -> string option) -> _ term Fmt.t
-  (** [pp_dot ~url] formats a [t] as a graphviz dot graph.
-      @param url Generates a URL from an ID. *)
+  val pp_dot : env:(string * string) list -> url:(job_id link -> string option) -> _ term Fmt.t
+  (** [pp_dot ~env ~url] formats a [t] as a graphviz dot graph.
+      @param env A list of key-value pairs from the URL to control rendering.
+      @param url Generates URLs for links. *)
 
   val stats : _ term -> stats
   (** [stats t] count how many stages are in each state. *)
@@ -101,13 +108,14 @@ module type TERM = sig
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
 
-  val list_map : (module ORDERED with type t = 'a) -> ('a t -> 'b t) -> 'a list t -> 'b list t
+  val list_map : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ('a t -> 'b t) -> 'a list t -> 'b list t
   (** [list_map (module T) f xs] adds [f] to the end of each input term
       and collects all the results into a single list.
       @param T Used to display labels for each item, and to avoid recreating pipelines
-               unnecessarily. *)
+               unnecessarily.
+      @param collapse_key If given, each element is wrapped with [collapse]. *)
 
-  val list_iter : (module ORDERED with type t = 'a) -> ('a t -> unit t) -> 'a list t -> unit t
+  val list_iter : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
   val list_seq : 'a t list -> 'a list t
@@ -133,6 +141,17 @@ module type TERM = sig
 
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
+
+  val collapse : key:string -> value:string -> input:_ t -> 'a t -> 'a t
+  (** [collapse ~key ~value ~input t] is a term that behaves just like [t], but
+      when shown in a diagram it can be expanded or collapsed. When collapsed,
+      it is shown as "input -> [+]" and the user can expand it to show [t]
+      instead. The idea is that [input] is a dependency of [t] and the "+"
+      represents everything in [t] after that. [key] and [value] are used
+      as the parameters (e.g. in a URL) to control whether this is expanded or
+      not. For example
+      [collapse ~key:"repo" ~value:"mirage/mirage-www" ~input:repo (process repo)]
+      Note: [list_map ~collapse_key] provides an easy way to use this. *)
 
   (** {2 Monadic operations} *)
 

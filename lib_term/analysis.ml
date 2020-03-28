@@ -1,3 +1,5 @@
+module Env = Map.Make(String)
+
 module IntSet = Set.Make(struct type t = int let compare = compare end)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
@@ -37,6 +39,7 @@ module Make (Meta : sig type job_id end) = struct
         | State x -> Fmt.pf f "state(@[%a@])" aux x.source
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x.source
         | Map x -> aux f x
+        | Collapse x -> aux f x.output
       )
     in
     aux f (Term x)
@@ -102,7 +105,8 @@ module Make (Meta : sig type job_id end) = struct
     }
   end
 
-  let pp_dot ~url f x =
+  let pp_dot ~env ~url f x =
+    let env = Env.of_seq (List.to_seq env) in
     let next = ref 0 in
     let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
     let pending_edges = ref [] in
@@ -125,8 +129,16 @@ module Make (Meta : sig type job_id end) = struct
         let v = Current_incr.observe t.v in
         let error_from_self =
           match v with
-          | Error (id, _) -> Id.equal id t.id
           | Ok _ -> false
+          | Error (id, _) when Id.equal id t.id -> true
+          | Error (id, _) ->
+            match t.ty with
+            | Collapse { input = Term input; _} ->
+              (* The error isn't from us. but this is a collapsed node. If we're just propagating
+                 an error from our input then keep that, but report errors from within the collapsed
+                 group as from us. *)
+              not (Id.equal id input.id)
+            | _ -> false
         in
         let bg =
           match v with
@@ -141,8 +153,7 @@ module Make (Meta : sig type job_id end) = struct
           | Error (_, `Msg msg) when error_from_self -> Some msg
           | _ -> None
         in
-        let node ?id =
-          let url = match id with None -> None | Some id -> url id in
+        let node ?url =
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match t.ty with
@@ -185,8 +196,12 @@ module Make (Meta : sig type job_id end) = struct
               | Term { ty = Constant None; _ } -> Out_node.empty
               | _ -> aux x
             in
-            let id = Current_incr.observe meta in
-            node ?id i info;
+            let url =
+              match Current_incr.observe meta with
+              | None -> None
+              | Some id -> url (`Job id)
+            in
+            node ?url i info;
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
             Out_node.singleton ~deps:all_inputs.Out_node.trans i
@@ -247,6 +262,16 @@ module Make (Meta : sig type job_id end) = struct
             let outputs = aux (Current_incr.observe output) in
             Dot.end_cluster f;
             outputs
+          | Collapse { key; value; input; output } ->
+            if Env.find_opt key env = Some value then aux output
+            else (
+              let inputs = aux input in
+              let all_inputs = Out_node.union inputs ctx in
+              let url = url (`Collapse (key, value)) in
+              node ?url i "+";
+              Out_node.connect (edge_to i) all_inputs;
+              Out_node.singleton ~deps:all_inputs.trans i
+            )
         in
         seen := Id.Map.add t.id outputs !seen;
         outputs
@@ -362,6 +387,8 @@ module Make (Meta : sig type job_id end) = struct
           | Option_map { item; output } ->
             ignore (aux item);
             aux (Current_incr.observe output)
+          | Collapse x ->
+            aux x.output
         in
         seen := Id.Map.add t.id outputs !seen;
         outputs
