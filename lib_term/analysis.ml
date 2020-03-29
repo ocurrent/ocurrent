@@ -137,7 +137,10 @@ module Make (Meta : sig type job_id end) = struct
               (* The error isn't from us. but this is a collapsed node. If we're just propagating
                  an error from our input then keep that, but report errors from within the collapsed
                  group as from us. *)
-              not (Id.equal id input.id)
+              begin match Current_incr.observe input.v with
+                | Error (orig_id, _) -> not (Id.equal id orig_id)
+                | Ok _ -> true
+              end
             | _ -> false
         in
         let bg =
