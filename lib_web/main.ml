@@ -54,12 +54,13 @@ let settings config =
     input ~a:[a_input_type `Submit; a_value "Submit"] ();
   ]
 
-let dashboard engine =
+let dashboard ~uri engine =
   let config = Current.Engine.config engine in
   let { Current.Engine.value; jobs = _ } = Current.Engine.state engine in
+  let path = "/pipeline.svg?" ^ (Option.value (Uri.verbatim_query uri) ~default:"") in
   template [
     div [
-      object_ ~a:[a_data "/pipeline.svg"] [txt "Pipeline diagram"];
+      object_ ~a:[a_data path] [txt "Pipeline diagram"];
     ];
     h2 [txt "Result"];
     p (render_result value);

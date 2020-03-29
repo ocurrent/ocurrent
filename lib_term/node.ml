@@ -21,4 +21,5 @@ module Make (Meta : sig type job_id end) = struct
     | Gate_on of { ctrl : generic; value : generic }
     | List_map of { items : generic; output : generic Current_incr.t }
     | Option_map of { item : generic; output : generic Current_incr.t }
+    | Collapse of { key : string; value : string; input : generic; output : generic }
 end

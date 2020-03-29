@@ -4,7 +4,25 @@ let list_bind f x =
 let pp_option f (name, v) =
   Fmt.pf f "%s=%S" name v
 
+(* Graphviz generates invalid XML if the URL contains an ampersand. *)
+let fix_escaping s =
+  if not (String.contains s '&') then s
+  else (
+    let b = Buffer.create (String.length s * 2) in
+    let rec aux i =
+      match String.index_from_opt s i '&' with
+      | None -> Buffer.add_substring b s i (String.length s - i)
+      | Some j ->
+        Buffer.add_substring b s i (j - i);
+        Buffer.add_string b "&amp;";
+        aux (j + 1)
+    in
+    aux 0;
+    Buffer.contents b
+  )
+
 let node f ?style ?shape ?bg ?url ?tooltip i label =
+  let url = Option.map fix_escaping url in
   let attrs = [
     "label", Some label;
     "fillcolor", bg;
