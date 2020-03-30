@@ -3,7 +3,7 @@ module Env = Map.Make(String)
 module IntSet = Set.Make(struct type t = int let compare = compare end)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
-module Make (Meta : sig type job_id end) = struct
+module Make (Meta : sig type t end) = struct
   module Node = Node.Make(Meta)
   open Node
 

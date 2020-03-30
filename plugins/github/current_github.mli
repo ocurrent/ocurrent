@@ -97,11 +97,11 @@ module Api : sig
   val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages. *)
 
-  val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Input.t
-  (** [refs t repo] is the input for all the references in [repo].
+  val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Primitive.t
+  (** [refs t repo] is the primitive for all the references in [repo].
       This is the low-level API for getting the refs.
       It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly.
-      The result is cached (so calling it twice will return the same input). *)
+      The result is cached (so calling it twice will return the same primitive). *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)

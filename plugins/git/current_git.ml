@@ -160,19 +160,19 @@ module Local = struct
   let head t =
     Current.component "head" |>
     let> () = Current.return () in
-    Current.Monitor.input t.head
+    Current.Monitor.get t.head
 
   let head_commit t =
     Current.component "head commit" |>
     let> h = head t in
     match h with
-    | `Commit id -> Current.Input.const { Commit.repo = t.repo; id }
-    | `Ref gref -> Current.Monitor.input @@ commit_of_ref t gref
+    | `Commit id -> Current.Primitive.const { Commit.repo = t.repo; id }
+    | `Ref gref -> Current.Monitor.get @@ commit_of_ref t gref
 
   let commit_of_ref t gref =
     Current.component "commit_of_ref %s" gref |>
     let> () = Current.return () in
-    Current.Monitor.input @@ commit_of_ref t gref
+    Current.Monitor.get @@ commit_of_ref t gref
 
   let read_head repo =
     let path = Fpath.(repo / ".git" / "HEAD") in
@@ -185,7 +185,7 @@ module Local = struct
       | [_;r]  -> Ok (`Ref r)
       | _      -> Error (`Msg (Fmt.strf "Can't parse HEAD %S" contents))
 
-  let make_head_input repo =
+  let make_head repo =
     let dot_git = Fpath.(repo / ".git") in
     let read () = Lwt.return (read_head repo) in
     let watch refresh =
@@ -213,7 +213,7 @@ module Local = struct
 
   let v repo =
     let repo = Fpath.normalize @@ Fpath.append (Fpath.v (Sys.getcwd ())) repo in
-    let head = make_head_input repo in
+    let head = make_head repo in
     let heads = Ref_map.empty in
     { repo; head; heads }
 end

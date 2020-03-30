@@ -1,10 +1,12 @@
 module S = S
 module Output = Output
 
-module Make (Input : S.INPUT) = struct
+module Make (Metadata : sig type t end) = struct
   type description = string
 
-  module Node = Node.Make(Input)
+  type 'a primitive = ('a Output.t * Metadata.t option) Current_incr.t
+
+  module Node = Node.Make(Metadata)
   open Node
 
   type 'a t = 'a Node.t
@@ -84,15 +86,15 @@ module Make (Input : S.INPUT) = struct
       Current_incr.write @@ Dyn.pair a b
     end
 
-  let primitive ~info (f:'a -> 'b Input.t) (x:'a t) =
+  let primitive ~info (f:'a -> 'b primitive) (x:'a t) =
     let id = Id.mint () in
     let v_meta =
       Current_incr.of_cc begin
         Current_incr.read x.v @@ function
         | Error _ as e -> Current_incr.write (e, None)
         | Ok y ->
-          let input = f y in
-          Current_incr.read (Input.get input) @@ fun (v, job) ->
+          let output = f y in
+          Current_incr.read output @@ fun (v, job) ->
           Current_incr.write (with_id id v, job)
       end
     in
@@ -255,15 +257,15 @@ module Make (Input : S.INPUT) = struct
   end
 
   module Analysis = struct
-    include Analysis.Make(Input)
+    include Analysis.Make(Metadata)
 
     (* This is a bit of a hack. *)
-    let job_id t =
+    let metadata t =
       let rec aux (Term t) =
         match t.ty with
         | Primitive p -> p.meta
         | Map t -> aux t
-        | _ -> failwith "job_id: this is not a job term!"
+        | _ -> failwith "metadata: this is not a primitive term!"
       in
       node (Constant None) @@ Current_incr.map Result.ok @@ aux (Term t)
   end

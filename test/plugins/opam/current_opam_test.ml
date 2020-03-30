@@ -9,9 +9,9 @@ let revdeps src =
   let> src = src in
   match Fpath.to_string src with
   | "src-123" ->
-    Current.Input.const [
+    Current.Primitive.const [
       Git.Commit.v ~repo:"example.org/foo" ~hash:"111";
       Git.Commit.v ~repo:"example.org/bar" ~hash:"222";
     ]
   | _ ->
-    Current.Input.const []
+    Current.Primitive.const []

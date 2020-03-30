@@ -29,12 +29,12 @@ end
 let build_on platform ~src =
   Current.component "build-%s" platform |>
   let> c = src in
-  Current.Input.const @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
+  Current.Primitive.const @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
 
 let build c =
   Current.component "build" |>
   let> c = c in
-  Current.Input.const @@ "image-" ^ Fpath.to_string c
+  Current.Primitive.const @@ "image-" ^ Fpath.to_string c
 
 let build ?on src =
   match on with
