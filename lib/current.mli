@@ -33,11 +33,11 @@ class type actions = object
       or [None] if it is not something that can be repeated. Returns the new job ID. *)
 end
 
-module Input : sig
+module Primitive : sig
   type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
 
   val const : 'a -> 'a t
-  (** [const x] is an input that always evaluates to [x] and never needs to be updated. *)
+  (** [const x] is a primitive that always evaluates to [x] and never needs to be updated. *)
 
   val map_result : ('a Current_term.Output.t -> 'b Current_term.Output.t) -> 'a t -> 'b t
   (** [map_result fn t] transforms the result of [t] with [fn]. The metadata remains the same.
@@ -67,12 +67,12 @@ module Monitor : sig
       value then it will wait for the current read to complete and then perform a
       second one. *)
 
-  val input : 'a t -> 'a Input.t
-  (** [input t] enables [t] and returns the input for it. When the input is
+  val get : 'a t -> 'a Primitive.t
+  (** [get t] enables [t] and returns the primitive for it. When the primitive is
       released, the monitor will be disabled. Call this in your [let>] block. *)
 end
 
-include Current_term.S.TERM with type 'a input := 'a Input.t
+include Current_term.S.TERM with type 'a primitive := 'a Primitive.t
 
 type 'a term = 'a t
 (** An alias of [t] to make it easy to refer to later in this file. *)
@@ -268,8 +268,8 @@ module Engine : sig
 
   val update : unit -> unit
   (** Trigger a reevaluation of the pipeline.
-      Inputs should call this whenever they might now produce a different result
-      (e.g. an active input becomes finished). *)
+      Primitives should call this whenever they might now produce a different result
+      (e.g. an active job becomes finished). *)
 
   val state : t -> results
   (** The most recent results from evaluating the pipeline. *)

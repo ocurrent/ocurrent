@@ -26,7 +26,7 @@ class type actions = object
   method rebuild : (unit -> job_id) option
 end
 
-module Input = struct
+module Primitive = struct
   type nonrec job_id = job_id
 
   type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
@@ -43,7 +43,7 @@ module Input = struct
     end
 end
 
-include Current_term.Make(Input)
+include Current_term.Make(Primitive)
 
 type 'a term = 'a t
 
@@ -117,7 +117,7 @@ module Engine = struct
       Current_incr.propagate ();
       let t1 = Unix.gettimeofday () in
       Prometheus.Summary.observe Metrics.evaluation_time_seconds (t1 -. t0);
-      (* Release all the old inputs, now we've had a chance to create any replacements. *)
+      (* Release all the old resources, now we've had a chance to create any replacements. *)
       flush_release_queue ();
       let r = Current_incr.observe outcome in
       last_result := {
@@ -125,7 +125,7 @@ module Engine = struct
         jobs = Job.Map.map List.hd !active_jobs;
       };
       trace ~next !last_result >>= fun () ->
-      Log.debug (fun f -> f "Waiting for inputs to change...");
+      Log.debug (fun f -> f "Waiting for an external event...");
       next >>= fun () ->
       Lwt.pause () >>= fun () ->
       Step.advance ();
@@ -213,7 +213,7 @@ module Monitor = struct
     watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
     pp : Format.formatter -> unit;
     value : 'a Current_term.Output.t Current_incr.var;
-    mutable ref_count : int;              (* Number of terms using this input *)
+    mutable ref_count : int;              (* Number of terms using this monitor *)
     mutable need_refresh : bool;          (* Update detected after current read started *)
     mutable active : bool;                (* Monitor thread is running *)
     cond : unit Lwt_condition.t;          (* Maybe time to leave the "wait" state *)
@@ -249,7 +249,7 @@ module Monitor = struct
     else if t.need_refresh then get_value ~unwatch t
     else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
 
-  let input t =
+  let get t =
     Current_incr.of_cc begin
       t.ref_count <- t.ref_count + 1;
       Engine.on_disable (fun () ->

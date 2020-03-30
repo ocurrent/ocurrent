@@ -26,10 +26,10 @@ module type ORDERED = sig
   val pp : t Fmt.t
 end
 
-module type INPUT = sig
+module type PRIMITIVE = sig
   type 'a t
-  (** An input that was used while evaluating a term.
-      If the input changes, the term should be re-evaluated. *)
+  (** A primitive that was used while evaluating a term.
+      If its value changes, the term should be re-evaluated. *)
 
   type job_id
 
@@ -59,8 +59,8 @@ module type ANALYSIS = sig
 end
 
 module type TERM = sig
-  type 'a input
-  (** See [INPUT]. *)
+  type 'a primitive
+  (** See [PRIMITIVE]. *)
 
   type 'a t
   (** An ['a t] is a term that produces a value of type ['a]. *)
@@ -164,7 +164,7 @@ module type TERM = sig
       [x] is ready, so using [bind] makes static analysis less useful. You can
       use the [info] argument to provide some information here. *)
 
-  val primitive : info:description -> ('a -> 'b input) -> 'a t -> 'b t
+  val primitive : info:description -> ('a -> 'b primitive) -> 'a t -> 'b t
   (** [primitive ~info f x] is a term that evaluates [f] on each new value of [x].
       This is used to provide the primitive operations, which can then be
       combined using the other combinators in this module.
@@ -193,7 +193,7 @@ module type TERM = sig
         be determined at runtime by looking at the concrete value. Static
         analysis cannot predict what this will do until the input is ready. *)
 
-    val (let>) : 'a t -> ('a -> 'b input) -> description -> 'b t
+    val (let>) : 'a t -> ('a -> 'b primitive) -> description -> 'b t
     (** [let>] is used to define a component. e.g.:
         {[
           component "my-op" |>

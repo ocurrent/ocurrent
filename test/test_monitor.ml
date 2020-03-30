@@ -45,7 +45,7 @@ let monitor = Current.Monitor.create ~read ~watch ~pp
 let input () =
   Current.component "input" |>
   let> () = Current.return () in
-  Current.Monitor.input monitor
+  Current.Monitor.get monitor
 
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)
 

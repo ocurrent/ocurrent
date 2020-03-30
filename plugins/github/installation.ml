@@ -76,4 +76,4 @@ let api t = t.api
 let repositories t =
   Current.component "list repos" |>
   let> t = t in
-  Current.Monitor.input t.repos
+  Current.Monitor.get t.repos

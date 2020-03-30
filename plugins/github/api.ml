@@ -305,7 +305,7 @@ let head_commit t repo =
       t.head_monitors <- Repo_map.add repo i t.head_monitors;
       i
   in
-  Current.Monitor.input monitor
+  Current.Monitor.get monitor
 
 let query_branches_and_open_prs = {|
   query($owner: String!, $name: String!) {
@@ -418,7 +418,7 @@ let make_ci_refs_monitor t repo =
   Current.Monitor.create ~read ~watch ~pp
 
 let refs t repo =
-  Current.Monitor.input (
+  Current.Monitor.get (
     match Repo_map.find_opt repo t.ci_refs_monitors with
     | Some i -> i
     | None ->
@@ -445,7 +445,7 @@ let head_of t repo id =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
   let> () = Current.return () in
   refs t repo
-  |> Current.Input.map_result @@ function
+  |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
     match Ref_map.find_opt id refs with
@@ -561,7 +561,7 @@ module Repo = struct
   let head_commit t =
     Current.component "head" |>
     let> (api, repo) = t in
-    Current.Monitor.input (
+    Current.Monitor.get (
       match Repo_map.find_opt repo api.head_monitors with
       | Some i -> i
       | None ->

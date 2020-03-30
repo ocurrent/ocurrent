@@ -1,10 +1,10 @@
 module S = S
 module Output = Output
 
-module Make (Input : S.INPUT) = struct
+module Make (Primitive : S.PRIMITIVE) = struct
   type description = string
 
-  module Node = Node.Make(Input)
+  module Node = Node.Make(Primitive)
   open Node
 
   type 'a t = 'a Node.t
@@ -84,7 +84,7 @@ module Make (Input : S.INPUT) = struct
       Current_incr.write @@ Dyn.pair a b
     end
 
-  let primitive ~info (f:'a -> 'b Input.t) (x:'a t) =
+  let primitive ~info (f:'a -> 'b Primitive.t) (x:'a t) =
     let id = Id.mint () in
     let v_meta =
       Current_incr.of_cc begin
@@ -92,7 +92,7 @@ module Make (Input : S.INPUT) = struct
         | Error _ as e -> Current_incr.write (e, None)
         | Ok y ->
           let input = f y in
-          Current_incr.read (Input.get input) @@ fun (v, job) ->
+          Current_incr.read (Primitive.get input) @@ fun (v, job) ->
           Current_incr.write (with_id id v, job)
       end
     in
@@ -255,7 +255,7 @@ module Make (Input : S.INPUT) = struct
   end
 
   module Analysis = struct
-    include Analysis.Make(Input)
+    include Analysis.Make(Primitive)
 
     (* This is a bit of a hack. *)
     let job_id t =

@@ -178,7 +178,7 @@ let test_pair _switch () =
   let show label x = (* Make it show up on the diagram so we can see the input state. *)
     Current.component "%s" label |>
     let> () = x in
-    Current.Input.const ()
+    Current.Primitive.const ()
   in
   let check name expected x =
     let+ s = Current.state (show name x) in
@@ -196,13 +196,13 @@ let test_pair _switch () =
   in
   Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
 
-module Test_input = struct
+module Test_primitive = struct
   type job_id = string
   type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
   let get x = x
 end
 
-module Term = Current_term.Make(Test_input)
+module Term = Current_term.Make(Test_primitive)
 
 let test_all_labelled () =
   let test x = Current_incr.observe (Term.Executor.run (Term.all_labelled x)) in
