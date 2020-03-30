@@ -26,30 +26,22 @@ module type ORDERED = sig
   val pp : t Fmt.t
 end
 
-module type PRIMITIVE = sig
-  type 'a t
-  (** A primitive that was used while evaluating a term.
-      If its value changes, the term should be re-evaluated. *)
-
-  type job_id
-
-  val get : 'a t -> ('a Output.t * job_id option) Current_incr.t
-end
-
 module type ANALYSIS = sig
   type 'a term
   (** See [TERM]. *)
 
-  type job_id
+  type metadata
+  (** Extra data provided by primitives but that isn't part of the value that is
+      passed on to other nodes. For example, a job ID. *)
 
-  val job_id : 'a term -> job_id option term
-  (** [job_id t] is the job ID of [t], if any.
+  val metadata : 'a term -> metadata option term
+  (** [metadata t] is the metadata of [t], if any.
       Raises an exception if [t] is not a primitive (or a map of one). *)
 
   val pp : _ term Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 
-  val pp_dot : env:(string * string) list -> url:(job_id link -> string option) -> _ term Fmt.t
+  val pp_dot : env:(string * string) list -> url:(metadata link -> string option) -> _ term Fmt.t
   (** [pp_dot ~env ~url] formats a [t] as a graphviz dot graph.
       @param env A list of key-value pairs from the URL to control rendering.
       @param url Generates URLs for links. *)
@@ -59,9 +51,6 @@ module type ANALYSIS = sig
 end
 
 module type TERM = sig
-  type 'a primitive
-  (** See [PRIMITIVE]. *)
-
   type 'a t
   (** An ['a t] is a term that produces a value of type ['a]. *)
 
@@ -163,6 +152,13 @@ module type TERM = sig
       the term [f y]. Static analysis cannot look inside the [f] function until
       [x] is ready, so using [bind] makes static analysis less useful. You can
       use the [info] argument to provide some information here. *)
+
+  (** {2 Primitives} *)
+
+  type metadata
+  (** See [ANALYSIS]. *)
+
+  type 'a primitive
 
   val primitive : info:description -> ('a -> 'b primitive) -> 'a t -> 'b t
   (** [primitive ~info f x] is a term that evaluates [f] on each new value of [x].

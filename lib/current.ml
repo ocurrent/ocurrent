@@ -26,14 +26,12 @@ class type actions = object
   method rebuild : (unit -> job_id) option
 end
 
-module Primitive = struct
-  type nonrec job_id = job_id
+include Current_term.Make(String)
 
-  type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
+module Primitive = struct
+  type 'a t = 'a primitive
 
   let const x = Current_incr.const (Ok x, None)
-
-  let get (t : 'a t) = t
 
   let map_result fn t =
     Current_incr.of_cc begin
@@ -42,8 +40,6 @@ module Primitive = struct
       Current_incr.write (y, md)
     end
 end
-
-include Current_term.Make(Primitive)
 
 type 'a term = 'a t
 

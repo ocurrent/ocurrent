@@ -1,4 +1,4 @@
-module Make (Meta : sig type job_id end) = struct
+module Make (Metadata : sig type t end) = struct
   type 'a t = {
     id : Id.t;
     bind : bind_context;
@@ -16,7 +16,7 @@ module Make (Meta : sig type job_id end) = struct
     | Map of generic
     | Bind_in of generic * string
     | Bind_out of generic Current_incr.t
-    | Primitive of {x : generic; info : string; meta : Meta.job_id option Current_incr.t }
+    | Primitive of {x : generic; info : string; meta : Metadata.t option Current_incr.t }
     | Pair of generic * generic
     | Gate_on of { ctrl : generic; value : generic }
     | List_map of { items : generic; output : generic Current_incr.t }

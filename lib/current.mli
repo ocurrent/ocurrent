@@ -44,6 +44,10 @@ module Primitive : sig
       If [fn] raises an exception, this is converted to [Error]. *)
 end
 
+include Current_term.S.TERM with
+  type metadata := job_id and
+  type 'a primitive := 'a Primitive.t
+
 module Monitor : sig
   type 'a t
   (** An ['a t] is a monitor that outputs values of type ['a]. *)
@@ -72,14 +76,12 @@ module Monitor : sig
       released, the monitor will be disabled. Call this in your [let>] block. *)
 end
 
-include Current_term.S.TERM with type 'a primitive := 'a Primitive.t
-
 type 'a term = 'a t
 (** An alias of [t] to make it easy to refer to later in this file. *)
 
 module Analysis : Current_term.S.ANALYSIS with
   type 'a term := 'a t and
-  type job_id := job_id
+  type metadata := job_id
 
 module Var (T : Current_term.S.T) : sig
   type t
