@@ -1,4 +1,5 @@
 open Tyxml.Html
+open Lwt.Infix
 
 module Server = Cohttp_lwt_unix.Server
 module LM = Current.Log_matcher
@@ -29,8 +30,18 @@ let test_pattern pattern =
   let recent_jobs = Lazy.force get_recent_jobs in
   let jobs = Current.Db.query recent_jobs Sqlite3.Data.[ INT 10000L ] in
   let n_jobs = List.length jobs in
-  let results = jobs |> List.filter_map (function
+  let i = ref 0 in
+  jobs |> Lwt_list.filter_map_s (function
       | Sqlite3.Data.[ TEXT job_id ] ->
+        begin
+          if !i = 0 then (
+            i := 100;
+            Lwt_main.yield ()
+          ) else (
+            decr i;
+            Lwt.return_unit
+          )
+        end >|= fun () ->
         begin match Current.Job.log_path job_id with
           | Ok path ->
             let log_data =
@@ -47,7 +58,7 @@ let test_pattern pattern =
         end
       | row -> Fmt.failwith "Bad row from get_recent_jobs: %a" Current.Db.dump_row row
     )
-  in
+  >|= fun results ->
   let open Tyxml.Html in
   match results with
   | [] -> [p [txt (Fmt.strf "New pattern doesn't match anything in last %d jobs" n_jobs)]]
@@ -85,10 +96,10 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") () =
     | None -> []
     | Some msg -> [p [txt msg]]
   in
-  let test_results = match test with
-    | None -> []
+  begin match test with
+    | None -> Lwt.return []
     | Some p -> test_pattern p
-  in
+  end >>= fun test_results ->
   let body =
     Main.template (message @ [
         form ~a:[a_action "/log-rules"; a_method `Post] [
