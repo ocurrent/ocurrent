@@ -1,7 +1,7 @@
 (* Based on https://github.com/let-def/grenier/
    By Frédéric Bour. Relicensed to Apache 2.0 with permission. *)
 
-(** {0 Basic ordering operations} *)
+(** {1 Basic ordering operations} *)
 
 (** An element of an ordering. *)
 type t

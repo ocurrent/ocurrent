@@ -33,6 +33,12 @@ class type actions = object
       or [None] if it is not something that can be repeated. Returns the new job ID. *)
 end
 
+(** An OCurrent pipeline is made up of primitive operations.
+    A primitive is roughly the content of a single box in the diagram.
+
+    Warning: [Primitive] is the low-level API. You will almost always want to
+    use {!Current_cache} (for processing or publishing jobs) or {!Monitor} (for
+    inputs) instead. *)
 module Primitive : sig
   type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
 
@@ -48,6 +54,7 @@ include Current_term.S.TERM with
   type metadata := job_id and
   type 'a primitive := 'a Primitive.t
 
+(** A monitor is an input pipeline stage that can watch for external events. *)
 module Monitor : sig
   type 'a t
   (** An ['a t] is a monitor that outputs values of type ['a]. *)
@@ -79,10 +86,12 @@ end
 type 'a term = 'a t
 (** An alias of [t] to make it easy to refer to later in this file. *)
 
+(** Diagram generation, introspection, and statistics. *)
 module Analysis : Current_term.S.ANALYSIS with
   type 'a term := 'a t and
   type metadata := job_id
 
+(** Variable pipeline inputs. *)
 module Var (T : Current_term.S.T) : sig
   type t
   (** A variable with a current value of type [T.t Current_term.Output.t]. *)
@@ -108,8 +117,6 @@ module String : sig
 end
 
 module Unit : sig
-  (** Missing from the OCaml standard library. *)
-
   type t = unit
 
   val pp : t Fmt.t
@@ -120,10 +127,9 @@ module Unit : sig
   val unmarshal : string -> t
 end
 
+(** Like [Lwt_switch], but the cleanup functions are called in sequence, not
+    in parallel. *)
 module Switch : sig
-  (** Like [Lwt_switch], but the cleanup functions are called in sequence, not
-      in parallel. *)
-
   type t
   (** A switch limits the lifetime of an operation.
       Cleanup operations can be registered against the switch and will
@@ -156,15 +162,16 @@ module Switch : sig
   (** Prints the state of the switch (for debugging). *)
 end
 
+(** Resource pools, to control how many jobs can use a resource at a time. *)
 module Pool : sig
   type t
-  (** A pool of resources, to control how many jobs can use a resource at a time. *)
 
   val create : label:string -> int -> t
   (** [create ~label n] is a pool with [n] resources.
       @param label Used for metric reporting and logging. *)
 end
 
+(** Jobs with log files. This is mostly an internal interface - use {!Current_cache} instead. *)
 module Job : sig
   type t
 
@@ -251,6 +258,7 @@ module Job : sig
   val sleep : (float -> unit Lwt.t) ref
 end
 
+(** The main event loop. *)
 module Engine : sig
   type t
 
@@ -269,9 +277,9 @@ module Engine : sig
       one of its inputs changes. *)
 
   val update : unit -> unit
-  (** Trigger a reevaluation of the pipeline.
-      Primitives should call this whenever they might now produce a different result
-      (e.g. an active job becomes finished). *)
+  (** Primitives should call this after using {!Current_incr.change} to run
+      another step of the engine loop. This will (asynchronously) call
+      {!Current_incr.propagate} and perform any end-of-propagation activities. *)
 
   val state : t -> results
   (** The most recent results from evaluating the pipeline. *)
@@ -309,6 +317,7 @@ module Engine : sig
   end
 end
 
+(** Helper functions for spawning sub-processes. *)
 module Process : sig
   val exec :
     ?stdin:string ->
@@ -336,6 +345,7 @@ module Process : sig
       @param prefix Allows giving the directory a more meaningful name (for debugging). *)
 end
 
+(** Access to the sqlite database. *)
 module Db : sig
   type t = Sqlite3.db
 
@@ -366,6 +376,7 @@ module Db : sig
   (** Useful for debugging. *)
 end
 
+(** Analysing job logs. *)
 module Log_matcher : sig
   type rule = {
     pattern : string;

@@ -5,6 +5,7 @@
    bos
    current
    current.cache
+   current.term
    current_git
    dockerfile
    duration
