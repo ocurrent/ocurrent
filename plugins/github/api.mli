@@ -64,8 +64,8 @@ type token = {
 val get_token : t -> (string, [`Msg of string]) result Lwt.t
 (** [get_token t] returns the cached token for [t], or fetches a new one if it has expired. *)
 
-val input_webhook : unit -> unit
-(** Call this when we get a webhook event. *)
+val input_webhook : Yojson.Safe.t -> unit
+(** Call this when we get a "pull_request", "push" or "create" webhook event. *)
 
 val v : get_token:(unit -> token Lwt.t) -> string -> t
 (** [v ~get_token account] is a configuration that uses [get_token] when it needs to get or refresh the API token.
