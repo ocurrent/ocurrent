@@ -75,6 +75,8 @@ module Api : sig
 
     val pp : t Fmt.t
 
+    val compare : t -> t -> int
+
     val to_git : t -> string
     (** [to_git t] is the Git-format string of the ref, e.g."refs/pull/%d/head" *)
   end

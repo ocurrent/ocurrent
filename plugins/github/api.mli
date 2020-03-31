@@ -21,6 +21,7 @@ end
 
 module Ref : sig
   type t = [ `Ref of string | `PR of int ]
+  val compare : t -> t -> int
   val pp : t Fmt.t
   val to_git : t -> string
 end
