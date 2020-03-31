@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 module Repo_id = Repo_id
 module Api = Api
 module App = App
@@ -14,16 +16,17 @@ module Metrics = struct
     Counter.v_label ~label_name:"event" ~help ~namespace ~subsystem "webhook_events_total"
 end
 
-let input_webhook req _body =
+let input_webhook req body =
   Log.info (fun f -> f "input_webhook: %a" Cohttp_lwt.Request.pp_hum req);
   let headers = Cohttp.Request.headers req in
   let event = Cohttp.Header.get headers "X-GitHub-Event" in
   Log.info (fun f -> f "Got GitHub event %a" Fmt.(option ~none:(unit "NONE") (quote string)) event);
   Prometheus.Counter.inc_one (Metrics.webhook_events_total (Option.value event ~default:"NONE"));
+  Cohttp_lwt.Body.to_string body >|= Yojson.Safe.from_string >>= fun body ->
   begin match event with
     | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
     | Some "installation" -> App.input_installation_webhook ()
-    | Some ("pull_request" | "push" | "create") -> Api.input_webhook ()
+    | Some ("pull_request" | "push" | "create") -> Api.input_webhook body
     | Some x -> Log.warn (fun f -> f "Unknown GitHub event type %S" x)
     | None -> Log.warn (fun f -> f "Missing GitHub event type in webhook!")
   end;
