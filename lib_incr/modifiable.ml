@@ -227,8 +227,10 @@ let rec propagate2 () =
 
 let propagate () =
   assert (not !in_propagate);
-  in_propagate := true;
   let ctime = !now in
-  propagate2 ();
-  now := ctime;
-  in_propagate := false
+  in_propagate := true;
+  Fun.protect propagate2
+    ~finally:(fun () ->
+        now := ctime;
+        in_propagate := false
+      )
