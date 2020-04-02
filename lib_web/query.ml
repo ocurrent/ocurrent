@@ -1,15 +1,9 @@
 open Tyxml.Html
 module Db = Current_cache.Db
 
-let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
-
 let render_value = function
   | Ok _ -> txt "OK"
   | Error (`Msg m) -> span ~a:[a_class ["error"]] [txt m]
-
-let string_of_timestamp time =
-  let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } = time in
-  Fmt.strf "%04d-%02d-%02d %02d:%02d:%02d" (tm_year + 1900) (tm_mon + 1) tm_mday tm_hour tm_min tm_sec
 
 let render_row { Db.job_id; build; value = _; rebuild; ready = _; running = _; finished; outcome } =
   let job = Fmt.strf "/job/%s" job_id in
@@ -18,7 +12,7 @@ let render_row { Db.job_id; build; value = _; rebuild; ready = _; running = _; f
     td [ txt (Int64.to_string build) ];
     td [ render_value outcome ];
     td [ txt (if rebuild then "Needs rebuild" else "-") ];
-    td [ txt (string_of_timestamp (Unix.gmtime finished)) ];
+    td [ txt (Utils.string_of_timestamp (Unix.gmtime finished)) ];
   ]
 
 let bool_param name uri =
@@ -64,3 +58,12 @@ let render uri =
         ])
       (List.map render_row results)
   ]
+
+let r = object
+  inherit Resource.t
+
+  method! private get request =
+    let uri = Cohttp.Request.uri request in
+    let body = render uri in
+    Utils.Server.respond_string ~status:`OK ~body ()
+end

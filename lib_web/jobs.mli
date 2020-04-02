@@ -1,3 +1,3 @@
 (** The /jobs page *)
 
-val render : unit -> string
+val r : Resource.t
