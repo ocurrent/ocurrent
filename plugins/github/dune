@@ -16,7 +16,8 @@
    logs
    lwt
    lwt.unix
-   nocrypto
+   mirage-crypto
+   mirage-crypto-pk
    prometheus
    result
    rresult
