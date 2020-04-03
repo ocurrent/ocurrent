@@ -123,7 +123,7 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") () =
           input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
           input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
           input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
-          input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Main.csrf_token] ();
+          input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] ();
         ]
       ] @ [pattern_hints] @ test_results)
   in
@@ -172,4 +172,13 @@ let handle_post data =
     Server.respond_error ~body:"Bad form submission" ()
   )
 
-let render () = render ()
+let r = object
+  inherit Resource.t
+
+  method! private get _request =
+    render ()
+
+  method! private post _request body =
+    let data = Uri.query_of_encoded body in
+    handle_post data
+end
