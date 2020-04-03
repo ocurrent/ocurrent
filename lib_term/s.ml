@@ -131,6 +131,8 @@ module type TERM = sig
   val gate : on:unit t -> 'a t -> 'a t
   (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
 
+  (** {2 Diagram control} *)
+
   val collapse : key:string -> value:string -> input:_ t -> 'a t -> 'a t
   (** [collapse ~key ~value ~input t] is a term that behaves just like [t], but
       when shown in a diagram it can be expanded or collapsed. When collapsed,
@@ -141,6 +143,11 @@ module type TERM = sig
       not. For example
       [collapse ~key:"repo" ~value:"mirage/mirage-www" ~input:repo (process repo)]
       Note: [list_map ~collapse_key] provides an easy way to use this. *)
+
+  val with_context : _ t -> (unit -> 'a t) -> 'a t
+  (** [with_context ctx f] is the term [f ()], where [f] is evaluated in
+      context [ctx]. This means that [ctx] will be treated as an input to all
+      terms created by [f] in the diagrams. *)
 
   (** {2 Monadic operations} *)
 
