@@ -32,6 +32,7 @@
    lwt.unix
    prometheus
    result
+   routes
    uri
    ppx_deriving_yojson.runtime
    yojson)

@@ -44,9 +44,10 @@ let main config mode capnp repo =
     output_string ch (Uri.to_string uri ^ "\n");
     close_out ch;
     Logs.app (fun f -> f "Wrote capability reference to %S" cap_file);
+    let routes = Current_web.routes engine in
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode engine;
+      Current_web.run ~mode routes;
     ]
   end
 

@@ -41,16 +41,16 @@ let pipeline ~github ~repo () =
   |> Current.map github_status_of_state
   |> Github.Api.Commit.set_status head "ocurrent"
 
-let webhooks = [
-  "github", Github.input_webhook
-]
-
 let main config mode github repo =
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
+  let routes =
+    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+    Current_web.routes engine
+  in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode ~webhooks engine;
+      Current_web.run ~mode routes;
     ]
   end
 

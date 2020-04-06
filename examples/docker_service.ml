@@ -28,10 +28,11 @@ let pipeline ~repo ~service () =
 let main config mode service repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo ~service) in
+  let routes = Current_web.routes engine in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode engine;
+      Current_web.run ~mode routes;
     ]
   end
 

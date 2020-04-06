@@ -12,6 +12,7 @@
    current.cache
    current.term
    current_git
+   current_web
    fmt
    logs
    lwt
