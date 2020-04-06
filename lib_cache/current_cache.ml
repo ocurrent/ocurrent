@@ -17,6 +17,11 @@ module Metrics = struct
     Counter.v ~help ~namespace ~subsystem "evaluations_total"
 end
 
+(* For each live job, the (op, key) of the database entry it will create.
+   This is used to show build history for live jobs, which aren't yet in the database. *)
+let key_of_job_id = Hashtbl.create 10
+let job_id_of_key = Hashtbl.create 10
+
 module Schedule = struct
   type t = {
     valid_for : Duration.t option;
@@ -202,7 +207,8 @@ module Output(Op : S.PUBLISHER) = struct
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let job = Job.create ~switch ~label:Op.id ~config () in
-    output.job_id <- Some (Job.id job);
+    let job_id = Job.id job in
+    output.job_id <- Some job_id;
     let op = { value = output.desired; job; autocancelled = false } in
     let ready = !Job.timestamp () |> Unix.gmtime in
     output.op <- `Active op;
@@ -214,6 +220,9 @@ module Output(Op : S.PUBLISHER) = struct
          Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
          notify output
       );
+    let key_digest = Op.Key.digest output.key in
+    Hashtbl.add key_of_job_id job_id (Op.id, key_digest);
+    Hashtbl.add job_id_of_key (Op.id, key_digest) job_id;
     Lwt.async
       (fun () ->
          Lwt.finalize
@@ -258,7 +267,7 @@ module Output(Op : S.PUBLISHER) = struct
                 let job_id = Job.id job in
                 let outcome = Stdlib.Result.map Op.Outcome.marshal outcome in
                 Db.record ~op:Op.id ~job_id
-                  ~key:(Op.Key.digest output.key)
+                  ~key:key_digest
                   ~value:(Value.digest op.value)
                   ~ready ~running ~finished:end_time
                   ~build:output.build_number
@@ -267,6 +276,8 @@ module Output(Op : S.PUBLISHER) = struct
               )
            )
            (fun () ->
+              Hashtbl.remove key_of_job_id (Job.id job);
+              Hashtbl.remove job_id_of_key (Op.id, key_digest);
               Current.Switch.turn_off switch >|= fun () ->
               (* While we were working, we might have decided we wanted something else.
                  If so, start that now. *)
@@ -484,4 +495,19 @@ end
 
 module S = S
 
-module Db = Db
+module Db = struct
+  include Db
+
+  let history ~limit ~job_id =
+    let key =
+      match Hashtbl.find_opt key_of_job_id job_id with
+      | None -> Db.lookup_job_id job_id
+      | Some _ as k -> k
+    in
+    match key with
+    | None -> None, []
+    | Some (op, key) ->
+      let complete = Db.history ~limit ~op key in
+      let active = Hashtbl.find_opt job_id_of_key (op, key) in
+      active, complete
+end

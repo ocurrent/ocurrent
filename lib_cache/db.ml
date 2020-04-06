@@ -15,6 +15,7 @@ type t = {
   invalidate : Sqlite3.stmt;
   drop : Sqlite3.stmt;
   lookup : Sqlite3.stmt;
+  get_key : Sqlite3.stmt;
 }
 
 type entry = {
@@ -48,17 +49,18 @@ let db = lazy (
   let record = Sqlite3.prepare db "INSERT OR REPLACE INTO cache \
                                    (op, key, job_id, value, ok, outcome, ready, running, finished, build) \
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" in
-  let lookup = Sqlite3.prepare db "SELECT value, job_id, ok, outcome, \
+  let lookup = Sqlite3.prepare db "SELECT job_id, value, ok, outcome, \
                                           strftime('%s', ready), \
                                           strftime('%s', running), \
                                           strftime('%s', finished), \
                                           rebuild, build \
                                    FROM cache WHERE op = ? AND key = ? \
                                    ORDER BY build DESC \
-                                   LIMIT 1" in
+                                   LIMIT ?" in
+  let get_key = Sqlite3.prepare db "SELECT op, key FROM cache WHERE job_id = ? LIMIT 1" in
   let invalidate = Sqlite3.prepare db "UPDATE cache SET rebuild = 1 WHERE op = ? AND key = ?" in
   let drop = Sqlite3.prepare db "DELETE FROM cache WHERE op = ?" in
-  { db; record; invalidate; drop; lookup }
+  { db; record; invalidate; drop; lookup; get_key }
 )
 
 let init () =
@@ -87,13 +89,10 @@ let invalidate ~op key =
   let t = Lazy.force db in
   Db.exec t.invalidate Sqlite3.Data.[ TEXT op; BLOB key ]
 
-let lookup ~op key =
-  let t = Lazy.force db in
-  match Db.query_some t.lookup Sqlite3.Data.[ TEXT op; BLOB key ] with
-  | None -> None
-  | Some Sqlite3.Data.[ BLOB value; TEXT job_id; INT ok; BLOB outcome;
-                        TEXT ready; running; TEXT finished;
-                        INT rebuild; INT build ] ->
+let entry_of_row = function
+  | Sqlite3.Data.[ TEXT job_id; BLOB value; INT ok; BLOB outcome;
+                   TEXT ready; running; TEXT finished;
+                   INT rebuild; INT build ] ->
     let ready = float_of_string ready in
     let running =
       match running with
@@ -104,8 +103,25 @@ let lookup ~op key =
     let finished = float_of_string finished in
     let outcome = if ok = 1L then Ok outcome else Error (`Msg outcome) in
     let rebuild = rebuild = 1L in
-    Some { value; job_id; outcome; ready; running; finished; rebuild; build }
-  | Some _ -> Fmt.failwith "Invalid row from lookup!"
+    { value; job_id; outcome; ready; running; finished; rebuild; build }
+  | row -> Fmt.failwith "Invalid entry: %a" Current.Db.dump_row row
+
+let lookup ~op key =
+  let t = Lazy.force db in
+  Db.query_some t.lookup Sqlite3.Data.[ TEXT op; BLOB key; INT 1L ]
+  |> Option.map entry_of_row
+
+let history ~limit ~op key =
+  let t = Lazy.force db in
+  Db.query t.lookup Sqlite3.Data.[ TEXT op; BLOB key; INT (Int64.of_int limit) ]
+  |> List.map entry_of_row
+
+let lookup_job_id job_id =
+  let t = Lazy.force db in
+  Db.query_some t.get_key Sqlite3.Data.[ TEXT job_id ] |> function
+  | None -> None
+  | Some Sqlite3.Data.[TEXT op; BLOB key] -> Some (op, key)
+  | Some row -> Fmt.failwith "Invalid get_key result: %a" Current.Db.dump_row row
 
 let drop_all op =
   let t = Lazy.force db in
@@ -131,11 +147,11 @@ let query ?op ?ok ?rebuild () =
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (
-      Fmt.strf "SELECT build, ok, outcome, rebuild, value,
+      Fmt.strf "SELECT job_id, value, ok, outcome,
                 strftime('%%s', ready),
                 strftime('%%s', running),
                 strftime('%%s', finished),
-                job_id \
+                rebuild, build
                 FROM cache \
                 %a \
                 ORDER BY finished DESC \
@@ -145,17 +161,4 @@ let query ?op ?ok ?rebuild () =
   in
   Fun.protect ~finally:(finalize query) @@ fun () ->
   Db.query query (List.map snd tests)
-  |> List.map @@ function
-  | Sqlite3.Data.[INT build; INT ok; BLOB outcome; INT rebuild; BLOB value; TEXT ready; running; TEXT finished; TEXT job_id] ->
-    let outcome = if ok = 1L then Ok outcome else Error (`Msg outcome) in
-    let rebuild = rebuild <> 0L in
-    let ready = float_of_string ready in
-    let running =
-      match running with
-      | Sqlite3.Data.TEXT running -> Some (float_of_string running)
-      | NULL -> None
-      | _ -> assert false
-    in
-    let finished = float_of_string finished in
-    { build; value; rebuild; ready; running; finished; job_id; outcome }
-  | _ -> Fmt.failwith "Invalid row from query!"
+  |> List.map entry_of_row
