@@ -39,3 +39,8 @@ val invalidate : op:string -> string -> unit
 
 val query : ?op:string -> ?ok:bool -> ?rebuild:bool ->unit -> entry list
 (** Search the database for matching records. *)
+
+val lookup_job_id : string -> (string * string) option
+(** [lookup_job_id x] is the (op, key) of job [x], if known. *)
+
+val history : limit:int -> op:string -> string -> entry list

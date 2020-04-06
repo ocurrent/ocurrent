@@ -76,6 +76,20 @@ let css = {|
   table pre {
     margin: 0;
   }
+
+  div.build-history ol {
+    display: inline;
+    padding: 0;
+  }
+
+  div.build-history ol li {
+    display: inline
+  }
+
+  div.build-history ol li + li:before {
+      content: ", ";
+      padding: 0 .2em;
+  }
 |} ^ Current_ansi.css
 
 let r = object

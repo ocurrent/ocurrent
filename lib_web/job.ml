@@ -47,8 +47,33 @@ let render ~actions ~job_id ~log:path =
       ]
     | _ -> []
   in
+  let job_item ~label id =
+    let label = txt label in
+    if id = job_id then b [label]
+    else a ~a:[a_href (Fmt.strf "/job/%s" id)] [label]
+  in
+  let history =
+    match Current_cache.Db.history ~limit:10 ~job_id with
+    | None, [] -> []
+    | current, past ->
+      let items = past |> List.map (fun entry ->
+          let label = Int64.to_string entry.Current_cache.Db.build in
+          let item = job_item ~label entry.job_id in
+          li [item]
+        ) in
+      let items =
+        match current with
+        | None -> items
+        | Some id -> li [job_item id ~label:"(building)"] :: items
+      in
+      [div ~a:[a_class ["build-history"]]
+         [txt "Build: ";
+          ol items]
+      ]
+  in
   let tmpl =
     Main.template (
+      history @
       rebuild_button @
       cancel_button @
       start_button @
