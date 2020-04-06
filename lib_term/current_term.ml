@@ -71,11 +71,15 @@ module Make (Metadata : sig type t end) = struct
 
   let map f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ Current_incr.map (Dyn.map ~id f) x.v
+    node ~id (Map (Term x)) @@
+    with_bind_context (Term x) @@ fun () ->
+    Current_incr.map (Dyn.map ~id f) x.v
 
   let map_error f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ Current_incr.map (Dyn.map_error ~id f) x.v
+    node ~id (Map (Term x)) @@
+    with_bind_context (Term x) @@ fun () ->
+    Current_incr.map (Dyn.map_error ~id f) x.v
 
   let ignore_value x = map ignore x
 
