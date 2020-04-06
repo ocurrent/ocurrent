@@ -1,9 +1,24 @@
 open Tyxml.Html
 open Astring
+open Lwt.Infix
 
 let sep = "@@LOG@@"
 
-let render ~actions ~job_id ~log =
+let max_log_chunk_size = 102400L  (* 100K at a time *)
+
+let read ~start path =
+  let ch = open_in_bin (Fpath.to_string path) in
+  Fun.protect ~finally:(fun () -> close_in ch) @@ fun () ->
+  let len = LargeFile.in_channel_length ch in
+  let (+) = Int64.add in
+  let (-) = Int64.sub in
+  let start = if start < 0L then len + start else start in
+  let start = if start < 0L then 0L else if start > len then len else start in
+  LargeFile.seek_in ch start;
+  let len = min max_log_chunk_size (len - start) in
+  really_input_string ch (Int64.to_int len), start + len
+
+let render ~actions ~job_id ~log:path =
   let ansi = Current_ansi.create () in
   let action op = a_action (Fmt.strf "/job/%s/%s" job_id op) in
   let rebuild_button =
@@ -45,12 +60,23 @@ let render ~actions ~job_id ~log =
   | Some (pre, post) ->
     let i = ref `Pre in
     let stream =
-      Lwt_stream.from_direct (fun () ->
+      Lwt_stream.from (fun () ->
           match !i with
-          | `Pre -> i := `Log; Some pre
-          | `Log -> i := `Post; Some (Current_ansi.process ansi log)
-          | `Post -> i := `Done; Some post
-          | `Done -> None
+          | `Pre -> i := `Log 0L; Lwt.return_some pre
+          | `Log start ->
+            let rec aux () =
+              begin match read ~start path with
+                | "", _ ->
+                  begin match Current.Job.lookup_running job_id with
+                    | None -> i := `Done; Lwt.return_some post
+                    | Some job -> Current.Job.wait_for_log_data job >>= aux
+                  end
+                | (data, next) ->
+                  i := `Log next;
+                  Lwt.return_some (Current_ansi.process ansi data)
+              end
+            in aux ()
+          | `Done -> Lwt.return_none
         )
     in
     Cohttp_lwt.Body.of_stream stream
@@ -77,15 +103,12 @@ let job ~engine ~job_id = object
     match Current.Job.log_path job_id with
     | Error (`Msg msg) -> Utils.respond_error `Bad_request msg
     | Ok path ->
-      match Bos.OS.File.read path with
-      | Error (`Msg msg) -> Utils.respond_error `Internal_server_error msg
-      | Ok log ->
-        let body = render ~actions ~job_id ~log in
-        let headers =
-          (* Otherwise, an nginx reverse proxy will wait for the whole log before sending anything. *)
-          Cohttp.Header.init_with "X-Accel-Buffering" "no"
-        in
-        Utils.Server.respond ~status:`OK ~headers ~body ()
+      let body = render ~actions ~job_id ~log:path in
+      let headers =
+        (* Otherwise, an nginx reverse proxy will wait for the whole log before sending anything. *)
+        Cohttp.Header.init_with "X-Accel-Buffering" "no"
+      in
+      Utils.Server.respond ~status:`OK ~headers ~body ()
 end
 
 let rebuild ~engine ~job_id= object
