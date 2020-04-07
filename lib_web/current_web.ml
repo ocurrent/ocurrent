@@ -1,8 +1,12 @@
+module User = User
+module Role = Role
 module Site = Site
 module Context = Context
 
 let metrics ~engine = object
   inherit Resource.t
+
+  val! can_get = `Monitor
 
   method! private get _ctx =
     Current.Engine.(update_metrics engine);
@@ -43,6 +47,7 @@ let routes engine =
     s "metrics" /? nil @--> metrics ~engine;
     s "set" / s "confirm" /? nil @--> set_confirm ~engine;
     s "jobs" /? nil @--> Jobs.r;
+    s "logout" /? nil @--> Resource.logout;
   ] @ Job.routes ~engine
 
 let handle_request ~site routes _conn request body =

@@ -4,6 +4,7 @@ module Repo_id = Repo_id
 module Api = Api
 module App = App
 module Installation = Installation
+module Auth = Auth
 
 module Metrics = struct
   open Prometheus

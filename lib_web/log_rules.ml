@@ -100,6 +100,7 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
     | None -> Lwt.return []
     | Some p -> test_pattern p
   end >>= fun test_results ->
+  let csrf = Context.csrf ctx in
   Context.respond_ok ctx (message @ [
       form ~a:[a_action "/log-rules"; a_method `Post] [
         table ~a:[a_class ["table"; "log-rules"]]
@@ -122,7 +123,7 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
         input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
         input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
         input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
-        input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] ();
+        input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
       ]
     ] @ [pattern_hints] @ test_results)
 
@@ -171,6 +172,8 @@ let handle_post ctx data =
 
 let r = object
   inherit Resource.t
+
+  val! can_get = `Viewer
 
   method! private get ctx = render ctx
 

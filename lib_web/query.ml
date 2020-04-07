@@ -39,6 +39,8 @@ let bool_option name value =
 let r = object
   inherit Resource.t
 
+  val! can_get = `Viewer
+
   method! private get ctx =
     let uri = Context.uri ctx in
     let ok = bool_param "ok" uri in

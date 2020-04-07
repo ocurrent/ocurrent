@@ -54,7 +54,7 @@ let pipeline ~app () =
 let main config mode app =
   Logging.run begin
     let engine = Current.Engine.create ~config (pipeline ~app) in
-    let site = Current_web.Site.v ~name:program_name () in
+    let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name () in
     let routes =
       Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
       Current_web.routes engine

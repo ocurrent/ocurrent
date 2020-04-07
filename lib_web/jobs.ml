@@ -18,6 +18,8 @@ let render_row (id, job) =
 let r = object
   inherit Resource.t
 
+  val! can_get = `Viewer
+
   method! private get ctx =
     let jobs = Current.Job.jobs () in
     Context.respond_ok ctx (
