@@ -367,7 +367,7 @@ module Output(Op : S.PUBLISHER) = struct
         if remaining_time <= 0.0 then (
           Log.info (fun f -> f "Result for %a has expired" pp_op (key, value));
           invalidate key;
-          Current.Engine.update ()    (* Trigger an immediate recalculation *)
+          notify o   (* Trigger an immediate recalculation *)
         ) else (
           limit_expires o expires
         );
@@ -452,7 +452,7 @@ module Output(Op : S.PUBLISHER) = struct
           match o.op with
           | `Finished x -> Ok x
           | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t)
-          | `Retry -> Error (`Msg "(retry)")        (* (probably can't happen) *)
+          | `Retry -> Error (`Active `Running)
           | `Active op ->
             let a =
               let started = Job.start_time op.job in
