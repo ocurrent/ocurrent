@@ -8,51 +8,69 @@
 
 open Current.Syntax
 
-module Docker = Current_docker.Default
-
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 let () = Logging.init ()
 
 module Test = struct
+  module Raw = Current_docker.Raw
+
   open Lwt.Infix
 
   let id = "docker-custom-test"         (* A unique ID for the results database *)
 
   type t = No_context
 
-  module Key = Docker.Image
+  module Key = struct
+    type t = {
+      docker_context : string option;
+      image : Raw.Image.t;
+    }
+
+    let digest { image; docker_context } =
+      Yojson.Safe.to_string @@ `Assoc [
+        "docker_context", [%derive.to_yojson:string option] docker_context;
+        "image", `String (Raw.Image.hash image);
+      ]
+
+    let pp f t =
+        Fmt.pf f "Test %a" Raw.Image.pp t.image
+  end
+
   module Value = Current.Unit
 
-  let run image = Docker.Cmd.docker ["container"; "run"; "-d"; Docker.Image.hash image]
-  let exec id args = Docker.Cmd.docker ("container" :: "exec" :: "-i" :: id :: args)
+  let run image = Raw.Cmd.docker ["container"; "run"; "-d"; Raw.Image.hash image]
+  let exec id args = Raw.Cmd.docker ("container" :: "exec" :: "-i" :: id :: args)
 
   (* The test command to run. You might want to make this part of the key if it
      should be configurable. *)
   let test_command = ["curl"; "-Ss"; "--fail"; "http://localhost/"]
 
-  let build No_context job image =
+  let build No_context job { Key.docker_context; image } =
     Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
     (* Start the container running: *)
-    Docker.Cmd.with_container ~job ~kill_on_cancel:true (run image) @@ fun id ->
+    Raw.Cmd.with_container ~docker_context ~job ~kill_on_cancel:true (run image ~docker_context) @@ fun id ->
     Current.Job.log job "Waiting 1 second to let HTTP server start...";
     Lwt_unix.sleep 1.0 >>= fun () ->
     (* Test the container's service: *)
-    Current.Process.exec ~cancellable:true ~job (exec id test_command)
+    Current.Process.exec ~cancellable:true ~job (exec id test_command ~docker_context)
 
   let auto_cancel = true
 
-  let pp f image =
-    Fmt.pf f "Test %a" Docker.Image.pp image
+  let pp = Key.pp
 end
 
 module Test_cache = Current_cache.Make(Test)
+
+module Docker = Current_docker.Default
 
 (* Test a Docker image by running it and then execing curl inside it. *)
 let test image =
   Current.component "test with@,@[<h>%a@]" Fmt.(list ~sep:sp string) Test.test_command |>
   let> image = image in
-  Test_cache.get Test.No_context image
+  let docker_context = Docker.docker_context in
+  let image = Docker.Image.hash image |> Current_docker.Raw.Image.of_hash in
+  Test_cache.get Test.No_context { Test.Key.docker_context; image }
 
 (* Build a docker image with nginx and curl and then test it. *)
 let pipeline () =
