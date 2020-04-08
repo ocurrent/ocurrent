@@ -12,8 +12,8 @@ let pp_targets ppf filenames =
 
 let pp_runtest ppf filename =
   Fmt.pf ppf
-    {|(alias
- (name runtest)
+    {|(rule
+ (alias runtest)
  (package current)
  (action (diff expected/%s %s)))
 |}
@@ -28,4 +28,3 @@ let () =
   |> List.sort String.compare
   |> List.filter is_testcase
   |> Fmt.(pp_duneinc ++ flush) Fmt.stdout
-
