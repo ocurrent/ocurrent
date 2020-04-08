@@ -18,7 +18,7 @@ let read ~start path =
   let len = min max_log_chunk_size (len - start) in
   really_input_string ch (Int64.to_int len), start + len
 
-let render ~actions ~job_id ~log:path =
+let render ctx ~actions ~job_id ~log:path =
   let ansi = Current_ansi.create () in
   let action op = a_action (Fmt.strf "/job/%s/%s" job_id op) in
   let rebuild_button =
@@ -72,7 +72,7 @@ let render ~actions ~job_id ~log:path =
       ]
   in
   let tmpl =
-    Main.template (
+    Context.template ctx (
       history @
       rebuild_button @
       cancel_button @
@@ -123,12 +123,12 @@ let lookup_actions ~engine job_id =
 let job ~engine ~job_id = object
   inherit Resource.t
 
-  method! private get _request =
+  method! private get ctx =
     let actions = lookup_actions ~engine job_id in
     match Current.Job.log_path job_id with
-    | Error (`Msg msg) -> Utils.respond_error `Bad_request msg
+    | Error (`Msg msg) -> Context.respond_error ctx `Bad_request msg
     | Ok path ->
-      let body = render ~actions ~job_id ~log:path in
+      let body = render ctx ~actions ~job_id ~log:path in
       let headers =
         (* Otherwise, an nginx reverse proxy will wait for the whole log before sending anything. *)
         Cohttp.Header.init_with "X-Accel-Buffering" "no"
@@ -139,10 +139,10 @@ end
 let rebuild ~engine ~job_id= object
   inherit Resource.t
 
-  method! private post _request _body =
+  method! private post ctx  _body =
     let actions = lookup_actions ~engine job_id in
     match actions#rebuild with
-    | None -> Utils.respond_error `Bad_request "Job does not support rebuild"
+    | None -> Context.respond_error ctx `Bad_request "Job does not support rebuild"
     | Some rebuild ->
       let new_id = rebuild () in
       Utils.Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ new_id)) ()
@@ -151,24 +151,24 @@ end
 let cancel ~job_id = object
   inherit Resource.t
 
-  method! private post _request _body =
+  method! private post ctx _body =
     match Current.Job.lookup_running job_id with
-    | None -> Utils.respond_error `Bad_request "Job does not support cancel (already finished?)"
+    | None -> Context.respond_error ctx `Bad_request "Job does not support cancel (already finished?)"
     | Some job ->
       Current.Job.cancel job "Cancelled by user";
-      Utils.Server.respond_redirect ~uri:(Uri.of_string "/") ()
+      Context.respond_redirect ctx (Uri.of_string "/")
 end
 
 let start ~job_id = object
   inherit Resource.t
 
-  method! private post _request _body =
+  method! private post ctx _body =
     match Current.Job.lookup_running job_id with
-    | None -> Utils.respond_error `Bad_request "Job is not awaiting confirmation"
+    | None -> Context.respond_error ctx `Bad_request "Job is not awaiting confirmation"
     | Some j ->
       Current.Job.approve_early_start j;
       let id = Current.Job.id j in
-      Utils.Server.respond_redirect ~uri:(Uri.of_string ("/job/" ^ id)) ()
+      Context.respond_redirect ctx (Uri.of_string ("/job/" ^ id))
 end
 
 let id ~date ~log = Fmt.strf "%s/%s" date log

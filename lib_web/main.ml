@@ -1,35 +1,10 @@
 open Tyxml.Html
 
-let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
-
 let render_result = function
   | Ok () -> [txt "Success!"]
   | Error (`Active `Ready) -> [txt "Ready..."]
   | Error (`Active `Running) -> [txt "Running..."]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]
-
-let template contents =
-  html_to_string (
-    html
-      (head (title (txt "OCurrent")) [
-          link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
-          meta ~a:[a_charset "UTF-8"] ();
-        ]
-      )
-      (body [
-          nav [
-            ul [
-              li [a ~a:[a_href "/"] [txt "OCurrent"]];
-              li [a ~a:[a_href "/"] [txt "Home"]];
-              li [a ~a:[a_href "/jobs"] [txt "Jobs"]];
-              li [a ~a:[a_href "/query"] [txt "Query"]];
-              li [a ~a:[a_href "/log-rules"] [txt "Log analysis"]];
-            ]
-          ];
-          div ~a:[a_id "main"] contents
-        ]
-      )
-  )
 
 let settings config =
   let selected = Current.Config.get_confirm config in
@@ -50,25 +25,21 @@ let settings config =
     input ~a:[a_input_type `Submit; a_value "Submit"] ();
   ]
 
-let dashboard ~uri engine =
-  let config = Current.Engine.config engine in
-  let { Current.Engine.value; jobs = _ } = Current.Engine.state engine in
-  let path = "/pipeline.svg?" ^ (Option.value (Uri.verbatim_query uri) ~default:"") in
-  template [
-    div [
-      object_ ~a:[a_data path] [txt "Pipeline diagram"];
-    ];
-    h2 [txt "Result"];
-    p (render_result value);
-    h2 [txt "Settings"];
-    settings config;
-  ]
-
 let r ~engine = object
   inherit Resource.t
 
-  method! private get request =
-    let uri = Cohttp.Request.uri request in
-    let body = dashboard ~uri engine in
-    Utils.Server.respond_string ~status:`OK ~body ()
+  method! private get ctx =
+    let uri = Context.uri ctx in
+    let config = Current.Engine.config engine in
+    let { Current.Engine.value; jobs = _ } = Current.Engine.state engine in
+    let path = "/pipeline.svg?" ^ (Option.value (Uri.verbatim_query uri) ~default:"") in
+    Context.respond_ok ctx [
+      div [
+        object_ ~a:[a_data path] [txt "Pipeline diagram"];
+      ];
+      h2 [txt "Result"];
+      p (render_result value);
+      h2 [txt "Settings"];
+      settings config;
+    ]
 end

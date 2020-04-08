@@ -2,7 +2,8 @@ open Lwt.Infix
 
 let dot_to_svg = ("", [| "dot"; "-Tsvg" |])
 
-let render_svg ~uri a =
+let render_svg ctx a =
+  let uri = Context.uri ctx in
   let env = Uri.query uri |> List.filter_map (function
       | (_, []) -> None
       | (k, v :: _) -> Some (k, v)
@@ -28,12 +29,11 @@ let render_svg ~uri a =
 let r ~engine = object
   inherit Resource.t
 
-  method! private get request =
-    let uri = Cohttp.Request.uri request in
-    render_svg ~uri (Current.Engine.pipeline engine) >>= function
+  method! private get ctx =
+    render_svg ctx (Current.Engine.pipeline engine) >>= function
     | Ok body ->
       let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in
       Utils.Server.respond_string ~status:`OK ~headers ~body ()
     | Error (`Msg msg) ->
-      Utils.respond_error `Internal_server_error msg
+      Context.respond_error ctx `Internal_server_error msg
 end

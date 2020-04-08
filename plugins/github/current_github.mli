@@ -1,7 +1,7 @@
 (** Integration with GitHub. *)
 
-val input_webhook : Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-(** Call this whenever an HTTP request is received on the web-hook endpoint. *)
+val webhook : Current_web.Resource.t
+(** Our web-hook endpoint. This must be added to {!Current_web.routes} so that we get notified of events. *)
 
 module Repo_id : sig
   (** Identifies a repository hosted on GitHub. *)

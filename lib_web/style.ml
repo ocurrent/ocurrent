@@ -95,7 +95,7 @@ let css = {|
 let r = object
   inherit Resource.t
 
-  method! private get _request =
+  method! private get _ctx =
     let headers = Cohttp.Header.init_with "Content-Type" "text/css" in
     Utils.Server.respond_string ~status:`OK ~headers ~body:css ()
     (*   Server.respond_file ~fname:"style.css" () *)

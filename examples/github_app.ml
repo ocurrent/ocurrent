@@ -2,6 +2,8 @@
    It monitors all GitHub repositories the app is asked to handle, and uses
    Docker to build the latest version on all branches and PRs. *)
 
+let program_name = "github_app"
+
 open Current.Syntax
 
 module Git = Current_git
@@ -49,16 +51,17 @@ let pipeline ~app () =
   |> Current.map github_status_of_state
   |> Github.Api.Commit.set_status head "ocurrent"
 
-let webhooks = [
-  "github", Github.input_webhook
-]
-
 let main config mode app =
   Logging.run begin
     let engine = Current.Engine.create ~config (pipeline ~app) in
+    let site = Current_web.Site.v ~name:program_name () in
+    let routes =
+      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+      Current_web.routes engine
+    in
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode ~webhooks engine;
+      Current_web.run ~mode ~site routes;
     ]
   end
 
@@ -69,6 +72,6 @@ open Cmdliner
 let cmd =
   let doc = "Monitor a GitHub app's repositories." in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner),
-  Term.info "github" ~doc
+  Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

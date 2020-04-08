@@ -19,6 +19,7 @@ build: [
 depends: [
   "current" {= version}
   "current_git" {= version}
+  "current_web" {= version}
   "ocaml" {>= "4.08.0"}
   "fmt"
   "lwt"

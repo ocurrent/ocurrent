@@ -11,6 +11,8 @@
    $ dune exec -- ./examples/docker_service.exe --service=my-service /src/service
 *)
 
+let program_name = "docker_service"
+
 module Git = Current_git
 module Docker = Current_docker.Default
 
@@ -28,10 +30,12 @@ let pipeline ~repo ~service () =
 let main config mode service repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo ~service) in
+  let site = Current_web.Site.v ~name:program_name () in
+  let routes = Current_web.routes engine in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode engine;
+      Current_web.run ~mode ~site routes;
     ]
   end
 
@@ -58,6 +62,6 @@ let repo =
 let cmd =
   let doc = "Keep a Docker SwarmKit service up-to-date." in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ service $ repo),
-  Term.info "docker_service" ~doc
+  Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)
