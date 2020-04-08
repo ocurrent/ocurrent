@@ -20,5 +20,5 @@ depends: [
   "astring"
   "fmt"
   "tyxml"
-  "dune" {>= "1.9"}
+  "dune" {>= "2.0"}
 ]

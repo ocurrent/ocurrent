@@ -27,5 +27,5 @@ depends: [
   "cohttp-lwt-unix" {>= "2.2.0"}
   "tyxml"
   "routes" {>= "0.7.0"}
-  "dune" {>= "1.9"}
+  "dune" {>= "2.0"}
 ]
