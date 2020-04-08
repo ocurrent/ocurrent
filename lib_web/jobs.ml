@@ -15,27 +15,23 @@ let render_row (id, job) =
     td [ txt start_time ];
   ]
 
-let render () =
-  let jobs = Current.Job.jobs () in
-  Main.template (
-    if Current.Job.Map.is_empty jobs then [
-      txt "There are no active jobs."
-    ] else [
-      table ~a:[a_class ["table"]]
-        ~thead:(thead [
-            tr [
-              th [txt "Job"];
-              th [txt "Start time"];
-            ]
-          ])
-        (Current.Job.Map.bindings jobs |> List.map render_row)
-    ]
-  )
-
 let r = object
   inherit Resource.t
 
-  method! private get _request =
-    let body = render () in
-    Utils.Server.respond_string ~status:`OK ~body ()
+  method! private get ctx =
+    let jobs = Current.Job.jobs () in
+    Context.respond_ok ctx (
+      if Current.Job.Map.is_empty jobs then [
+        txt "There are no active jobs."
+      ] else [
+        table ~a:[a_class ["table"]]
+          ~thead:(thead [
+              tr [
+                th [txt "Job"];
+                th [txt "Start time"];
+              ]
+            ])
+          (Current.Job.Map.bindings jobs |> List.map render_row)
+      ]
+    )
 end

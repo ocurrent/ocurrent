@@ -36,34 +36,30 @@ let bool_option name value =
       )
   )
 
-let render uri =
-  let ok = bool_param "ok" uri in
-  let results = Db.query ?ok () in
-  Main.template [
-    form ~a:[a_action "/query"; a_method `Get] [
-      table [
-        tr [th [txt "Result:"]; td [bool_option "ok" ok]];
-      ];
-      input ~a:[a_input_type `Submit; a_value "Submit"] ();
-    ];
-    table ~a:[a_class ["table"]]
-      ~thead:(thead [
-          tr [
-            th [txt "Job"];
-            th [txt "Build #"];
-            th [txt "Result"];
-            th [txt "Rebuild?"];
-            th [txt "Finished"];
-          ]
-        ])
-      (List.map render_row results)
-  ]
-
 let r = object
   inherit Resource.t
 
-  method! private get request =
-    let uri = Cohttp.Request.uri request in
-    let body = render uri in
-    Utils.Server.respond_string ~status:`OK ~body ()
+  method! private get ctx =
+    let uri = Context.uri ctx in
+    let ok = bool_param "ok" uri in
+    let results = Db.query ?ok () in
+    Context.respond_ok ctx [
+      form ~a:[a_action "/query"; a_method `Get] [
+        table [
+          tr [th [txt "Result:"]; td [bool_option "ok" ok]];
+        ];
+        input ~a:[a_input_type `Submit; a_value "Submit"] ();
+      ];
+      table ~a:[a_class ["table"]]
+        ~thead:(thead [
+            tr [
+              th [txt "Job"];
+              th [txt "Build #"];
+              th [txt "Result"];
+              th [txt "Rebuild?"];
+              th [txt "Finished"];
+            ]
+          ])
+        (List.map render_row results)
+    ]
 end

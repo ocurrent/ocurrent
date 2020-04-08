@@ -1,6 +1,8 @@
 (* This pipeline monitors a GitHub repository and uses Docker to build the
    latest version on the default branch. *)
 
+let program_name = "github"
+
 open Current.Syntax
 
 module Git = Current_git
@@ -43,6 +45,7 @@ let pipeline ~github ~repo () =
 
 let main config mode github repo =
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
+  let site = Current_web.Site.v ~name:program_name () in
   let routes =
     Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
     Current_web.routes engine
@@ -50,7 +53,7 @@ let main config mode github repo =
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode routes;
+      Current_web.run ~mode ~site routes;
     ]
   end
 
@@ -69,6 +72,6 @@ let repo =
 let cmd =
   let doc = "Monitor a GitHub repository." in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo),
-  Term.info "github" ~doc
+  Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

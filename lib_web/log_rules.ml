@@ -90,7 +90,7 @@ let pattern_hints =
     code [txt "[\\n]"]; txt " to match newlines."
   ]
 
-let render ?msg ?test ?(pattern="") ?(report="") ?(score="") () =
+let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
   let rules = Current.Log_matcher.list_rules () in
   let message = match msg with
     | None -> []
@@ -100,36 +100,33 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") () =
     | None -> Lwt.return []
     | Some p -> test_pattern p
   end >>= fun test_results ->
-  let body =
-    Main.template (message @ [
-        form ~a:[a_action "/log-rules"; a_method `Post] [
-          table ~a:[a_class ["table"; "log-rules"]]
-            ~thead:(thead [
-                tr [
-                  th [txt "Pattern (PCRE)"];
-                  th [txt "Report"];
-                  th [txt "Score"];
-                ]
-              ])
-            (List.map render_row rules @
-             [
-               tr [
-                 td [ input ~a:[a_input_type `Text; a_name "pattern"; a_value pattern] () ];
-                 td [ input ~a:[a_input_type `Text; a_name "report"; a_value report] () ];
-                 td ~a:[a_class ["score"]] [ input ~a:[a_input_type `Text; a_name "score"; a_value score] () ];
-               ]
+  Context.respond_ok ctx (message @ [
+      form ~a:[a_action "/log-rules"; a_method `Post] [
+        table ~a:[a_class ["table"; "log-rules"]]
+          ~thead:(thead [
+              tr [
+                th [txt "Pattern (PCRE)"];
+                th [txt "Report"];
+                th [txt "Score"];
+              ]
+            ])
+          (List.map render_row rules @
+           [
+             tr [
+               td [ input ~a:[a_input_type `Text; a_name "pattern"; a_value pattern] () ];
+               td [ input ~a:[a_input_type `Text; a_name "report"; a_value report] () ];
+               td ~a:[a_class ["score"]] [ input ~a:[a_input_type `Text; a_name "score"; a_value score] () ];
              ]
-            );
-          input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
-          input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
-          input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
-          input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] ();
-        ]
-      ] @ [pattern_hints] @ test_results)
-  in
-  Server.respond_string ~status:`OK ~body ()
+           ]
+          );
+        input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
+        input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
+        input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
+        input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] ();
+      ]
+    ] @ [pattern_hints] @ test_results)
 
-let handle_post data =
+let handle_post ctx data =
   let pattern = List.assoc_opt "pattern" data |> Option.value ~default:[] in
   let report = List.assoc_opt "report" data |> Option.value ~default:[] in
   let score = List.assoc_opt "score" data |> Option.value ~default:[] in
@@ -138,8 +135,8 @@ let handle_post data =
     | [""] -> Server.respond_error ~body:"Pattern can't be empty" ()
     | [pattern] ->
         begin match LM.remove_rule pattern with
-          | Ok () -> render ~msg:"Rule removed" ()
-          | Error `Rule_not_found -> render ~msg:"Rule not found" ~pattern ()
+          | Ok () -> render ctx ~msg:"Rule removed"
+          | Error `Rule_not_found -> render ctx ~msg:"Rule not found" ~pattern
         end
     | _ ->
       Server.respond_error ~body:"Bad form submission" ()
@@ -153,7 +150,7 @@ let handle_post data =
         | exception _ -> Server.respond_error ~body:"Invalid PCRE-format pattern" ()
         | _ ->
           begin match Astring.String.to_int score with
-            | Some score -> LM.add_rule { LM.pattern; report; score }; render ~msg:"Rule added" ()
+            | Some score -> LM.add_rule { LM.pattern; report; score }; render ctx ~msg:"Rule added"
             | None -> Server.respond_error ~body:"Score must be an integer" ()
           end
       end
@@ -165,20 +162,19 @@ let handle_post data =
     | [pattern], [report], [score] ->
       begin match Re.Pcre.re pattern with
         | exception _ -> Server.respond_error ~body:"Invalid PCRE-format pattern" ()
-        | _ -> render ~test:pattern ~pattern ~report ~score ()
+        | _ -> render ctx ~test:pattern ~pattern ~report ~score
       end
-    | _ -> Server.respond_error ~body:"Bad form submission" ()
+    | _ -> Context.respond_error ctx `Bad_request "Bad form submission"
   ) else (
-    Server.respond_error ~body:"Bad form submission" ()
+    Context.respond_error ctx `Bad_request "Bad form submission"
   )
 
 let r = object
   inherit Resource.t
 
-  method! private get _request =
-    render ()
+  method! private get ctx = render ctx
 
-  method! private post _request body =
+  method! private post ctx body =
     let data = Uri.query_of_encoded body in
-    handle_post data
+    handle_post ctx data
 end

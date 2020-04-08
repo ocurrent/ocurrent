@@ -6,6 +6,8 @@
    that the Docker plugin doesn't.
 *)
 
+let program_name = "docker_custom"
+
 open Current.Syntax
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
@@ -85,11 +87,12 @@ let pipeline () =
 
 let main config mode =
   let engine = Current.Engine.create ~config pipeline in
+  let site = Current_web.Site.v ~name:program_name () in
   let routes = Current_web.routes engine in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode routes;
+      Current_web.run ~mode ~site routes;
     ]
   end
 
@@ -100,6 +103,6 @@ open Cmdliner
 let cmd =
   let doc = "Check that the nginx container can serve a web page" in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner),
-  Term.info "docker_custom" ~doc
+  Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

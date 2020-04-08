@@ -10,6 +10,8 @@
    This will write out a "./engine.cap" file, which clients
    can use to connect. See rpc_client.ml for an example. *)
 
+let program_name = "rpc_server"
+
 open Lwt.Infix
 
 module Git = Current_git
@@ -44,10 +46,11 @@ let main config mode capnp repo =
     output_string ch (Uri.to_string uri ^ "\n");
     close_out ch;
     Logs.app (fun f -> f "Wrote capability reference to %S" cap_file);
+    let site = Current_web.Site.v ~name:program_name () in
     let routes = Current_web.routes engine in
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode routes;
+      Current_web.run ~mode ~site routes;
     ]
   end
 
@@ -72,6 +75,6 @@ let man = [
 let cmd =
   let doc = "A build server that can be controlled via Cap'n Proto RPC" in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Capnp_rpc_unix.Vat_config.cmd $ repo),
-  Term.info "rpc_server" ~doc ~man
+  Term.info program_name ~doc ~man
 
 let () = Term.(exit @@ eval cmd)

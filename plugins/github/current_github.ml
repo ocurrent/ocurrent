@@ -19,7 +19,7 @@ end
 let webhook = object
   inherit Current_web.Resource.t
 
-  method! post_raw req body =
+  method! post_raw _site req body =
     Log.info (fun f -> f "input_webhook: %a" Cohttp_lwt.Request.pp_hum req);
     let headers = Cohttp.Request.headers req in
     let event = Cohttp.Header.get headers "X-GitHub-Event" in
