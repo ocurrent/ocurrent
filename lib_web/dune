@@ -20,6 +20,7 @@
    lwt
    lwt.unix
    mirage-crypto
+   mirage-crypto-rng
    mirage-crypto-rng.unix
    ppx_sexp_conv.runtime-lib
    prometheus
