@@ -29,6 +29,8 @@ let render_svg ctx a =
 let r ~engine = object
   inherit Resource.t
 
+  val! can_get = `Viewer
+
   method! private get ctx =
     render_svg ctx (Current.Engine.pipeline engine) >>= function
     | Ok body ->

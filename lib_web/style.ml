@@ -10,9 +10,11 @@ let css = {|
     display: block;
     background: black;
     color: #ddd;
+    overflow: hidden;
   }
 
   nav ul {
+    float: left;
     list-style-type: none;
     margin: 0;
     padding: 0;
@@ -23,6 +25,29 @@ let css = {|
   }
 
   nav li:hover {
+    background: yellow;
+  }
+
+  nav ul.right {
+    float: right;
+  }
+
+  nav ul.right form {
+    padding: 0;
+    background: none!important;
+  }
+
+  nav ul.right button {
+    background: black;
+    border: none;
+    color: #ddd;
+    text-decoration: none;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+  }
+
+  nav ul.right button:hover {
+    color: black;
     background: yellow;
   }
 
@@ -94,6 +119,8 @@ let css = {|
 
 let r = object
   inherit Resource.t
+
+  val! can_get = `Viewer
 
   method! private get _ctx =
     let headers = Cohttp.Header.init_with "Content-Type" "text/css" in

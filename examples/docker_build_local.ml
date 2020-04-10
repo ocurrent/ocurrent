@@ -18,7 +18,7 @@ let pipeline ~repo () =
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo) in
-  let site = Current_web.Site.v ~name:program_name () in
+  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name () in
   let routes = Current_web.routes engine in
   Logging.run begin
     Lwt.choose [

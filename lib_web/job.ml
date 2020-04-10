@@ -21,12 +21,13 @@ let read ~start path =
 let render ctx ~actions ~job_id ~log:path =
   let ansi = Current_ansi.create () in
   let action op = a_action (Fmt.strf "/job/%s/%s" job_id op) in
+  let csrf = Context.csrf ctx in
   let rebuild_button =
     if actions#rebuild = None then []
     else
       [form ~a:[action "rebuild"; a_method `Post]
          [ input ~a:[a_input_type `Submit; a_value "Rebuild"] ();
-           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] () ]
+           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] () ]
       ]
   in
   let cancel_button =
@@ -34,7 +35,7 @@ let render ctx ~actions ~job_id ~log:path =
     | Some job when Current.Job.cancelled_state job = Ok () ->
       [form ~a:[action "cancel"; a_method `Post]
          [ input ~a:[a_input_type `Submit; a_value "Cancel"] ();
-           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] () ]
+           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] () ]
       ]
     | _ -> []
   in
@@ -43,7 +44,7 @@ let render ctx ~actions ~job_id ~log:path =
     | Some job when Current.Job.is_waiting_for_confirmation job ->
       [form ~a:[action "start"; a_method `Post]
          [ input ~a:[a_input_type `Submit; a_value "Start now"] ();
-           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] () ]
+           input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] () ]
       ]
     | _ -> []
   in
@@ -123,6 +124,8 @@ let lookup_actions ~engine job_id =
 let job ~engine ~job_id = object
   inherit Resource.t
 
+  val! can_get = `Viewer
+
   method! private get ctx =
     let actions = lookup_actions ~engine job_id in
     match Current.Job.log_path job_id with
@@ -139,6 +142,8 @@ end
 let rebuild ~engine ~job_id= object
   inherit Resource.t
 
+  val! can_post = `Builder
+
   method! private post ctx  _body =
     let actions = lookup_actions ~engine job_id in
     match actions#rebuild with
@@ -151,6 +156,8 @@ end
 let cancel ~job_id = object
   inherit Resource.t
 
+  val! can_post = `Builder
+
   method! private post ctx _body =
     match Current.Job.lookup_running job_id with
     | None -> Context.respond_error ctx `Bad_request "Job does not support cancel (already finished?)"
@@ -161,6 +168,8 @@ end
 
 let start ~job_id = object
   inherit Resource.t
+
+  val! can_post = `Admin
 
   method! private post ctx _body =
     match Current.Job.lookup_running job_id with

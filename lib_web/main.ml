@@ -6,7 +6,7 @@ let render_result = function
   | Error (`Active `Running) -> [txt "Running..."]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]
 
-let settings config =
+let settings ctx config =
   let selected = Current.Config.get_confirm config in
   let levels =
     Current.Level.values
@@ -16,17 +16,20 @@ let settings config =
     let sel = if selected = Some level then [a_selected ()] else [] in
     option ~a:(a_value s :: sel) (txt msg)
   in
+  let csrf = Context.csrf ctx in
   form ~a:[a_action "/set/confirm"; a_method `Post] [
     select ~a:[a_name "level"] (
       let sel = if selected = None then [a_selected ()] else [] in
       option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: List.rev levels
     );
-    input ~a:[a_name "csrf"; a_input_type `Hidden; a_value Utils.csrf_token] ();
+    input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
     input ~a:[a_input_type `Submit; a_value "Submit"] ();
   ]
 
 let r ~engine = object
   inherit Resource.t
+
+  val! can_get = `Viewer
 
   method! private get ctx =
     let uri = Context.uri ctx in
@@ -40,6 +43,6 @@ let r ~engine = object
       h2 [txt "Result"];
       p (render_result value);
       h2 [txt "Settings"];
-      settings config;
+      settings ctx config;
     ]
 end
