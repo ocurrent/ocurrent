@@ -67,7 +67,7 @@ let generate ?expiry ?value t =
   let now = now () in
   if t.next_expire_due <= now then (
     expire_old t;
-    t.next_expire_due <- now;
+    t.next_expire_due <- Int64.add default_period now;
   );
   let key = gensym () in
   _set ?expiry ?value t key;
