@@ -517,10 +517,12 @@ module Commit = struct
           Uri.pp uri
           (Yojson.Safe.pretty_print ~std:true) body;
         let body = body |> Yojson.Safe.to_string |> Cohttp_lwt.Body.of_string in
-        Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
         Lwt.try_bind
-          (fun () -> Cohttp_lwt.Body.to_string body)
-          (fun body ->
+          (fun () ->
+             Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
+             Cohttp_lwt.Body.to_string body >|= fun body -> (resp, body)
+          )
+          (fun (resp, body) ->
              match Cohttp.Response.status resp with
              | `Created -> Lwt_result.return ()
              | err ->
