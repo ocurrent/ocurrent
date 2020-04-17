@@ -36,3 +36,29 @@ let digest {repo; gref; hash} = Fmt.strf "%s %s %s" repo gref hash
 let repo t = t.repo
 let gref t = t.gref
 let hash t = t.hash
+
+(* git-clone doesn't like the "refs/heads" prefix. *)
+let strip_heads gref =
+  let prefix = "refs/heads/" in
+  let open Astring in
+  if String.is_prefix ~affix:prefix gref then
+    String.with_index_range ~first:(String.length prefix) gref
+  else
+    gref
+
+let pp_user_clone f id =
+  let short_hash = Astring.String.with_range ~len:8 id.hash in
+  if Astring.String.is_prefix ~affix:"refs/pull/" id.gref then (
+    (* GitHub doesn't recognise pull requests in clones, but it does in fetches. *)
+    Fmt.pf f "git clone --recursive %S && cd %S && git fetch origin %S && git reset --hard %s"
+      id.repo
+      (Filename.basename id.repo |> Filename.remove_extension)
+      (strip_heads id.gref)
+      short_hash
+  ) else (
+    Fmt.pf f "git clone --recursive %S -b %S && cd %S && git reset --hard %s"
+      id.repo
+      (strip_heads id.gref)
+      (Filename.basename id.repo |> Filename.remove_extension)
+      short_hash
+  )

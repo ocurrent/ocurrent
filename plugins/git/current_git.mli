@@ -17,13 +17,18 @@ module Commit_id : sig
 
   val equal : t -> t -> bool
   val pp : t Fmt.t
+
+  val pp_user_clone : t Fmt.t
+  (** Display a Git command a user could run to get this commit. *)
+
   val digest : t -> string
 end
 
 module Commit : sig
   include Set.OrderedType
 
-  val id : t -> string
+  val id : t -> Commit_id.t
+  val hash : t -> string
   val equal : t -> t -> bool
   val pp : t Fmt.t
 
