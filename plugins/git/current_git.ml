@@ -63,37 +63,11 @@ let clone ~schedule ?(gref="master") repo =
   let> () = Current.return () in
   Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 
-(* git-clone doesn't like the "refs/heads" prefix. *)
-let strip_heads gref =
-  let prefix = "refs/heads/" in
-  let open Astring in
-  if String.is_prefix ~affix:prefix gref then
-    String.with_index_range ~first:(String.length prefix) gref
-  else
-    gref
-
-let pp_user_clone f id =
-  let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
-  if Astring.String.is_prefix ~affix:"refs/pull/" id.Commit_id.gref then (
-    (* GitHub doesn't recognise pull requests in clones, but it does in fetches. *)
-    Fmt.pf f "git clone --recursive %S && cd %S && git fetch origin %S && git reset --hard %s"
-      id.Commit_id.repo
-      (Filename.basename id.Commit_id.repo |> Filename.remove_extension)
-      (strip_heads id.Commit_id.gref)
-      short_hash
-  ) else (
-    Fmt.pf f "git clone --recursive %S -b %S && cd %S && git reset --hard %s"
-      id.Commit_id.repo
-      (strip_heads id.Commit_id.gref)
-      (Filename.basename id.Commit_id.repo |> Filename.remove_extension)
-      short_hash
-  )
-
 let with_checkout ~job commit fn =
   let { Commit.repo; id } = commit in
   let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
   Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,%a@]"
-    short_hash pp_user_clone id;
+    short_hash Commit_id.pp_user_clone id;
   Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
   Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
   Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function

@@ -16,16 +16,17 @@ type t = {
 
 [@@@ocaml.warning "+3"]
 
-let id t = t.id.Commit_id.hash
-let compare a b = String.compare (id a) (id b)
-let equal a b = String.equal (id a) (id b)
-let pp = Fmt.using id Fmt.string
+let id t = t.id
+let hash t = t.id.Commit_id.hash
+let compare a b = String.compare (hash a) (hash b)
+let equal a b = String.equal (hash a) (hash b)
+let pp = Fmt.using hash Fmt.string
 
 let pp_short f t =
-  Fmt.string f @@ Astring.String.with_range ~len:6 (id t)
+  Fmt.string f @@ Astring.String.with_range ~len:6 (hash t)
 
 let check_cached t =
-  let hash = id t in
+  let hash = hash t in
   let branch = Fmt.strf "fetch-%s" hash in
   Cmd.git ~cwd:t.repo ["branch"; "-f"; branch; hash]
 
