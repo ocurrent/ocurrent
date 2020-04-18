@@ -1,5 +1,5 @@
 val exec :
-  ?stdin:string ->
+  ?cwd:Fpath.t -> ?stdin:string ->
   ?pp_error_command:(Format.formatter -> unit) ->
   cancellable:bool -> job:Job.t -> Lwt_process.command ->
   unit Current_term.S.or_error Lwt.t

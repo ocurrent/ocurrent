@@ -320,12 +320,13 @@ end
 (** Helper functions for spawning sub-processes. *)
 module Process : sig
   val exec :
-    ?stdin:string ->
+    ?cwd:Fpath.t -> ?stdin:string ->
     ?pp_error_command:(Format.formatter -> unit) ->
     cancellable:bool ->
     job:Job.t -> Lwt_process.command ->
     unit or_error Lwt.t
   (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
+      @param cwd Sets the current working directory for this command.
       @param cancellable Should the process be terminated if the job is cancelled?
       @param stdin Data to write to stdin before closing it.
       @param pp_error_command Format the command for an error message.
