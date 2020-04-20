@@ -105,15 +105,23 @@ let basic _switch () =
   | _ ->
     assert false
 
+let result_t =
+  Alcotest.testable
+    (Current_term.Output.pp Fmt.(const string "()"))
+    (Current_term.Output.equal (=))
+
 let expires _switch () =
-  let result = ref "none" in
+  let result = ref (Error (`Msg ("uninitialised"))) in
   let five_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 5) () in
   let ten_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 10) () in
   let pipeline builds () =
-    let+ x = get ~schedule:ten_s builds "a"
-    and+ y = get ~schedule:five_s builds "a"
-    in
-    result := Fmt.strf "%s,%s" x y
+    Current.state (
+      let+ x = get ~schedule:ten_s builds "a"
+      and+ y = get ~schedule:five_s builds "a"
+      in
+      Fmt.strf "%s,%s" x y
+    )
+    |> Current.map (fun x -> result := x)
   in
   BC.reset ();
   let clock = Clock.create () in
@@ -127,16 +135,17 @@ let expires _switch () =
     Lwt.wakeup b @@ Ok "done"
   | 2 ->
     Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
-    Alcotest.(check string) "Result correct" "done,done" !result;
+    Alcotest.(check result_t) "Result correct" (Ok "done,done") !result;
     Clock.set clock 7.0
   | 3 ->
+    Alcotest.(check result_t) "Result latched" (Ok "done,done") !result;
     let b = Builds.find "a" !builds in
     Clock.set clock 8.0;
-    Alcotest.check database "Disk store empty again" [] @@ disk_cache ();
+    Alcotest.check database "Disk store not invalidated" ["done 0/0/1 +0"] @@ disk_cache ();
     Lwt.wakeup b @@ Ok "rebuild"
   | _ ->
-    Alcotest.check database "Result stored" ["rebuild 7/7/8 +1"] @@ disk_cache ();
-    Alcotest.(check string) "Result correct" "rebuild,rebuild" !result;
+    Alcotest.check database "Result stored" ["done 0/0/1 +0"; "rebuild 7/7/8 +1"] @@ disk_cache ();
+    Alcotest.(check result_t) "Result correct" (Ok "rebuild,rebuild") !result;
     raise Exit
 
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)

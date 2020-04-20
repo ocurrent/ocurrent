@@ -33,10 +33,19 @@ class type actions = object
       or [None] if it is not something that can be repeated. Returns the new job ID. *)
 end
 
+(** Metadata associated with primitive terms. *)
 module Metadata : sig
   type t = {
     job_id : job_id option;
+    (** The job ID, for jobs with logs. This is used when generating the
+        diagrams to create links to the job pages, and can also be useful for
+        indexing. *)
+
     update : Current_term.Output.active option;
+    (** If the job is updating in the background (while still outputting the
+        previous value), this gives the status of the update. In the diagrams,
+        this will appear as a gradient from the update colour on the left to
+        the output state's colour on the right. *)
   }
 end
 
