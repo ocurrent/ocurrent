@@ -26,7 +26,14 @@ class type actions = object
   method rebuild : (unit -> job_id) option
 end
 
-include Current_term.Make(String)
+module Metadata = struct
+  type t = {
+    job_id : job_id option;
+    update : Current_term.Output.active option;
+  }
+end
+
+include Current_term.Make(Metadata)
 
 module Primitive = struct
   type 'a t = 'a primitive
@@ -209,6 +216,7 @@ module Monitor = struct
     watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
     pp : Format.formatter -> unit;
     value : 'a Current_term.Output.t Current_incr.var;
+    reading : bool Current_incr.var;      (* Is a read operation in progress? *)
     mutable ref_count : int;              (* Number of terms using this monitor *)
     mutable need_refresh : bool;          (* Update detected after current read started *)
     mutable active : bool;                (* Monitor thread is running *)
@@ -236,7 +244,10 @@ module Monitor = struct
     )
   and get_value ~unwatch t =
     t.need_refresh <- false;
+    Current_incr.change t.reading true;
+    Engine.update ();
     t.read () >>= fun v ->
+    Current_incr.change t.reading false;
     Current_incr.change t.value @@ (v :> _ Current_term.Output.t);
     Engine.update ();
     wait ~unwatch t
@@ -262,7 +273,10 @@ module Monitor = struct
           )
       );  (* (else the previous thread will check [ref_count] before exiting) *)
       Current_incr.read (Current_incr.of_var t.value) @@ fun value ->
-      Current_incr.write (value, None)
+      Current_incr.read (Current_incr.of_var t.reading) @@ fun reading ->
+      let update = if reading then Some `Running else None in
+      let metadata = { Metadata.job_id = None; update } in
+      Current_incr.write (value, Some metadata)
     end
 
   let create ~read ~watch ~pp =
@@ -272,6 +286,7 @@ module Monitor = struct
       active = false;
       need_refresh = true;
       cond;
+      reading = Current_incr.var false;
       value = Current_incr.var (Error (`Active `Running));
       read; watch; pp
     }

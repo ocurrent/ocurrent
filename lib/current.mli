@@ -33,6 +33,13 @@ class type actions = object
       or [None] if it is not something that can be repeated. Returns the new job ID. *)
 end
 
+module Metadata : sig
+  type t = {
+    job_id : job_id option;
+    update : Current_term.Output.active option;
+  }
+end
+
 (** An OCurrent pipeline is made up of primitive operations.
     A primitive is roughly the content of a single box in the diagram.
 
@@ -40,7 +47,7 @@ end
     use {!Current_cache} (for processing or publishing jobs) or {!Monitor} (for
     inputs) instead. *)
 module Primitive : sig
-  type 'a t = ('a Current_term.Output.t * job_id option) Current_incr.t
+  type 'a t = ('a Current_term.Output.t * Metadata.t option) Current_incr.t
 
   val const : 'a -> 'a t
   (** [const x] is a primitive that always evaluates to [x] and never needs to be updated. *)
@@ -51,7 +58,7 @@ module Primitive : sig
 end
 
 include Current_term.S.TERM with
-  type metadata := job_id and
+  type metadata := Metadata.t and
   type 'a primitive := 'a Primitive.t
 
 (** A monitor is an input pipeline stage that can watch for external events. *)
@@ -89,7 +96,7 @@ type 'a term = 'a t
 (** Diagram generation, introspection, and statistics. *)
 module Analysis : Current_term.S.ANALYSIS with
   type 'a term := 'a t and
-  type metadata := job_id
+  type metadata := Metadata.t
 
 (** Variable pipeline inputs. *)
 module Var (T : Current_term.S.T) : sig

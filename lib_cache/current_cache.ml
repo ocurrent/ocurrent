@@ -460,7 +460,8 @@ module Output(Op : S.PUBLISHER) = struct
             in
             Error (`Active a)
         in
-        Current_incr.write (v, o.job_id)
+        let metadata = { Current.Metadata.job_id = o.job_id; update = None } in
+        Current_incr.write (v, Some metadata)
     end
 
   let reset () =

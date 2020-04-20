@@ -1,5 +1,9 @@
 (rule
- (targets option-none.1.dot
+ (targets latch.1.dot
+          latch.2.dot
+          latch.3.dot
+          latch.4.dot
+          option-none.1.dot
           option-none.2.dot
           option-some.1.dot
           option-some.2.dot
@@ -28,6 +32,26 @@
           v5n.2.dot
           v5n.3.dot)
  (action (run ./test.exe)))
+
+(rule
+ (alias runtest)
+ (package current)
+ (action (diff expected/latch.1.dot latch.1.dot)))
+
+(rule
+ (alias runtest)
+ (package current)
+ (action (diff expected/latch.2.dot latch.2.dot)))
+
+(rule
+ (alias runtest)
+ (package current)
+ (action (diff expected/latch.3.dot latch.3.dot)))
+
+(rule
+ (alias runtest)
+ (package current)
+ (action (diff expected/latch.4.dot latch.4.dot)))
 
 (rule
  (alias runtest)

@@ -105,7 +105,11 @@ module Make (Meta : sig type t end) = struct
     }
   end
 
-  let pp_dot ~env ~url f x =
+  let colour_of_activity = function
+    | `Ready -> "#ffff00"
+    | `Running -> "#ffa500"
+
+  let pp_dot ~env ~collapse_link ~job_info f x =
     let env = Env.of_seq (List.to_seq env) in
     let next = ref 0 in
     let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
@@ -147,8 +151,7 @@ module Make (Meta : sig type t end) = struct
           match v with
           | Ok _ -> "#90ee90"
           | Error _ when not error_from_self -> "#d3d3d3" (* Blocked *)
-          | Error (_, `Active `Ready) -> "#ffff00"
-          | Error (_, `Active `Running) -> "#ffa500"
+          | Error (_, `Active x) -> colour_of_activity x
           | Error (_, `Msg _) -> "#ff4500"
         in
         let tooltip =
@@ -156,7 +159,7 @@ module Make (Meta : sig type t end) = struct
           | Error (_, `Msg msg) when error_from_self -> Some msg
           | _ -> None
         in
-        let node ?url =
+        let node ?(bg=bg) ?url =
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match t.ty with
@@ -199,12 +202,17 @@ module Make (Meta : sig type t end) = struct
               | Term { ty = Constant None; _ } -> Out_node.empty
               | _ -> aux x
             in
-            let url =
+            let update_status, url =
               match Current_incr.observe meta with
-              | None -> None
-              | Some id -> url (`Job id)
+              | None -> None, None
+              | Some id -> job_info id
             in
-            node ?url i info;
+            let bg = update_status |> Option.map (fun s ->
+                let up_bg = colour_of_activity s in
+                Printf.sprintf "%s:%s" up_bg bg
+              )
+            in
+            node ?bg ?url i info;
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
             Out_node.singleton ~deps:all_inputs.Out_node.trans i
@@ -270,7 +278,7 @@ module Make (Meta : sig type t end) = struct
             else (
               let inputs = aux input in
               let all_inputs = Out_node.union inputs ctx in
-              let url = url (`Collapse (key, value)) in
+              let url = collapse_link ~k:key ~v:value in
               node ?url i "+";
               Out_node.connect (edge_to i) all_inputs;
               Out_node.singleton ~deps:all_inputs.trans i

@@ -83,9 +83,10 @@ let test ?config ?final_stats ~name v actions =
       let path = Fmt.strf "%s.%d.dot" name !step in
       let ch = open_out path in
       let f = Format.formatter_of_out_channel ch in
-      let url _ = None in
+      let collapse_link ~k:_ ~v:_ = None in
+      let job_info { Current.Metadata.job_id = _; update } = update, None in
       let env = [] in
-      Fmt.pf f "%a@!" (Current.Analysis.pp_dot ~env ~url) test_pipeline;
+      Fmt.pf f "%a@!" (Current.Analysis.pp_dot ~env ~collapse_link ~job_info) test_pipeline;
       close_out ch
     end;
     current_watches := step_result;
