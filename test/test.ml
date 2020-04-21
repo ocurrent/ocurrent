@@ -196,6 +196,34 @@ let test_pair _switch () =
   in
   Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
 
+let test_with base src =
+  Current.component "test" |>
+  let> _base = base
+  and> _src = src in
+  Current.Primitive.const ()
+
+let latch commit =
+  let base = Docker.pull "alpine" in
+  let src = fetch commit in
+  test_with base src
+
+let test_latch _switch () =
+  Driver.test ~name:"latch" (with_commit latch) @@ function
+  | 1 ->
+    (* The "docker pull" box is orange as the image isn't available yet *)
+    Git.complete_clone test_commit;
+    Docker.complete_pull "alpine" @@ Ok "alpine:3.10";
+  | 2 ->
+    (* The "docker pull" box is green as the image has arrived *)
+    Docker.update_pull "alpine";
+  | 3 ->
+    (* The "docker pull" box shows an orange-to-green gradient to indicate a
+       background update, while "test" remains green (using the previous image). *)
+    Docker.complete_pull "alpine" @@ Ok "alpine:3.11";
+  | _ ->
+    (* The "docker pull" box is green again *)
+    raise Exit
+
 module Term = Current_term.Make(String)
 
 let test_all_labelled () =
@@ -250,6 +278,7 @@ let () =
         Driver.test_case_gc "option-none" test_option_none;
         Driver.test_case_gc "state"       test_state;
         Driver.test_case_gc "pair"        test_pair;
+        Driver.test_case_gc "latch"       test_latch;
       ];
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;

@@ -108,8 +108,56 @@ let push image ~tag =
   let> image = image in
   Push_cache.get No_context image
 
+let image_pulls = Hashtbl.create 5
+let image_monitors = Hashtbl.create 5
+let pulls_cond = Lwt_condition.create ()
+
+let get_pull tag =
+  match Hashtbl.find_opt image_pulls tag with
+  | Some x -> x
+  | None ->
+    let x = Lwt.wait () in
+    Hashtbl.add image_pulls tag x;
+    x
+
+let image_monitor tag =
+  match Hashtbl.find_opt image_monitors tag with
+  | Some x -> x
+  | None ->
+    let read () = fst @@ get_pull tag in
+    let watch refresh =
+      let rec aux () =
+        Lwt_condition.wait pulls_cond >>= fun () ->
+        refresh ();
+        aux ()
+      in
+      let thread = aux () in
+      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+    in
+    let pp f = Fmt.string f "docker pull" in
+    let x = Current.Monitor.create ~read ~watch ~pp in
+    Hashtbl.add image_monitors tag x;
+    x
+
+let pull tag =
+  Current.component "docker pull %s" tag |>
+  let> () = Current.return () in
+  Current.Monitor.get (image_monitor tag)
+
+let complete_pull tag image =
+  match Hashtbl.find_opt image_pulls tag with
+  | None -> Fmt.failwith "Image %S isn't being pulled!" tag
+  | Some (_, set_image) -> Lwt.wakeup set_image image
+
+let update_pull tag =
+  Hashtbl.remove image_pulls tag;
+  ignore @@ get_pull tag;
+  Lwt_condition.broadcast pulls_cond ()
+
 let reset () =
   containers := Containers.empty;
+  Hashtbl.clear image_pulls;
+  Hashtbl.clear image_monitors;
   Run_cache.reset ();
   Push_cache.reset ()
 

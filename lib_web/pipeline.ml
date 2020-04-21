@@ -9,13 +9,14 @@ let render_svg ctx a =
       | (k, v :: _) -> Some (k, v)
     ) in
   let old_query = Uri.query uri in
-  let url = function
-    | `Collapse (k, v) ->
+  let collapse_link ~k ~v =
       let query = (k, [v]) :: List.remove_assoc k old_query in
       Some (Uri.make ~path:"/" ~query () |> Uri.to_string)
-    | `Job id -> Some (Fmt.strf "/job/%s" id)
+  and job_info { Current.Metadata.job_id; update } =
+    let url = job_id |> Option.map (fun id -> Fmt.strf "/job/%s" id) in
+    update, url
   in
-  let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~env ~url) a in
+  let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~env ~collapse_link ~job_info) a in
   let proc = Lwt_process.open_process_full dot_to_svg in
   Lwt_io.write proc#stdin dotfile >>= fun () ->
   Lwt_io.close proc#stdin >>= fun () ->

@@ -3,6 +3,8 @@
  (libraries
    current
    current.cache
+   current.term
+   current_incr
    fmt
    fpath
    logs

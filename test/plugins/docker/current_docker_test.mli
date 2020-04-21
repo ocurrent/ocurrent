@@ -2,7 +2,7 @@
 
 type source = Fpath.t
 
-module Image : sig type t end
+module Image : sig type t = string end
 
 val build : ?on:string -> source Current.t -> Image.t Current.t
 (** [build ~on:platform src] builds a Docker image from source. *)
@@ -15,6 +15,15 @@ val complete : string -> cmd:string list -> (unit, [`Msg of string]) result -> u
 
 val push : Image.t Current.t -> tag:string -> unit Current.t
 (** [push x ~tag] publishes [x] on Docker Hub as [tag]. *)
+
+val pull : string -> Image.t Current.t
+(** [pull tag] pulls [tag] from Docker Hub. *)
+
+val complete_pull : string -> Image.t Current.or_error -> unit
+(** [complete_pull tag image] marks the pull for [tag] as complete. *)
+
+val update_pull : string -> unit
+(** [update_pull tag] checks for updates to [tag] in the background. *)
 
 val reset : unit -> unit
 (** Reset state for tests. *)

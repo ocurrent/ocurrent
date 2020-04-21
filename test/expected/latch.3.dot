@@ -1,0 +1,16 @@
+digraph pipeline {
+  node [shape="box"]
+  rankdir=LR
+  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
+  n6 [label="head",fillcolor="#90ee90",style="filled"]
+  n5 [label="fetch",fillcolor="#90ee90",style="filled"]
+  n7 [label="docker pull alpine",fillcolor="#ffa500:#90ee90",style="filled"]
+  n1 [label="test",fillcolor="#90ee90",style="filled"]
+  n7 -> n1
+  n5 -> n1
+  n2 -> n7
+  n6 -> n5
+  n2 -> n6
+  n3 -> n2
+  }

@@ -9,12 +9,6 @@ type stats = {
 }
 (** Counters showing how many pipeline stages are in each state. *)
 
-type 'j link = [
-  | `Collapse of string * string        (* [Collapse (k, v) is a link to the same page
-                                           with "?k=v" added to the environment. *)
-  | `Job of 'j                          (* [Job id] link to the job with ID [id]. *)
-]
-
 module type T = sig
   type t
   val equal : t -> t -> bool
@@ -41,10 +35,20 @@ module type ANALYSIS = sig
   val pp : _ term Fmt.t
   (** [pp] formats a [t] as a simple string. *)
 
-  val pp_dot : env:(string * string) list -> url:(metadata link -> string option) -> _ term Fmt.t
-  (** [pp_dot ~env ~url] formats a [t] as a graphviz dot graph.
+  val pp_dot :
+    env:(string * string) list ->
+    collapse_link:(k:string -> v:string -> string option) ->
+    job_info:(metadata -> Output.active option * string option) ->
+    _ term Fmt.t
+  (** [pp_dot ~env ~collapse_link ~job_info] formats a [t] as a graphviz dot graph.
       @param env A list of key-value pairs from the URL to control rendering.
-      @param url Generates URLs for links. *)
+      @param collapse_link Should return a link to the same page with "?k=v"
+                           added to the environment.
+      @param job_info Get update statuses and URLs for links to jobs.
+                      The update status is used if the job is rebuilding while
+                      showing the output of a previous run. The box is
+                      displayed using a gradient from the update status colour
+                      to the current output colour. *)
 
   val stats : _ term -> stats
   (** [stats t] count how many stages are in each state. *)
