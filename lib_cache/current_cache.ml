@@ -50,7 +50,7 @@ let pp_duration_rough f d =
   in
   aux durations
 
-module Output(Op : S.PUBLISHER) = struct
+module Generic(Op : S.GENERIC) = struct
   module Outputs = Map.Make(String)
 
   module Value : sig
@@ -196,19 +196,21 @@ module Output(Op : S.PUBLISHER) = struct
       Job.cancel op.job "Auto-cancelling job because it is no longer needed"
     | `Retry latched ->
         publish ~latched ~config output
-    | `Finished _ ->
+    | `Finished outcome ->
       match output.current with
       | Some current when current = Value.digest output.desired -> () (* Already the desired value. *)
       | _ ->
         (* Either we don't know the current state, or we know we want something different.
            We're not already running, and we haven't already failed. Time to publish! *)
-        (* Once we start publishing, we don't know the state: *)
-        invalidate_output output;
-        publish ~latched:None ~config output
+        let latched = if Op.latched then Some (Ok outcome) else None in
+        publish ~latched ~config output
   and maybe_restart ~config output =
     maybe_start ~config output;
     notify output
   and publish ~latched ~config output =
+    (* Once we start publishing, we don't know the state (it might be better to
+       wait until the job starts before doing this): *)
+    output.current <- None;
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
     let job = Job.create ~switch ~label:Op.id ~config () in
@@ -233,7 +235,7 @@ module Output(Op : S.PUBLISHER) = struct
          Lwt.finalize
            (fun () ->
               Lwt.catch
-                (fun () -> Op.publish ctx job output.key (Value.value op.value))
+                (fun () -> Op.run ctx job output.key (Value.value op.value))
                 (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
               >>= fun outcome ->
               Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
@@ -419,7 +421,7 @@ module Output(Op : S.PUBLISHER) = struct
         method rebuild = None
       end
 
-  let set ?(schedule=Schedule.default) ctx key value =
+  let run ?(schedule=Schedule.default) ctx key value =
     Current_incr.of_cc begin
       Current_incr.read Current.Config.now @@ function
       | None -> Current_incr.write (Error (`Active `Ready), None)
@@ -442,11 +444,12 @@ module Output(Op : S.PUBLISHER) = struct
               o.ctx <- ctx;
               if changed then (
                 o.desired <- value;
-                match o.op with
-                | `Error _ | `Retry _ ->
-                  o.op <- `Retry None;  (* Clear error when the desired value changes. *)
-                  invalidate_output o;
-                | `Active _ | `Finished _ -> ()
+                (* Clear any error when the desired value changes: *)
+                match Op.latched, o.op with
+                | _, (`Active _ | `Finished _) -> ()
+                | true, `Retry _ -> ()
+                | true, `Error x -> o.op <- `Retry (Some (Error x));
+                | false, (`Error _ | `Retry _ )-> o.op <- `Retry None
               );
             );
             o
@@ -456,6 +459,14 @@ module Output(Op : S.PUBLISHER) = struct
             let o = get_output ~step_id ctx key value in
             outputs := Outputs.add key_digest o !outputs;
             Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
+            (* If the saved state was an error, but the desired value has changed,
+               clear it. *)
+            begin match o.current, o.op with
+              | Some current, `Error x when current <> Value.digest value ->
+                let latched = if Op.latched then Some (Error x) else None in
+                o.op <- `Retry latched;
+              | _ -> ()
+            end;
             o
         in
         (* Ensure a build is in progress if we need one: *)
@@ -484,10 +495,11 @@ module Output(Op : S.PUBLISHER) = struct
         Current_incr.write (v, Some metadata)
     end
 
-  let reset () =
+  let reset ~db =
     outputs := Outputs.empty;
     Prometheus.Gauge.set (Metrics.memory_cache_items Op.id) 0.0;
-    Db.drop_all Op.id
+    if db then
+      Db.drop_all Op.id
 end
 
 module Make(B : S.BUILDER) = struct
@@ -500,18 +512,33 @@ module Make(B : S.BUILDER) = struct
     module Value = Current.Unit
     module Outcome = B.Value
 
-    let publish op job key () =
+    let run op job key () =
       B.build op job key
 
     let pp f (key, ()) = B.pp f key
 
     let auto_cancel = B.auto_cancel
+
+    let latched = false
   end
 
-  include Output(Adaptor)
+  include Generic(Adaptor)
 
   let get ?schedule ctx key =
-    set ?schedule ctx key ()
+    run ?schedule ctx key ()
+end
+
+module Output(P : S.PUBLISHER) = struct
+  module Adaptor = struct
+    include P
+    let run = P.publish
+    let latched = false
+  end
+
+  include Generic(Adaptor)
+
+  let set ?schedule ctx key value =
+    run ?schedule ctx key value
 end
 
 module S = S
