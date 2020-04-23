@@ -81,7 +81,7 @@ let basic _switch () =
     let+ x = get builds "a" in
     result := x
   in
-  BC.reset ();
+  BC.reset ~db:true;
   let clock = Clock.create () in
   Alcotest.check database "Disk store initially empty" [] @@ disk_cache ();
   let builds = Build.create () in
@@ -107,7 +107,7 @@ let basic _switch () =
 
 let result_t =
   Alcotest.testable
-    (Current_term.Output.pp Fmt.(const string "()"))
+    (Current_term.Output.pp Fmt.string)
     (Current_term.Output.equal (=))
 
 let expires _switch () =
@@ -123,7 +123,7 @@ let expires _switch () =
     )
     |> Current.map (fun x -> result := x)
   in
-  BC.reset ();
+  BC.reset ~db:true;
   let clock = Clock.create () in
   Alcotest.check database "Disk store initially empty" [] @@ disk_cache ();
   let builds = Build.create () in
@@ -162,7 +162,7 @@ let autocancel _switch () =
     in
     result := r
   in
-  BC.reset ();
+  BC.reset ~db:true;
   let clock = Clock.create () in
   Alcotest.check database "Disk store initially empty" [] @@ disk_cache ();
   Driver.test ~name:"cache" pipeline @@ function
@@ -256,7 +256,7 @@ let set p k v =
 
 let output _switch () =
   V.set input @@ Ok "bar";
-  OC.reset ();
+  OC.reset ~db:true;
   let p = Publish.create () in
   let pipeline () = V.get input |> set p "foo" in
   Driver.test ~name:"cache.output" pipeline @@ function
@@ -296,7 +296,7 @@ let set2 p k v =
 
 let output_autocancel _switch () =
   V.set input @@ Ok "bar";
-  OC2.reset ();
+  OC2.reset ~db:true;
   let p = Publish2.create () in
   let pipeline () = V.get input |> set2 p "foo" in
   Driver.test ~name:"cache.output_autocancel" pipeline @@ function
@@ -329,7 +329,7 @@ let output_autocancel _switch () =
     assert false
 
 let output_retry _switch () =
-  OC2.reset ();
+  OC2.reset ~db:true;
   let p = Publish2.create () in
   let pipeline () = set2 p "foo" (Current.return "value") in
   Driver.test ~name:"cache.output_retry" pipeline @@ function
@@ -348,7 +348,7 @@ let output_retry _switch () =
     assert false
 
 let output_retry_new _switch () =
-  OC.reset ();
+  OC.reset ~db:true;
   let p = Publish.create () in
   V.set input @@ Ok "1";
   let pipeline () = set p "foo" (V.get input) in
@@ -369,6 +369,125 @@ let output_retry_new _switch () =
   | _ ->
     assert false
 
+module Latched = struct
+  module Key = Current.String
+  module Value = Current.String
+  module Outcome = Current.String
+
+  type t = (string, string) Hashtbl.t
+
+  let cond = Lwt_condition.create ()
+
+  let id = "latched"
+
+  let run t job key value =
+    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
+    Lwt_condition.wait cond >|= fun () ->
+    Hashtbl.replace t key (value ^ "-done");
+    if value = "" then Error (`Msg "bad-base")
+    else Ok (value ^ "-outcome")
+
+  let pp f (k, v) =
+    Fmt.pf f "Set %s to %s" k v
+
+  let auto_cancel = false
+
+  let create () = Hashtbl.create 2
+
+  let latched = true
+end
+
+module LC = Current_cache.Generic(Latched)
+
+let build p commit base =
+  Current.component "build" |>
+  let> commit = commit
+  and> base = base in
+  LC.run p commit base
+
+let commit = V.create ~name:"commit" @@ Error (`Msg "(init)")
+let base = V.create ~name:"base" @@ Error (`Msg "(init)")
+
+let latched _switch () =
+  LC.reset ~db:true;
+  let p = Latched.create () in
+  V.set base @@ Ok "alpine:3.10";
+  V.set commit @@ Ok "r1";
+  let result = ref (Error (`Msg ("uninitialised"))) in
+  let pipeline () =
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
+    result := st
+  in
+  Driver.test ~name:"cache.latched" pipeline @@ function
+  | 1 ->
+    Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 2 ->
+    Alcotest.(check result_t) "3.10 ready" (Ok "alpine:3.10-outcome") !result;
+    Alcotest.(check (option string)) "3.10 result" (Some "alpine:3.10-done") (Hashtbl.find_opt p "r1");
+    V.set base @@ Ok "alpine:3.11";
+    (* Changing the base latches the result *)
+  | 3 ->
+    Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 4 ->
+    Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
+    Alcotest.(check (option string)) "3.11 result" (Some "alpine:3.11-done") (Hashtbl.find_opt p "r1");
+    (* Changing the commit does not latch *)
+    V.set commit @@ Ok "r2";
+  | 5 ->
+    Alcotest.(check result_t) "Not latched" (Error (`Active `Running)) !result;
+    Alcotest.(check (option string)) "No r2 result yet" None (Hashtbl.find_opt p "r2");
+    Lwt_condition.broadcast Latched.cond ();
+  | 6 ->
+    Alcotest.(check (option string)) "3.11 result" (Some "alpine:3.11-done") (Hashtbl.find_opt p "r2");
+    raise Exit
+  | _ ->
+    assert false
+
+let clear_error _switch () =
+  LC.reset ~db:true;
+  let p = Latched.create () in
+  V.set base @@ Ok "";
+  V.set commit @@ Ok "r1";
+  let result = ref (Error (`Msg ("uninitialised"))) in
+  let pipeline () =
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
+    result := st
+  in
+  Driver.test ~name:"cache.clear_error" pipeline @@ function
+  | 1 ->
+    Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 2 ->
+    Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
+    V.set base @@ Ok "alpine:3.11";
+    (* Changing the base latches the result *)
+  | 3 ->
+    Alcotest.(check result_t) "Failure latched" (Error (`Msg "bad-base")) !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 4 ->
+    Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
+    V.set base @@ Ok "";
+    (* Generate the error state again *)
+  | 5 ->
+    Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 6 ->
+    Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
+    (* This time, reset the cache (simulating a restart of the service). *)
+    LC.reset ~db:false;
+    V.set base @@ Ok "alpine:3.11";
+  | 7 ->
+    (* Failure is latched, but a rebuild is in progress: *)
+    Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 8 ->
+    Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
+    raise Exit
+  | _ ->
+    assert false
+
 let tests =
   [
     Driver.test_case_gc "basic"             basic;
@@ -378,4 +497,6 @@ let tests =
     Driver.test_case_gc "output_autocancel" output_autocancel;
     Driver.test_case_gc "output_retry"      output_retry;
     Driver.test_case_gc "output_retry_new"  output_retry_new;
+    Driver.test_case_gc "latched"           latched;
+    Driver.test_case_gc "clear_error"       clear_error;
   ]

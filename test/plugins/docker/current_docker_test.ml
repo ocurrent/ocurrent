@@ -158,8 +158,8 @@ let reset () =
   containers := Containers.empty;
   Hashtbl.clear image_pulls;
   Hashtbl.clear image_monitors;
-  Run_cache.reset ();
-  Push_cache.reset ()
+  Run_cache.reset ~db:true;
+  Push_cache.reset ~db:true
 
 let assert_finished () =
   !containers |> Containers.iter (fun key s ->

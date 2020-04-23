@@ -63,4 +63,4 @@ let fetch c =
 
 let reset () =
   state := RepoMap.empty;
-  C.reset ()
+  C.reset ~db:true
