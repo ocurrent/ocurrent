@@ -36,4 +36,6 @@ let r = object
           (Current.Job.Map.bindings jobs |> List.map render_row)
       ]
     )
+
+  method! nav_link = Some "Jobs"
 end

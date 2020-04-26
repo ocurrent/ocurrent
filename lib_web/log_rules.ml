@@ -180,4 +180,6 @@ let r = object
   method! private post ctx body =
     let data = Uri.query_of_encoded body in
     handle_post ctx data
+
+  method! nav_link = Some "Log analysis"
 end

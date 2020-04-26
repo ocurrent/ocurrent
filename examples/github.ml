@@ -45,15 +45,15 @@ let pipeline ~github ~repo () =
 
 let main config mode github repo =
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name () in
   let routes =
     Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
     Current_web.routes engine
   in
+  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode ~site routes;
+      Current_web.run ~mode site;
     ]
   end
 
