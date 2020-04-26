@@ -157,6 +157,9 @@ let with_handler t ~on_cancel fn =
     let node = Lwt_dllist.add_r on_cancel hooks in
     Lwt.finalize fn (fun () -> Lwt_dllist.remove node; Lwt.return_unit)
 
+let use_pool ~switch t pool =
+  Pool.get ~on_cancel:(on_cancel t) ~switch pool
+
 let confirm t ?pool level =
   let confirmed =
     let confirmed = Config.confirmed level t.config in
@@ -182,7 +185,7 @@ let confirm t ?pool level =
   match pool with
   | None -> Lwt.return_unit
   | Some pool ->
-    let res = Pool.get ~on_cancel:(on_cancel t) ~switch:t.switch pool in
+    let res = use_pool t ~switch:t.switch pool in
     if Lwt.is_sleeping res then (
       log t "Waiting for resource in pool %a" Pool.pp pool;
       res >|= fun () ->

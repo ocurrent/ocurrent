@@ -178,7 +178,8 @@ module Switch : sig
   (** Prints the state of the switch (for debugging). *)
 end
 
-(** Resource pools, to control how many jobs can use a resource at a time. *)
+(** Resource pools, to control how many jobs can use a resource at a time.
+    To use a pool within a job, call {!Job.use_pool}. *)
 module Pool : sig
   type t
 
@@ -265,6 +266,11 @@ module Job : sig
 
   val register_actions : job_id -> actions -> unit
   (** [register_actions job_id actions] is used to register handlers for e.g. rebuilding jobs. *)
+
+  val use_pool : switch:Switch.t -> t -> Pool.t -> unit Lwt.t
+  (** [use_pool ~switch t pool] gets one resource from [pool].
+      The resource is returned to the pool when the switch is turned off.
+      The operation will be aborted if the job is cancelled. *)
 
   (**/**)
 

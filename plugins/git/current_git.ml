@@ -63,23 +63,34 @@ let clone ~schedule ?(gref="master") repo =
   let> () = Current.return () in
   Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 
-let with_checkout ~job commit fn =
+let with_checkout ?pool ~job commit fn =
   let { Commit.repo; id } = commit in
   let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
   Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,%a@]"
     short_hash Commit_id.pp_user_clone id;
-  Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
-  Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
-  Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
-  | Ok () ->
-    Cmd.git_submodule_update ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
-    fn tmpdir
-  | Error e ->
-    Commit.check_cached ~cancellable:false ~job commit >>= function
-    | Error not_cached ->
-      Fetch_cache.invalidate id;
-      Lwt.return (Error not_cached)
-    | Ok () -> Lwt.return (Error e)
+  let switch = Current.Switch.create ~label:"clone" () in
+  Lwt.finalize
+    (fun () ->
+       begin
+         match pool with
+         | Some pool -> Current.Job.use_pool ~switch job pool
+         | None -> Lwt.return_unit
+       end >>= fun () ->
+       Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
+       Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
+       Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
+       | Ok () ->
+         Cmd.git_submodule_update ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
+         Current.Switch.turn_off switch >>= fun () ->
+         fn tmpdir
+       | Error e ->
+         Commit.check_cached ~cancellable:false ~job commit >>= function
+         | Error not_cached ->
+           Fetch_cache.invalidate id;
+           Lwt.return (Error not_cached)
+         | Ok () -> Lwt.return (Error e)
+    )
+    (fun () -> Current.Switch.turn_off switch)
 
 module Local = struct
   module Ref_map = Map.Make(String)
