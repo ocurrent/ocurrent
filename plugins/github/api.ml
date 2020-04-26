@@ -226,9 +226,11 @@ let exec_graphql ?variables t query =
           | _ ->
             Fmt.failwith "Unknown error type from GitHub GraphQL"
       end
-    | err -> Fmt.failwith "@[<v2>Error performing GraphQL query on GitHub: %s@,%s@]"
-               (Cohttp.Code.string_of_status err)
-               body
+    | err ->
+      Log.warn (fun f -> f "@[<v2>Error performing GraphQL query on GitHub: %s@,%s@]"
+                   (Cohttp.Code.string_of_status err)
+                   body);
+      Fmt.failwith "Error performing GraphQL query on GitHub: %s" (Cohttp.Code.string_of_status err)
 
 let query_default =
   "query($owner: String!, $name: String!) { \
