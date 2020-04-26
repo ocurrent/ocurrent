@@ -31,14 +31,14 @@ let main config mode repo auth =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo) in
   let authn = Option.map Current_github.Auth.make_login_uri auth in
-  let site = Current_web.Site.v ?authn ~has_role ~name:program_name () in
   let routes =
     Routes.(s "login" /? nil @--> Current_github.Auth.login auth) ::
     Current_web.routes engine in
+  let site = Current_web.Site.v ?authn ~has_role ~name:program_name routes in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode ~site routes;
+      Current_web.run ~mode site;
     ]
   end
 

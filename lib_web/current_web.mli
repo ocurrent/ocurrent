@@ -24,6 +24,18 @@ module Site : sig
   type t
   (** Site configuration settings. *)
 
+  class type raw_resource = object
+    method get_raw : t -> Cohttp.Request.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+    (** Handle an HTTP GET request. *)
+
+    method post_raw : t -> Cohttp.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+    (** Handle an HTTP POST request. *)
+
+    method nav_link : string option
+    (** The link label to display in the site navigation bar to this page, if any.
+        Note: this is only used for routes without parameters. *)
+  end
+
   val allow_all : (User.t option -> Role.t -> bool)
   (** [allow_all] grants every role to every user. *)
 
@@ -32,8 +44,8 @@ module Site : sig
     ?authn:(csrf:string -> Uri.t) ->
     ?secure_cookies:bool ->
     has_role:(User.t option -> Role.t -> bool) ->
-    unit -> t
-  (** [v ~name ~authn ~has_role ()] is a site named [name] (used for the HTML title, etc)
+    raw_resource Routes.route list -> t
+  (** [v ~name ~authn ~has_role routes] is a site named [name] (used for the HTML title, etc)
       that uses [authn] to authenticate users and [has_role] to control what they can do.
       @param authn A link to a login page.
       @param secure_cookies Set secure cookie attribute (turn on if public site uses https). *)
@@ -67,6 +79,8 @@ end
 module Resource : sig
   (* A single HTTP resource in the web UI. *)
   class virtual t : object
+    inherit Site.raw_resource
+
     val can_get : Role.t
     (** The role the client needs in order to make a GET request. *)
 
@@ -75,27 +89,21 @@ module Resource : sig
 
     method private get : Context.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
     (** Concrete resources should override this method to handle GET requests.
+        {!get_raw} checks that the caller has the {!can_get} role and then calls this.
         The default method returns a [`Bad_request] error. *)
 
     method private post : Context.t -> string -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
     (** Concrete resources should override this method to handle POSTs.
+        {!get_post} checks that the caller has the {!can_post} role, reads the
+        body, checks the CSRF token, and then calls this.
         The default method returns a [`Bad_request] error. *)
-
-    method get_raw : Site.t -> Cohttp.Request.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-    (** Handle an HTTP GET request. The default method checks that the caller
-        has the {!can_get} role and then calls [get]. *)
-
-    method post_raw : Site.t -> Cohttp.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-    (** Handle an HTTP POST request.
-        The default method checks that the caller has the {!can_post} role,
-        reads the body, checks the CSRF token, and then calls [post]. *)
   end
 end
 
 val routes : Current.Engine.t -> Resource.t Routes.route list
 (** [routes engine] is the default routes for a web interface to [engine]. *)
 
-val run : ?mode:Conduit_lwt_unix.server -> site:Site.t -> Resource.t Routes.route list -> ('a, [`Msg of string]) result Lwt.t
-(** [run ~mode ~site routes] runs a web-server (with configuration [mode]) that handles incoming requests with [routes]. *)
+val run : ?mode:Conduit_lwt_unix.server -> Site.t -> ('a, [`Msg of string]) result Lwt.t
+(** [run ~mode site] runs a web-server (with configuration [mode]) that handles incoming requests for [site]. *)
 
 val cmdliner : Conduit_lwt_unix.server Cmdliner.Term.t

@@ -14,7 +14,7 @@ let forbidden (ctx : Context.t) =
         a ~a:[a_href (Uri.to_string uri)] [ txt "log in" ]
     ]
 
-class virtual t = object (self)
+class virtual t = object (self : #Site.raw_resource)
   val can_get : Role.t = `Admin
   val can_post : Role.t = `Admin
 
@@ -41,6 +41,8 @@ class virtual t = object (self)
     ) else (
       forbidden ctx
     )
+
+  method nav_link = None
 end
 
 let render_logged_out ctx =
@@ -63,4 +65,6 @@ let logout = object
         render_logged_out { ctx with user = None }
       | _ -> Context.respond_error ctx `Bad_request "Bad CSRF token"
     )
+
+  method nav_link = None
 end

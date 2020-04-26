@@ -50,12 +50,12 @@ let routes engine =
     s "logout" /? nil @--> Resource.logout;
   ] @ Job.routes ~engine
 
-let handle_request ~site routes _conn request body =
+let handle_request ~site _conn request body =
   let meth = Cohttp.Request.meth request in
   let uri = Cohttp.Request.uri request in
   let path = Uri.path uri in
   Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
-  match Routes.match' routes ~target:path with
+  match Routes.match' site.Site.router ~target:path with
   | None -> Utils.Server.respond_not_found ()
   | Some resource ->
     match meth with
@@ -69,8 +69,8 @@ let pp_mode f mode =
 
 let default_mode = `TCP (`Port 8080)
 
-let run ?(mode=default_mode) ~site routes =
-  let callback = handle_request ~site (Routes.one_of routes) in
+let run ?(mode=default_mode) site =
+  let callback = handle_request ~site in
   let config = Utils.Server.make ~callback () in
   Log.info (fun f -> f "Starting web server: %a" pp_mode mode);
   Lwt.try_bind

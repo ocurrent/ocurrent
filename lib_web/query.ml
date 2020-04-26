@@ -64,4 +64,6 @@ let r = object
           ])
         (List.map render_row results)
     ]
+
+  method! nav_link = Some "Query"
 end

@@ -87,12 +87,11 @@ let pipeline () =
 
 let main config mode =
   let engine = Current.Engine.create ~config pipeline in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name () in
-  let routes = Current_web.routes engine in
+  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
   Logging.run begin
     Lwt.choose [
       Current.Engine.thread engine;
-      Current_web.run ~mode ~site routes;
+      Current_web.run ~mode site;
     ]
   end
 

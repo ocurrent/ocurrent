@@ -63,6 +63,10 @@ let logout_form t user =
     ]
   ]
 
+let render_nav_link (link_label, path) =
+  let open Tyxml.Html in
+  li [a ~a:[a_href path] [txt link_label]]
+
 let template t contents =
   let site = t.site in
   let open Tyxml.Html in
@@ -75,13 +79,11 @@ let template t contents =
       )
       (body [
           nav [
-            ul [
-              li [a ~a:[a_href "/"] [txt site.name]];
-              li [a ~a:[a_href "/"] [txt "Home"]];
-              li [a ~a:[a_href "/jobs"] [txt "Jobs"]];
-              li [a ~a:[a_href "/query"] [txt "Query"]];
-              li [a ~a:[a_href "/log-rules"] [txt "Log analysis"]];
-            ];
+            ul (
+              li [a ~a:[a_href "/"] [txt site.name]] ::
+              li [a ~a:[a_href "/"] [txt "Home"]] ::
+              List.map render_nav_link site.nav_links
+            );
             ul ~a:[a_class ["right"]] (
               match t.site.authn with
               | None -> []

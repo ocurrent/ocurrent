@@ -111,6 +111,8 @@ let login t : Current_web.Resource.t = object
 
   method post_raw _ _ _ =
     Server.respond_error ~status:`Bad_request ~body:"Bad method" ()
+
+  method nav_link = None
 end
 
 open Cmdliner
