@@ -14,7 +14,7 @@ let pp_reason f x = Current_term.Output.pp (Fmt.unit "()") f (x :> unit Current_
 let turn_off t =
   match t.state with
   | `Off ->
-    Log.info (fun f -> f "Switch.turn_off: already off");
+    Log.debug (fun f -> f "Switch.turn_off: already off");
     Lwt.return_unit
   | `Turning_off thread ->
     thread

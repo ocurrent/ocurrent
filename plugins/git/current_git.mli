@@ -45,12 +45,14 @@ val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commi
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
+  ?pool:Current.Pool.t ->
   job:Current.Job.t ->
   Commit.t ->
   (Fpath.t -> 'a Current.or_error Lwt.t) ->
   'a Current.or_error Lwt.t
 (** [with_checkout ~job c fn] clones [c] to a temporary directory and runs [fn tmpdir].
-    When it returns, the directory is deleted. *)
+    When it returns, the directory is deleted.
+    @param pool Used to prevent too many clones from happening at once. *)
 
 module Local : sig
   type t
