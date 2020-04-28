@@ -99,7 +99,7 @@ module Generic(Op : S.GENERIC) = struct
       | `Retry of latched                 (* Need to try again. *)
     ];
     mutable mtime : float;                (* Time last operation completed (if finished or error). *)
-    mutable expires : (float * unit Lwt.t) option;     (* Time and sleeping thread (for cancellation). *)
+    mutable expires : (float * (unit -> unit)) option;  (* Time and cancel function. *)
     notify : unit Current_incr.var;       (* Async thread sets this to update results. *)
   }
 
@@ -297,45 +297,51 @@ module Generic(Op : S.GENERIC) = struct
   let limit_expires t time =
     let set () =
       let remaining_time = time -. !Job.timestamp () in
-      let thread =
-        Lwt.catch
-          (fun () ->
-             begin
-               if remaining_time <= 0.0 then Lwt.return_unit
-               else !Job.sleep remaining_time
-             end
-             >>= fun () ->
-             Log.info (fun f -> f "Result for %a has expired" pp_desired t);
-             let latched =
-               match t.op with
-               | `Finished x -> Some (Ok x)
-               | `Retry x -> x
-               | _ -> None
-             in
-             t.op <- `Retry latched;
-             t.current <- None;
-             Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
-             let config = Option.get (Current_incr.observe Current.Config.now) in
-             maybe_restart ~config t
-          )
-          (function
-            | Lwt.Canceled ->
-              Lwt.return_unit
-            | ex ->
-              Log.err (fun f -> f "Expiry thread failed: %a" Fmt.exn ex);
-              Lwt.return_unit
-          )
+      let sleep_thread = if remaining_time > 0.0 then !Job.sleep remaining_time else Lwt.return_unit in
+      let cancelled = ref false in
+      Lwt.async
+        (fun () ->
+           Lwt.try_bind
+             (fun () -> sleep_thread)
+             (fun () ->
+                Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
+                if not !cancelled then (
+                  t.expires <- None;
+                  Log.info (fun f -> f "Result for %a has expired" pp_desired t);
+                  let latched =
+                    match t.op with
+                    | `Finished x -> Some (Ok x)
+                    | `Retry x -> x
+                    | _ -> None
+                  in
+                  t.op <- `Retry latched;
+                  t.current <- None;
+                  let config = Option.get (Current_incr.observe Current.Config.now) in
+                  maybe_restart ~config t
+                )
+             )
+             (function
+               | Lwt.Canceled ->
+                 Lwt.return_unit
+               | ex ->
+                 Log.err (fun f -> f "Expiry thread failed: %a" Fmt.exn ex);
+                 Lwt.return_unit
+             );
+        );
+      let cancel () =
+        Lwt.cancel sleep_thread;
+        cancelled := true
       in
-      t.expires <- Some (time, thread)
+      t.expires <- Some (time, cancel)
     in
     match t.expires with
     | Some (prev, _) when prev <= time -> ()            (* Already expiring by [time] *)
-    | Some (_, thread) -> Lwt.cancel thread; set ()
+    | Some (_, cancel) -> cancel (); set ()
     | None -> set ()
 
   let cancel_expires t =
     match t.expires with
-    | Some (_, thread) -> Lwt.cancel thread; t.expires <- None
+    | Some (_, cancel) -> cancel (); t.expires <- None
     | None -> ()
 
   (* Create a new in-memory output, initialising it from the database. *)
