@@ -33,7 +33,7 @@ module Installs = Current.Var(struct
 
 type t = {
   app_id : string;
-  key : Nocrypto.Rsa.priv;
+  key : Mirage_crypto_pk.Rsa.priv;
   whitelist : string list;      (* Accounts which can use this app. *)
   installations : Installs.t;
 }

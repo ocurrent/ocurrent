@@ -24,7 +24,8 @@ depends: [
   "lwt"
   "yojson"
   "cohttp-lwt-unix"
-  "nocrypto"
+  "mirage-crypto"
+  "mirage-crypto-pk"
   "x509" {>= "0.7.0"}
   "tls"
   "dune" {>= "1.9"}
