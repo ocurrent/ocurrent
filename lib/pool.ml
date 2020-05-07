@@ -30,29 +30,43 @@ module Metrics = struct
     Gauge.v_label ~help ~label_name:"name" ~namespace ~subsystem "capacity"
 end
 
+type priority = [ `High | `Low ]
+
 type t = {
   label : string;
   mutable used : int;
   capacity : int;
-  queue : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
+  queue_low : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
+  queue_high : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
 }
 
 let create ~label capacity =
   Prometheus.Gauge.set (Metrics.capacity label) (float_of_int capacity);
-  { label; used = 0; capacity; queue = Lwt_dllist.create () }
+  { label; used = 0; capacity;
+    queue_low = Lwt_dllist.create ();
+    queue_high = Lwt_dllist.create ()
+  }
 
 let check t =
   if t.used < t.capacity then (
-    match Lwt_dllist.take_opt_l t.queue with
-    | None -> ()
-    | Some waiter ->
-      t.used <- t.used + 1;
-      Lwt.wakeup_later waiter `Use
+    let next =
+      match Lwt_dllist.take_opt_l t.queue_high with
+      | None -> Lwt_dllist.take_opt_l t.queue_low
+      | Some _ as x -> x
+    in
+    next |> Option.iter @@ fun waiter ->
+    t.used <- t.used + 1;
+    Lwt.wakeup_later waiter `Use
   )
 
-let get ~on_cancel ~switch t =
+let get ~priority ~on_cancel ~switch t =
   let ready, set_ready = Lwt.wait () in
-  let node = Lwt_dllist.add_r set_ready t.queue in
+  let queue =
+    match priority with
+    | `High -> t.queue_high
+    | `Low -> t.queue_low
+  in
+  let node = Lwt_dllist.add_r set_ready queue in
   on_cancel (fun _ ->
       Lwt_dllist.remove node;
       if Lwt.is_sleeping ready then Lwt.wakeup_later set_ready `Cancel;

@@ -213,7 +213,8 @@ module Generic(Op : S.GENERIC) = struct
     output.current <- None;
     let ctx = output.ctx in
     let switch = Current.Switch.create ~label:Op.id () in
-    let job = Job.create ~switch ~label:Op.id ~config () in
+    let priority = if latched = None then `High else `Low in
+    let job = Job.create ~priority ~switch ~label:Op.id ~config () in
     let job_id = Job.id job in
     output.job_id <- Some job_id;
     let op = { value = output.desired; job; autocancelled = false } in

@@ -179,9 +179,11 @@ module Switch : sig
 end
 
 (** Resource pools, to control how many jobs can use a resource at a time.
-    To use a pool within a job, call {!Job.use_pool}. *)
+    To use a pool within a job, pass the pool to {!Job.start} or call {!Job.use_pool}. *)
 module Pool : sig
   type t
+
+  type priority = [ `High | `Low ]
 
   val create : label:string -> int -> t
   (** [create ~label n] is a pool with [n] resources.
@@ -194,9 +196,15 @@ module Job : sig
 
   module Map : Map.S with type key = job_id
 
-  val create : switch:Switch.t -> label:string -> config:Config.t -> unit -> t
+  val create :
+    ?priority:Pool.priority ->
+    switch:Switch.t ->
+    label:string ->
+    config:Config.t ->
+    unit -> t
   (** [create ~switch ~label ~config ()] is a new job.
       @param switch Turning this off will cancel the job.
+      @param priority Passed to the pool when {!start} is called. Default is [`Low].
       @param label A label to use in the job's filename (for debugging). *)
 
   val start : ?timeout:Duration.t -> ?pool:Pool.t -> level:Level.t -> t -> unit Lwt.t
@@ -267,7 +275,7 @@ module Job : sig
   val register_actions : job_id -> actions -> unit
   (** [register_actions job_id actions] is used to register handlers for e.g. rebuilding jobs. *)
 
-  val use_pool : switch:Switch.t -> t -> Pool.t -> unit Lwt.t
+  val use_pool : ?priority:Pool.priority -> switch:Switch.t -> t -> Pool.t -> unit Lwt.t
   (** [use_pool ~switch t pool] gets one resource from [pool].
       The resource is returned to the pool when the switch is turned off.
       The operation will be aborted if the job is cancelled. *)
