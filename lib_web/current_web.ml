@@ -38,7 +38,7 @@ end
 
 let routes engine =
   Routes.[
-    nil @--> Main.r ~engine;
+    empty @--> Main.r ~engine;
     s "index.html" /? nil @--> Main.r ~engine;
     s "css" / s "style.css" /? nil @--> Style.r;
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
