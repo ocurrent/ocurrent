@@ -44,16 +44,20 @@ let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
 
 let rm_f_tree root =
   let rec rmtree path =
-    let info = Unix.lstat path in
+    Lwt_unix.lstat path >>= fun info ->
     match info.Unix.st_kind with
     | Unix.S_REG | Unix.S_LNK | Unix.S_BLK | Unix.S_CHR | Unix.S_SOCK
     | Unix.S_FIFO ->
-        Unix.unlink path
+      Lwt_unix.unlink path
     | Unix.S_DIR ->
-        Unix.chmod path 0o700;
-        Sys.readdir path
-        |> Array.iter (fun leaf -> rmtree (Filename.concat path leaf));
-        Unix.rmdir path
+      Lwt_unix.chmod path 0o700 >>= fun () ->
+      Lwt_unix.files_of_directory path
+      |> Lwt_stream.iter_s (function
+          | "." | ".." -> Lwt.return_unit
+          | leaf -> rmtree (Filename.concat path leaf)
+        )
+      >>= fun () ->
+      Lwt_unix.rmdir path
   in
   rmtree root
 
@@ -61,9 +65,7 @@ let with_tmpdir ?prefix fn =
   let tmpdir = make_tmp_dir ?prefix ~mode:0o700 (Filename.get_temp_dir_name ()) in
   Lwt.finalize
     (fun () -> fn (Fpath.v tmpdir))
-    (fun () ->
-      rm_f_tree tmpdir;
-      Lwt.return () )
+    (fun () -> rm_f_tree tmpdir)
 
 let send_to ch contents =
   Lwt.try_bind
