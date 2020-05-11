@@ -223,6 +223,13 @@ module Monitor = struct
     cond : unit Lwt_condition.t;          (* Maybe time to leave the "wait" state *)
   }
 
+  let catch t fn =
+    Lwt.catch fn
+      (fun ex ->
+         Log.warn (fun f -> f "Uncaught exception in monitor %t: %a" t.pp Fmt.exn ex);
+         Lwt_result.fail (`Msg (Printexc.to_string ex))
+      )
+
   let refresh t () =
     t.need_refresh <- true;
     Lwt_condition.broadcast t.cond ()
@@ -246,7 +253,7 @@ module Monitor = struct
     t.need_refresh <- false;
     Current_incr.change t.reading true;
     Engine.update ();
-    t.read () >>= fun v ->
+    catch t t.read >>= fun v ->
     Current_incr.change t.reading false;
     Current_incr.change t.value @@ (v :> _ Current_term.Output.t);
     Engine.update ();
