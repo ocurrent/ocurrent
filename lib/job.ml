@@ -21,6 +21,7 @@ type t = {
   switch : Switch.t;
   config : Config.t;
   id : string;
+  priority : Pool.priority;
   set_start_time : float Lwt.u;
   start_time : float Lwt.t;
   mutable ch : out_channel option;
@@ -94,7 +95,7 @@ let cancel t reason =
     log t "Cancelling: %s" reason;
     Lwt.async (fun () -> run_cancel_hooks ~reason hooks)
 
-let create ~switch ~label ~config () =
+let create ?(priority=`Low) ~switch ~label ~config () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
   let jobs_dir = Lazy.force jobs_dir in
   let time = !timestamp () |> Unix.gmtime in
@@ -118,7 +119,7 @@ let create ~switch ~label ~config () =
     let explicit_confirm, set_explicit_confirm = Lwt.wait () in
     let cancel_hooks = `Hooks (Lwt_dllist.create ()) in
     let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond; cancel_hooks;
-              explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false } in
+              explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false; priority } in
     jobs := Map.add id t !jobs;
     Prometheus.Gauge.inc_one Metrics.active_jobs;
     Switch.add_hook_or_fail switch (fun () ->
@@ -157,8 +158,8 @@ let with_handler t ~on_cancel fn =
     let node = Lwt_dllist.add_r on_cancel hooks in
     Lwt.finalize fn (fun () -> Lwt_dllist.remove node; Lwt.return_unit)
 
-let use_pool ~switch t pool =
-  Pool.get ~on_cancel:(on_cancel t) ~switch pool
+let use_pool ?(priority=`Low) ~switch t pool =
+  Pool.get ~priority ~on_cancel:(on_cancel t) ~switch pool
 
 let confirm t ?pool level =
   let confirmed =
@@ -185,7 +186,7 @@ let confirm t ?pool level =
   match pool with
   | None -> Lwt.return_unit
   | Some pool ->
-    let res = use_pool t ~switch:t.switch pool in
+    let res = use_pool t ~priority:t.priority ~switch:t.switch pool in
     if Lwt.is_sleeping res then (
       log t "Waiting for resource in pool %a" Pool.pp pool;
       res >|= fun () ->

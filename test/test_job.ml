@@ -99,6 +99,31 @@ let pool_cancel _switch () =
   Alcotest.(check lwt_state) "Job cancelled" (Lwt.Fail (Failure "Cancelled waiting for resource from pool \"test\"")) (Lwt.state s1);
   Lwt.return_unit
 
+let pool_priority _switch () =
+  let config = Current.Config.v () in
+  let pool = Current.Pool.create ~label:"test" 1 in
+  let sw1 = Current.Switch.create ~label:"cancel-1" () in
+  let sw2 = Current.Switch.create ~label:"cancel-2" () in
+  let sw3 = Current.Switch.create ~label:"cancel-3" () in
+  let job1 = Job.create ~switch:sw1 ~label:"job-1" ~config () in
+  let job2 = Job.create ~switch:sw2 ~label:"job-2" ~config () in
+  let job3 = Job.create ~priority:`High ~switch:sw3 ~label:"job-3" ~config () in
+  let s1 = Job.start ~pool ~level:Current.Level.Harmless job1 in
+  let s2 = Job.start ~pool ~level:Current.Level.Harmless job2 in
+  let s3 = Job.start ~pool ~level:Current.Level.Harmless job3 in
+  Lwt.pause () >>= fun () ->
+  Alcotest.(check lwt_state) "First job started" Lwt.(Return ()) (Lwt.state s1);
+  Alcotest.(check lwt_state) "Second job queued" Lwt.Sleep (Lwt.state s2);
+  Alcotest.(check lwt_state) "Third job queued" Lwt.Sleep (Lwt.state s3);
+  Current.Switch.turn_off sw1 >>= fun () ->
+  Lwt.pause () >>= fun () ->
+  Alcotest.(check lwt_state) "Second job queued" Lwt.Sleep (Lwt.state s2);
+  Alcotest.(check lwt_state) "High-priority third job ready" Lwt.(Return ()) (Lwt.state s3);
+  Current.Switch.turn_off sw3 >>= fun () ->
+  Lwt.pause () >>= fun () ->
+  Alcotest.(check lwt_state) "Second job ready" Lwt.(Return ()) (Lwt.state s2);
+  Lwt.return_unit
+
 let tests =
   [
     Driver.test_case_gc "streams" streams;
@@ -106,4 +131,5 @@ let tests =
     Driver.test_case_gc "cancel" cancel;
     Driver.test_case_gc "pool" pool;
     Driver.test_case_gc "pool_cancel" pool_cancel;
+    Driver.test_case_gc "pool_priority" pool_priority;
   ]
