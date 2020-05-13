@@ -80,7 +80,15 @@ let get_installations app =
           let account = json |> member "account" |> member "login" |> to_string in
           if List.mem account app.whitelist then (
             Log.info (fun f -> f "Found installation %d for %S" id account);
-            Some (id, account)
+            let repository_selection = json |> member "repository_selection" |> to_string in
+            match repository_selection with
+            | "selected" -> Some (id, account)
+            | "all" ->
+              Log.warn (fun f -> f "Installation %S has selected all repositories - skipping as probably a mistake" account);
+              None
+            | x ->
+              Log.warn (fun f -> f "Installation %S has unknown repository_selection %S - skipping" account x);
+              None
           ) else (
             Log.warn (fun f -> f "Installation %d for %S : account not on whitelist!" id account);
             None
