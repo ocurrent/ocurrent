@@ -29,27 +29,49 @@ let compare a b = compare a.iid b.iid
 
 let list_repositories_endpoint = Uri.of_string "https://api.github.com/installation/repositories"
 
+let next headers =
+  headers
+  |> Cohttp.Header.get_links
+  |> List.find_opt (fun (link : Cohttp.Link.t) ->
+      List.exists (fun r -> r = Cohttp.Link.Rel.next) link.arc.relation
+    )
+  |> Option.map (fun link -> link.Cohttp.Link.target)
+
 let list_repositories ~api ~token ~account =
   let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
   let headers = Cohttp.Header.add headers "accept" "application/vnd.github.machine-man-preview+json" in
-  let uri = list_repositories_endpoint  in
-  Log.debug (fun f -> f "Get repositories for %S from %a" account Uri.pp uri);
-  Cohttp_lwt_unix.Client.get ~headers uri >>= fun (resp, body) ->
-  Cohttp_lwt.Body.to_string body >|= fun body ->
-  match Cohttp.Response.status resp with
-  | `OK ->
-    let json = Yojson.Safe.from_string body in
-    Log.debug (fun f -> f "@[<v2>Got response:@,%a@]" Yojson.Safe.pp json);
-    let open Yojson.Safe.Util in
-    let repos = json |> member "repositories" |> to_list in
-    Prometheus.Gauge.set (Metrics.repositories_total account) (float_of_int (List.length repos));
-    repos |> List.map @@ fun r ->
-    let name = r |> member "name" |> to_string in
-    api, Repo_id.{ owner = account; name }
-  | err -> Fmt.failwith "@[<v2>Error accessing GitHub installation API at %a: %s@,%s@]"
-             Uri.pp uri
-             (Cohttp.Code.string_of_status err)
-             body
+  let rec aux uri =
+    Log.debug (fun f -> f "Get repositories for %S from %a" account Uri.pp uri);
+    Cohttp_lwt_unix.Client.get ~headers uri >>= fun (resp, body) ->
+    Cohttp_lwt.Body.to_string body >>= fun body ->
+    match Cohttp.Response.status resp with
+    | `OK ->
+      let json = Yojson.Safe.from_string body in
+      Log.debug (fun f -> f "@[<v2>Got response:@,%a@]" Yojson.Safe.pp json);
+      let open Yojson.Safe.Util in
+      let repos =
+        json
+        |> member "repositories"
+        |> to_list
+        |> List.map (fun r ->
+            let name = r |> member "name" |> to_string in
+            api, Repo_id.{ owner = account; name }
+          )
+      in
+      begin match next (Cohttp.Response.headers resp) with
+        | None -> Lwt.return repos
+        | Some target ->
+          aux target >|= fun next_repos ->
+          repos @ next_repos
+      end
+    | err -> Fmt.failwith "@[<v2>Error accessing GitHub installation API at %a: %s@,%s@]"
+               Uri.pp uri
+               (Cohttp.Code.string_of_status err)
+               body
+  in
+  aux list_repositories_endpoint >|= fun repos ->
+  Prometheus.Gauge.set (Metrics.repositories_total account) (float_of_int (List.length repos));
+  repos
 
 let v ~iid ~account ~api =
   let read () =
