@@ -20,7 +20,7 @@ depends: [
   "fmt"
   "yojson"
   "lwt"
-  "lwt_ssl"
+  "tls" {>= "0.12.0"}
   "cohttp-lwt-unix"
   "dune" {>= "2.0"}
 ]

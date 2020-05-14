@@ -5,9 +5,6 @@
    cohttp
    cohttp-lwt
    cohttp-lwt-unix
-   conduit
-   conduit-lwt
-   conduit-lwt-unix
    current
    current.cache
    current.term
