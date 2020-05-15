@@ -158,9 +158,8 @@ module Generic(Op : S.GENERIC) = struct
   (* Caller needs to notify about the change, if needed. *)
   let invalidate_output output =
     match output.op with
-    | `Finished _ | `Retry _ ->
+    | `Retry _ ->
       output.current <- None;
-      output.op <- `Retry None;
       Db.invalidate ~op:Op.id (Op.Key.digest output.key)
     | _ -> assert false
 
@@ -168,7 +167,9 @@ module Generic(Op : S.GENERIC) = struct
   let invalidate key =
     let key = Op.Key.digest key in
     match Outputs.find_opt key !outputs with
-    | Some o -> invalidate_output o
+    | Some o ->
+      o.op <- `Retry None;
+      invalidate_output o
     | None -> Db.invalidate ~op:Op.id key
 
   let notify t =
