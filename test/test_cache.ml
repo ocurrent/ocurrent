@@ -390,7 +390,7 @@ module Latched = struct
   let pp f (k, v) =
     Fmt.pf f "Set %s to %s" k v
 
-  let auto_cancel = false
+  let auto_cancel = true
 
   let create () = Hashtbl.create 2
 
@@ -445,6 +445,42 @@ let latched _switch () =
   | _ ->
     assert false
 
+let latched_autocancel _switch () =
+  LC.reset ~db:true;
+  let p = Latched.create () in
+  V.set base @@ Ok "alpine:3.10";
+  V.set commit @@ Ok "r1";
+  let result = ref (Error (`Msg ("uninitialised"))) in
+  let pipeline () =
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
+    result := st
+  in
+  Driver.test ~name:"cache.latched-autocancel" pipeline @@ function
+  | 1 ->
+    Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
+    Lwt_condition.broadcast Latched.cond ();
+  | 2 ->
+    Alcotest.(check result_t) "3.10 ready" (Ok "alpine:3.10-outcome") !result;
+    Alcotest.(check (option string)) "3.10 result" (Some "alpine:3.10-done") (Hashtbl.find_opt p "r1");
+    V.set base @@ Ok "alpine:3.11";
+    (* Changing the base latches the result *)
+  | 3 ->
+    Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
+    V.set base @@ Ok "alpine:3.12";
+    (* Changing the base again auto-cancels, still latching the result *)
+  | 4 ->
+    Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
+    Lwt_condition.broadcast Latched.cond ();    (* Cancel takes effect *)
+  | 5 ->
+    Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
+    Lwt_condition.broadcast Latched.cond ();    (* Second update completes *)
+  | 6 ->
+    Alcotest.(check result_t) "3.12 ready" (Ok "alpine:3.12-outcome") !result;
+    Alcotest.(check (option string)) "3.12 result" (Some "alpine:3.12-done") (Hashtbl.find_opt p "r1");
+    raise Exit
+  | _ ->
+    assert false
+
 let clear_error _switch () =
   LC.reset ~db:true;
   let p = Latched.create () in
@@ -490,13 +526,14 @@ let clear_error _switch () =
 
 let tests =
   [
-    Driver.test_case_gc "basic"             basic;
-    Driver.test_case_gc "expires"           expires;
-    Driver.test_case_gc "autocancel"        autocancel;
-    Driver.test_case_gc "output"            output;
-    Driver.test_case_gc "output_autocancel" output_autocancel;
-    Driver.test_case_gc "output_retry"      output_retry;
-    Driver.test_case_gc "output_retry_new"  output_retry_new;
-    Driver.test_case_gc "latched"           latched;
-    Driver.test_case_gc "clear_error"       clear_error;
+    Driver.test_case_gc "basic"              basic;
+    Driver.test_case_gc "expires"            expires;
+    Driver.test_case_gc "autocancel"         autocancel;
+    Driver.test_case_gc "output"             output;
+    Driver.test_case_gc "output_autocancel"  output_autocancel;
+    Driver.test_case_gc "output_retry"       output_retry;
+    Driver.test_case_gc "output_retry_new"   output_retry_new;
+    Driver.test_case_gc "latched"            latched;
+    Driver.test_case_gc "latched_autocancel" latched_autocancel;
+    Driver.test_case_gc "clear_error"        clear_error;
   ]
