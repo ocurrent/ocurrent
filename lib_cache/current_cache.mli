@@ -64,11 +64,12 @@ module Db : sig
   (** Ensure that the database tables have been created.
       This is useful if you need to refer to them in your own SQL. *)
 
-  val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> unit -> entry list
+  val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> ?job_prefix:string -> unit -> entry list
   (** Search the database for matching records.
       @param op : if present, restrict to results from the named builder or publisher
       @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results.
-      @param rebuild : if present, restrict results to ones where the rebuild flag matches this. *)
+      @param rebuild : if present, restrict results to ones where the rebuild flag matches this.
+      @param job_prefix : if present, restrict results to ones where the job ID starts with this string. *)
 
   val ops : unit -> string list
   (** [ops ()] is the list of operation types that can be passed to [query]. *)

@@ -147,11 +147,17 @@ let sqlite_bool = function
   | false -> Sqlite3.Data.INT 0L
   | true -> Sqlite3.Data.INT 1L
 
-let query ?op ?ok ?rebuild () =
+let query ?op ?ok ?rebuild ?job_prefix () =
+  let job_pattern =
+    job_prefix |> Option.map (fun s ->
+        if String.contains s '%' then Fmt.failwith "Bad character in job prefix %S" s;
+        s ^ "%"
+      ) in
   let tests = List.filter_map Fun.id [
       Option.map (fun x -> Fmt.strf "ok=?", sqlite_bool x) ok;
       Option.map (fun x -> Fmt.strf "op=?", Sqlite3.Data.TEXT x) op;
       Option.map (fun x -> Fmt.strf "rebuild=?", sqlite_bool x) rebuild;
+      Option.map (fun x -> Fmt.strf "job_id LIKE ?", Sqlite3.Data.TEXT x) job_pattern;
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (

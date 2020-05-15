@@ -65,6 +65,12 @@ let bool_option ?(t="True") ?(f="False") name value =
       )
   )
 
+let string_option ~placeholder ~title name value =
+  let value = Option.value value ~default:"" in
+  input ~a:[a_name name; a_input_type `Text; a_value value; a_placeholder placeholder; a_title title] ()
+
+let date_tip = "Actually, any prefix of the job ID can be used here."
+
 let r = object
   inherit Resource.t
 
@@ -75,7 +81,8 @@ let r = object
     let ok = bool_param "ok" uri in
     let rebuild = bool_param "rebuild" uri in
     let op = string_param "op" uri in
-    let results = Db.query ?op ?ok ?rebuild () in
+    let date = string_param "date" uri in
+    let results = Db.query ?op ?ok ?rebuild ?job_prefix:date () in
     let ops = Db.ops () in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
@@ -83,6 +90,7 @@ let r = object
             li [txt "Operation type:"; enum_option ~choices:ops "op" op];
             li [txt "Result:"; bool_option "ok" ok ~t:"Passed" ~f:"Failed"];
             li [txt "Needs rebuild:"; bool_option "rebuild" rebuild];
+            li [txt "Date:"; string_option "date" date ~placeholder:"YYYY-MM-DD" ~title:date_tip];
             li [input ~a:[a_input_type `Submit; a_value "Submit"] ()];
           ];
       ];

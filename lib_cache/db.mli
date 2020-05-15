@@ -42,6 +42,6 @@ val lookup_job_id : string -> (string * string) option
 (** These functions are described in the {!Current_cache} public API. *)
 
 val init : unit -> unit
-val query : ?op:string -> ?ok:bool -> ?rebuild:bool ->unit -> entry list
+val query : ?op:string -> ?ok:bool -> ?rebuild:bool -> ?job_prefix:string -> unit -> entry list
 val history : limit:int -> op:string -> string -> entry list
 val ops : unit -> string list

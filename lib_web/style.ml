@@ -130,6 +130,11 @@ let css = {|
     margin-left: 0.5em;
     margin-right: 2em;
   }
+
+  ul.query-form li input {
+    margin-left: 0.5em;
+    margin-right: 2em;
+  }
 |} ^ Current_ansi.css
 
 let r = object
