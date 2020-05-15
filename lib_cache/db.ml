@@ -16,6 +16,7 @@ type t = {
   drop : Sqlite3.stmt;
   lookup : Sqlite3.stmt;
   get_key : Sqlite3.stmt;
+  ops : Sqlite3.stmt;
 }
 
 type entry = {
@@ -60,7 +61,8 @@ let db = lazy (
   let get_key = Sqlite3.prepare db "SELECT op, key FROM cache WHERE job_id = ? LIMIT 1" in
   let invalidate = Sqlite3.prepare db "UPDATE cache SET rebuild = 1 WHERE op = ? AND key = ?" in
   let drop = Sqlite3.prepare db "DELETE FROM cache WHERE op = ?" in
-  { db; record; invalidate; drop; lookup; get_key }
+  let ops = Sqlite3.prepare db "SELECT DISTINCT op FROM cache" in
+  { db; record; invalidate; drop; lookup; get_key; ops }
 )
 
 let init () =
@@ -123,6 +125,12 @@ let lookup_job_id job_id =
   | Some Sqlite3.Data.[TEXT op; BLOB key] -> Some (op, key)
   | Some row -> Fmt.failwith "Invalid get_key result: %a" Current.Db.dump_row row
 
+let ops () =
+  let t = Lazy.force db in
+  Db.query t.ops [] |> List.map @@ function
+  | Sqlite3.Data.[TEXT op] -> op
+  | row -> Fmt.failwith "Invalid ops result: %a" Current.Db.dump_row row
+
 let drop_all op =
   let t = Lazy.force db in
   Db.exec t.drop Sqlite3.Data.[ TEXT op ]
@@ -139,11 +147,17 @@ let sqlite_bool = function
   | false -> Sqlite3.Data.INT 0L
   | true -> Sqlite3.Data.INT 1L
 
-let query ?op ?ok ?rebuild () =
+let query ?op ?ok ?rebuild ?job_prefix () =
+  let job_pattern =
+    job_prefix |> Option.map (fun s ->
+        if String.contains s '%' then Fmt.failwith "Bad character in job prefix %S" s;
+        s ^ "%"
+      ) in
   let tests = List.filter_map Fun.id [
       Option.map (fun x -> Fmt.strf "ok=?", sqlite_bool x) ok;
       Option.map (fun x -> Fmt.strf "op=?", Sqlite3.Data.TEXT x) op;
       Option.map (fun x -> Fmt.strf "rebuild=?", sqlite_bool x) rebuild;
+      Option.map (fun x -> Fmt.strf "job_id LIKE ?", Sqlite3.Data.TEXT x) job_pattern;
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (

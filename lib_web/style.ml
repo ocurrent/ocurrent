@@ -90,8 +90,11 @@ let css = {|
   }
 
   table td input {
-    width: 100%;
     box-sizing: border-box;
+  }
+
+  table.log-rules td input {
+    width: 100%;
   }
 
   table.log-rules td.score {
@@ -114,6 +117,26 @@ let css = {|
   div.build-history ol li + li:before {
       content: ", ";
       padding: 0 .2em;
+  }
+
+  ul.query-form {
+    list-style-type: none;
+    padding-left: 0;
+    width: 100%;
+  }
+
+  ul.query-form li {
+    display: inline
+  }
+
+  ul.query-form li select {
+    margin-left: 0.5em;
+    margin-right: 2em;
+  }
+
+  ul.query-form li input {
+    margin-left: 0.5em;
+    margin-right: 2em;
   }
 |} ^ Current_ansi.css
 

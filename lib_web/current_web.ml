@@ -42,7 +42,7 @@ let routes engine =
     s "index.html" /? nil @--> Main.r ~engine;
     s "css" / s "style.css" /? nil @--> Style.r;
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
-    s "query" /? nil @--> Query.r;
+    s "query" /? nil @--> Query.r ~engine;
     s "log-rules" /? nil @--> Log_rules.r;
     s "metrics" /? nil @--> metrics ~engine;
     s "set" / s "confirm" /? nil @--> set_confirm ~engine;
