@@ -70,6 +70,9 @@ module Db : sig
       @param ok : if present, restrict results to passing (ok=true) or failing (ok=false) results.
       @param rebuild : if present, restrict results to ones where the rebuild flag matches this. *)
 
+  val ops : unit -> string list
+  (** [ops ()] is the list of operation types that can be passed to [query]. *)
+
   val history : limit:int -> job_id:string -> string option * entry list
   (** [history ~limit ~job_id] returns the in-progress build (if any),
       and the [limit] most recent builds with the same key as [job_id]. *)

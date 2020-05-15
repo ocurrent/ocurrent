@@ -16,6 +16,7 @@ type t = {
   drop : Sqlite3.stmt;
   lookup : Sqlite3.stmt;
   get_key : Sqlite3.stmt;
+  ops : Sqlite3.stmt;
 }
 
 type entry = {
@@ -60,7 +61,8 @@ let db = lazy (
   let get_key = Sqlite3.prepare db "SELECT op, key FROM cache WHERE job_id = ? LIMIT 1" in
   let invalidate = Sqlite3.prepare db "UPDATE cache SET rebuild = 1 WHERE op = ? AND key = ?" in
   let drop = Sqlite3.prepare db "DELETE FROM cache WHERE op = ?" in
-  { db; record; invalidate; drop; lookup; get_key }
+  let ops = Sqlite3.prepare db "SELECT DISTINCT op FROM cache" in
+  { db; record; invalidate; drop; lookup; get_key; ops }
 )
 
 let init () =
@@ -122,6 +124,12 @@ let lookup_job_id job_id =
   | None -> None
   | Some Sqlite3.Data.[TEXT op; BLOB key] -> Some (op, key)
   | Some row -> Fmt.failwith "Invalid get_key result: %a" Current.Db.dump_row row
+
+let ops () =
+  let t = Lazy.force db in
+  Db.query t.ops [] |> List.map @@ function
+  | Sqlite3.Data.[TEXT op] -> op
+  | row -> Fmt.failwith "Invalid ops result: %a" Current.Db.dump_row row
 
 let drop_all op =
   let t = Lazy.force db in

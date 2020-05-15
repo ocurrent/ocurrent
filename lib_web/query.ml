@@ -35,11 +35,27 @@ let bool_param name uri =
   | Some "false" -> Some false
   | Some x -> Fmt.failwith "Invalid bool value %S in %a" x Uri.pp uri
 
+let string_param name uri =
+  match Uri.get_query_param uri name with
+  | None | Some "" -> None
+  | Some x -> Some x
+
 let bool_table ~t ~f = [
   None,       "",      "(any)";
   Some true,  "true",  t;
   Some false, "false", f;
 ]
+
+let enum_option ~choices name (value:string option) =
+  let value = Option.value value ~default:"" in
+  let choices = "" :: choices in
+  select ~a:[a_name name] (
+    choices |> List.map (fun form_value ->
+        let sel = if form_value = value then [a_selected ()] else [] in
+        let label = if form_value = "" then "(any)" else form_value in
+        option ~a:(a_value form_value :: sel) (txt label)
+      )
+  )
 
 let bool_option ?(t="True") ?(f="False") name value =
   select ~a:[a_name name] (
@@ -58,14 +74,17 @@ let r = object
     let uri = Context.uri ctx in
     let ok = bool_param "ok" uri in
     let rebuild = bool_param "rebuild" uri in
-    let results = Db.query ?ok ?rebuild () in
+    let op = string_param "op" uri in
+    let results = Db.query ?op ?ok ?rebuild () in
+    let ops = Db.ops () in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
-        table [
-          tr [th [txt "Result:"]; td [bool_option "ok" ok ~t:"Passed" ~f:"Failed"]];
-          tr [th [txt "Needs rebuild:"]; td [bool_option "rebuild" rebuild]];
-        ];
-        input ~a:[a_input_type `Submit; a_value "Submit"] ();
+        ul ~a:[a_class ["query-form"]] [
+            li [txt "Operation type:"; enum_option ~choices:ops "op" op];
+            li [txt "Result:"; bool_option "ok" ok ~t:"Passed" ~f:"Failed"];
+            li [txt "Needs rebuild:"; bool_option "rebuild" rebuild];
+            li [input ~a:[a_input_type `Submit; a_value "Submit"] ()];
+          ];
       ];
       table ~a:[a_class ["table"]]
         ~thead:(thead [

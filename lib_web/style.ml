@@ -115,6 +115,21 @@ let css = {|
       content: ", ";
       padding: 0 .2em;
   }
+
+  ul.query-form {
+    list-style-type: none;
+    padding-left: 0;
+    width: 100%;
+  }
+
+  ul.query-form li {
+    display: inline
+  }
+
+  ul.query-form li select {
+    margin-left: 0.5em;
+    margin-right: 2em;
+  }
 |} ^ Current_ansi.css
 
 let r = object
