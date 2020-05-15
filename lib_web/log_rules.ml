@@ -65,7 +65,7 @@ let test_pattern pattern =
   | results ->
     [
       p [txt (Fmt.strf "%d matches in last %d jobs:" (List.length results) n_jobs)];
-      table ~a:[a_class ["table"]]
+      table ~a:[a_class ["table"; "log-rules"]]
         ~thead:(thead [
             tr [
               th [txt "Job"];

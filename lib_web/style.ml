@@ -90,8 +90,11 @@ let css = {|
   }
 
   table td input {
-    width: 100%;
     box-sizing: border-box;
+  }
+
+  table.log-rules td input {
+    width: 100%;
   }
 
   table.log-rules td.score {

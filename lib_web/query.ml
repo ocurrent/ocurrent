@@ -8,7 +8,7 @@ let render_value = function
 let pp_duration f x =
   Fmt.pf f "%.0fs" x
 
-let render_row { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
+let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
   let job = Fmt.strf "/job/%s" job_id in
   let times =
     match running with
@@ -19,14 +19,25 @@ let render_row { Db.job_id; build; value = _; rebuild; ready; running; finished;
         pp_duration (running -. ready)
         pp_duration (finished -. running)
   in
-  tr [
+  let cols = [
     td [ a ~a:[a_href job] [txt job_id] ];
     td [ txt (Int64.to_string build) ];
     td [ render_value outcome ];
     td [ txt (if rebuild then "Needs rebuild" else "-") ];
     td [ txt (Utils.string_of_timestamp (Unix.gmtime finished)) ];
     td [ txt times ];
-  ]
+  ] in
+  if need_toggles then (
+    let toggle =
+      if Current.Job.Map.mem job_id jobs then
+        [input ~a:[a_input_type `Checkbox; a_name "id"; a_value job_id] ()]
+      else
+        []
+    in
+    tr (td toggle :: cols)
+  ) else (
+    tr cols
+  )
 
 let bool_param name uri =
   match Uri.get_query_param uri name with
@@ -71,10 +82,14 @@ let string_option ~placeholder ~title name value =
 
 let date_tip = "Actually, any prefix of the job ID can be used here."
 
-let r = object
+let have_active_jobs ~jobs query_results =
+  List.exists (fun entry -> Current.Job.Map.mem entry.Current_cache.Db.job_id jobs) query_results
+
+let r ~engine = object
   inherit Resource.t
 
   val! can_get = `Viewer
+  val! can_post = `Builder
 
   method! private get ctx =
     let uri = Context.uri ctx in
@@ -84,6 +99,23 @@ let r = object
     let date = string_param "date" uri in
     let results = Db.query ?op ?ok ?rebuild ?job_prefix:date () in
     let ops = Db.ops () in
+    let jobs = (Current.Engine.state engine).jobs in
+    let need_toggles = have_active_jobs ~jobs results in
+    let rebuild_form =
+      if need_toggles then [
+        input ~a:[a_input_type `Hidden; a_value (Context.csrf ctx); a_name "csrf"] ();
+        input ~a:[a_input_type `Submit; a_value "Rebuild selected"] ();
+      ] else []
+    in
+    let headings = [
+      th [txt "Job"];
+      th [txt "Build #"];
+      th [txt "Result"];
+      th [txt "Rebuild?"];
+      th [txt "Finished"];
+      th [txt "Queue/run time"];
+    ] in
+    let headings = if need_toggles then th [] :: headings else headings in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
         ul ~a:[a_class ["query-form"]] [
@@ -94,19 +126,44 @@ let r = object
             li [input ~a:[a_input_type `Submit; a_value "Submit"] ()];
           ];
       ];
-      table ~a:[a_class ["table"]]
-        ~thead:(thead [
-            tr [
-              th [txt "Job"];
-              th [txt "Build #"];
-              th [txt "Result"];
-              th [txt "Rebuild?"];
-              th [txt "Finished"];
-              th [txt "Queue/run time"];
-            ]
-          ])
-        (List.map render_row results)
+      form ~a:[a_action "/query"; a_method `Post] (
+        table ~a:[a_class ["table"]]
+          ~thead:(thead [tr headings])
+          (List.map (render_row ~jobs ~need_toggles) results) ::
+        rebuild_form;
+      )
     ]
+
+  method! private post ctx body =
+    let data = Uri.query_of_encoded body in
+    let id = function
+      | ("id", id) -> Some id
+      | _ -> None
+    in
+    match List.filter_map id data |> List.concat with
+    | [] -> Context.respond_error ctx `Bad_request "No jobs selected!"
+    | jobs ->
+      let failed = ref [] in
+      jobs |> List.iter (fun job_id ->
+          let state = Current.Engine.state engine in
+          let jobs = state.Current.Engine.jobs in
+          match Current.Job.Map.find_opt job_id jobs with
+          | None -> failed := job_id :: !failed
+          | Some actions ->
+            match actions#rebuild with
+            | None -> failed := job_id :: !failed
+            | Some rebuild ->
+              let _new_id : string = rebuild () in
+              ()
+        );
+      match !failed with
+      | [] -> Context.respond_redirect ctx (Uri.of_string "/query")
+      | failed ->
+        let msg =
+          Fmt.str "%d/%d jobs could not be restarted (because they are no longer active): %a"
+            (List.length failed) (List.length jobs)
+            Fmt.(list ~sep:(unit ", ") string) failed in
+        Context.respond_error ctx `Bad_request msg
 
   method! nav_link = Some "Query"
 end

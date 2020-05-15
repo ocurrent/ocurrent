@@ -1,1 +1,1 @@
-val r : Resource.t
+val r : engine:Current.Engine.t -> Resource.t
