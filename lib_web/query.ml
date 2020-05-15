@@ -35,15 +35,15 @@ let bool_param name uri =
   | Some "false" -> Some false
   | Some x -> Fmt.failwith "Invalid bool value %S in %a" x Uri.pp uri
 
-let bool_table = [
+let bool_table ~t ~f = [
   None,       "",      "(any)";
-  Some true,  "true",  "Passed";
-  Some false, "false", "Failed";
+  Some true,  "true",  t;
+  Some false, "false", f;
 ]
 
-let bool_option name value =
+let bool_option ?(t="True") ?(f="False") name value =
   select ~a:[a_name name] (
-    bool_table |> List.map (fun (v, form_value, label) ->
+    bool_table ~t ~f |> List.map (fun (v, form_value, label) ->
         let sel = if v = value then [a_selected ()] else [] in
         option ~a:(a_value form_value :: sel) (txt label)
       )
@@ -57,11 +57,13 @@ let r = object
   method! private get ctx =
     let uri = Context.uri ctx in
     let ok = bool_param "ok" uri in
-    let results = Db.query ?ok () in
+    let rebuild = bool_param "rebuild" uri in
+    let results = Db.query ?ok ?rebuild () in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
         table [
-          tr [th [txt "Result:"]; td [bool_option "ok" ok]];
+          tr [th [txt "Result:"]; td [bool_option "ok" ok ~t:"Passed" ~f:"Failed"]];
+          tr [th [txt "Needs rebuild:"]; td [bool_option "rebuild" rebuild]];
         ];
         input ~a:[a_input_type `Submit; a_value "Submit"] ();
       ];
