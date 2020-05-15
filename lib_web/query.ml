@@ -5,14 +5,27 @@ let render_value = function
   | Ok _ -> txt "OK"
   | Error (`Msg m) -> span ~a:[a_class ["error"]] [txt m]
 
-let render_row { Db.job_id; build; value = _; rebuild; ready = _; running = _; finished; outcome } =
+let pp_duration f x =
+  Fmt.pf f "%.0fs" x
+
+let render_row { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
   let job = Fmt.strf "/job/%s" job_id in
+  let times =
+    match running with
+    | None ->
+      Fmt.strf "%a queued" pp_duration (finished -. ready)
+    | Some running ->
+      Fmt.strf "%a+%a"
+        pp_duration (running -. ready)
+        pp_duration (finished -. running)
+  in
   tr [
     td [ a ~a:[a_href job] [txt job_id] ];
     td [ txt (Int64.to_string build) ];
     td [ render_value outcome ];
     td [ txt (if rebuild then "Needs rebuild" else "-") ];
     td [ txt (Utils.string_of_timestamp (Unix.gmtime finished)) ];
+    td [ txt times ];
   ]
 
 let bool_param name uri =
@@ -60,6 +73,7 @@ let r = object
               th [txt "Result"];
               th [txt "Rebuild?"];
               th [txt "Finished"];
+              th [txt "Queue/run time"];
             ]
           ])
         (List.map render_row results)
