@@ -78,7 +78,14 @@ let v ~iid ~account ~api =
     Api.get_token api >>= function
     | Error (`Msg m) -> Lwt.fail_with m
     | Ok token ->
-      list_repositories ~api ~token ~account >|= Stdlib.Result.ok
+      Lwt.try_bind
+        (fun () -> list_repositories ~api ~token ~account)
+        Lwt_result.return
+        (fun ex ->
+           Log.warn (fun f -> f "Error reading GitHub installations (will retry in 30s): %a" Fmt.exn ex);
+           Lwt_unix.sleep 30.0 >>= fun () ->
+           list_repositories ~api ~token ~account >|= Stdlib.Result.ok
+        )
   in
   let watch refresh =
     let rec aux event =
