@@ -59,12 +59,12 @@ module Make (Meta : sig type t end) = struct
          input directly from both A and B. *)
 
       trans : Node_set.t;
-      (* The set of nodes which must be resolved for this node to be resolved.
-         For example, in the graph `A -> B -> C`:
+      (* The set of nodes which must be resolved for this node to be resolved,
+         excluding [outputs]. For example, in the graph `A -> B -> C`:
 
-         trans(A) = {A}
-         trans(B) = {A, B}
-         trans(C) = {A, B, C}
+         trans(A) = {}
+         trans(B) = {A}
+         trans(C) = {A, B}
 
          This is used to hide edges that are implied by other edges, to simplify
          the output. *)
@@ -76,6 +76,14 @@ module Make (Meta : sig type t end) = struct
     }
 
     let is_empty t = Node_set.is_empty t.outputs
+
+(*
+    let pp_set f ns =
+      Fmt.(list ~sep:(unit ",") int) f (Node_set.elements ns)
+
+    let pp f {outputs; trans} =
+      Fmt.pf f "%a(%a)" pp_set outputs pp_set trans
+*)
 
     (* The union of A and B's outputs and transitive dependencies,
        except that we remove outputs that are already dependencies
@@ -101,7 +109,7 @@ module Make (Meta : sig type t end) = struct
     (* An ordinary node, represented by a single box in the diagram. *)
     let singleton ~deps i = {
       outputs = Node_set.singleton i;
-      trans = Node_set.add i deps;
+      trans = Node_set.union deps.outputs deps.trans;
     }
   end
 
@@ -163,12 +171,12 @@ module Make (Meta : sig type t end) = struct
           Dot.node ~style:"filled" ~bg ?tooltip ?url f in
         let outputs =
           match t.ty with
-          | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx.Out_node.trans i
+          | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx i
           | Constant None when Out_node.is_empty ctx ->
             if Result.is_ok v then ctx
             else (
               node i (if error_from_self then "(const)" else "(input)");
-              Out_node.singleton ~deps:ctx.Out_node.trans i
+              Out_node.singleton ~deps:ctx i
             )
           | Constant None -> ctx
           | Map_input { source; info } ->
@@ -181,7 +189,7 @@ module Make (Meta : sig type t end) = struct
             node i label;
             let source = aux source in
             Out_node.connect (edge_to i) source;
-            let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
+            let deps = Out_node.union source ctx in
             Out_node.singleton ~deps i
           | Opt_input { source } ->
             aux source
@@ -194,7 +202,7 @@ module Make (Meta : sig type t end) = struct
             node i name;
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Bind_out x -> aux (Current_incr.observe x)
           | Primitive {x; info; meta} ->
             let inputs =
@@ -215,7 +223,7 @@ module Make (Meta : sig type t end) = struct
             node ?bg ?url i info;
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Pair (x, y) ->
             Out_node.union (aux x) (aux y) |> Out_node.union ctx
           | Gate_on { ctrl; value } ->
@@ -225,7 +233,7 @@ module Make (Meta : sig type t end) = struct
             ctrls |> Out_node.connect (edge_to i ~style:"dashed");
             let data_inputs = Out_node.union values ctx in
             Out_node.connect (edge_to i) data_inputs;
-            let deps = Node_set.(union ctrls.trans data_inputs.trans) in
+            let deps = Out_node.(union ctrls data_inputs) in
             Out_node.singleton ~deps i
           | Catch { source; hidden = true }
           | State { source; hidden = true } ->
@@ -240,13 +248,13 @@ module Make (Meta : sig type t end) = struct
                and the state of the build. We can know the state of the build (pending) without
                yet knowing the commit. So the set_state node can't run even though its
                state input is ready and transitively depends on knowing the commit. *)
-            Out_node.singleton ~deps:Node_set.empty i
+            Out_node.singleton ~deps:Out_node.empty i
           | Catch { source; hidden = false } ->
             let inputs = aux source in
             node i "catch";
             let all_inputs = Out_node.union inputs ctx in
             Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Map x ->
             let inputs = aux x in
             begin match v with
@@ -256,7 +264,7 @@ module Make (Meta : sig type t end) = struct
                 node i "map";
                 let all_inputs = Out_node.union inputs ctx in
                 Out_node.connect (edge_to i) all_inputs;
-                Out_node.singleton ~deps:all_inputs.Out_node.trans i
+                Out_node.singleton ~deps:all_inputs i
               | _ ->
                 aux x
             end
@@ -281,7 +289,7 @@ module Make (Meta : sig type t end) = struct
               let url = collapse_link ~k:key ~v:value in
               node ?url i "+";
               Out_node.connect (edge_to i) all_inputs;
-              Out_node.singleton ~deps:all_inputs.trans i
+              Out_node.singleton ~deps:all_inputs i
             )
         in
         seen := Id.Map.add t.id outputs !seen;
@@ -330,18 +338,18 @@ module Make (Meta : sig type t end) = struct
         in
         let outputs =
           match t.ty with
-          | Constant (Some _) -> count (); Out_node.singleton ~deps:ctx.Out_node.trans i
+          | Constant (Some _) -> count (); Out_node.singleton ~deps:ctx i
           | Constant None when Out_node.is_empty ctx ->
             if Result.is_ok v then ctx
             else (
               count ();
-              Out_node.singleton ~deps:ctx.Out_node.trans i
+              Out_node.singleton ~deps:ctx i
             )
           | Constant None -> ctx
           | Map_input { source; info = _ } ->
             count ();
             let source = aux source in
-            let deps = Node_set.union source.Out_node.trans ctx.Out_node.trans in
+            let deps = Out_node.union source ctx in
             Out_node.singleton ~deps i
           | Opt_input { source } ->
             aux source
@@ -353,7 +361,7 @@ module Make (Meta : sig type t end) = struct
             in
             count ();
             let all_inputs = Out_node.union inputs ctx in
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Bind_out x -> aux (Current_incr.observe x)
           | Primitive {x; info = _; meta = _} ->
             let inputs =
@@ -363,7 +371,7 @@ module Make (Meta : sig type t end) = struct
             in
             count ();
             let all_inputs = Out_node.union inputs ctx in
-            Out_node.singleton ~deps:all_inputs.Out_node.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Pair (x, y) ->
             Out_node.union (aux x) (aux y) |> Out_node.union ctx
           | Gate_on { ctrl; value } ->
@@ -371,24 +379,24 @@ module Make (Meta : sig type t end) = struct
             let ctrls = aux ctrl in
             let values = aux value in
             let data_inputs = Out_node.union values ctx in
-            let deps = Node_set.(union ctrls.trans data_inputs.trans) in
+            let deps = Out_node.(union ctrls data_inputs) in
             Out_node.singleton ~deps i
           | State { source; hidden } ->
             let _ : Out_node.t = aux source in
             if not hidden then count ();
-            Out_node.singleton ~deps:Node_set.empty i
+            Out_node.singleton ~deps:Out_node.empty i
           | Catch { source; hidden } ->
             let inputs = aux source in
             if not hidden then count ();
             let all_inputs = Out_node.union inputs ctx in
-            Out_node.singleton ~deps:all_inputs.trans i
+            Out_node.singleton ~deps:all_inputs i
           | Map x ->
             let inputs = aux x in
             let all_inputs = Out_node.union inputs ctx in
             begin match v with
               | Error (_, `Msg _) when error_from_self ->
                 count ();
-                Out_node.singleton ~deps:all_inputs.Out_node.trans i
+                Out_node.singleton ~deps:all_inputs i
               | _ ->
                 aux x
             end

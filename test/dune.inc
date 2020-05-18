@@ -1,5 +1,6 @@
 (rule
- (targets latch.1.dot
+ (targets context.1.dot
+          latch.1.dot
           latch.2.dot
           latch.3.dot
           latch.4.dot
@@ -32,6 +33,11 @@
           v5n.2.dot
           v5n.3.dot)
  (action (run ./test.exe)))
+
+(rule
+ (alias runtest)
+ (package current)
+ (action (diff expected/context.1.dot context.1.dot)))
 
 (rule
  (alias runtest)

@@ -196,6 +196,23 @@ let test_pair _switch () =
   in
   Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
 
+(* This is just to check the diagram. *)
+let test_context _switch () =
+  let label l =
+    Current.component "%s" l |>
+    let> () = Current.return () in
+    Current.Primitive.const ()
+  in
+  let a = label "a" in
+  let b = label "b" in
+  let pipeline () =
+    Current.with_context a @@ fun () ->
+    Current.with_context b @@ fun () ->
+    label "c"
+  in
+  Driver.test ~name:"context" pipeline @@ function
+  | _ -> raise Exit
+
 let test_with base src =
   Current.component "test" |>
   let> _base = base
@@ -279,6 +296,7 @@ let () =
         Driver.test_case_gc "state"       test_state;
         Driver.test_case_gc "pair"        test_pair;
         Driver.test_case_gc "latch"       test_latch;
+        Driver.test_case_gc "context"     test_context;
       ];
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;

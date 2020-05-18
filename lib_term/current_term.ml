@@ -120,8 +120,13 @@ module Make (Metadata : sig type t end) = struct
   let collapse ~key ~value ~input t =
     node (Collapse { key; value; input = Term input; output = Term t }) t.v
 
-  let with_context ctx f =
-    with_bind_context (Term ctx) f
+  let with_context (ctx : _ t) f =
+    let ctx =
+      match !bind_context with
+      | None -> Term ctx
+      | Some (Term prev) -> Term (pair prev ctx)
+    in
+    with_bind_context ctx f
 
   let rec all = function
     | [] -> return ()
