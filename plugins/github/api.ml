@@ -599,6 +599,69 @@ module Repo = struct
     to_ci_refs refs
 end
 
+module Anonymous = struct
+  let ref_endpoint ~owner ~name gref =
+    let gref = Ref.to_git gref in
+    match Astring.String.cut ~sep:"/" gref with
+    | Some ("refs", gref) -> Uri.of_string (Printf.sprintf "https://api.github.com/repos/%s/%s/git/ref/%s" owner name gref)
+    | Some _ -> Fmt.failwith "Ref %S does not start with 'refs/'!" gref
+    | None -> Fmt.failwith "Missing '/' in ref %S" gref
+
+  let query_head { Repo_id.owner; name } gref =
+    let uri = ref_endpoint ~owner ~name gref in
+    Cohttp_lwt_unix.Client.get uri >>= fun (resp, body) ->
+    Cohttp_lwt.Body.to_string body >|= fun body ->
+    match Cohttp.Response.status resp with
+    | `OK | `Created ->
+      let json = Yojson.Safe.from_string body in
+      Log.debug (fun f -> f "@[<v2>Got response:@,%a@]" Yojson.Safe.pp json);
+      let open Yojson.Safe.Util in
+      json |> member "object" |> member "sha" |> to_string
+    | err -> Fmt.failwith "@[<v2>Error accessing GitHub App API at %a: %s@,%s@]"
+               Uri.pp uri
+               (Cohttp.Code.string_of_status err)
+               body
+
+  let head_of (repo : Repo_id.t) gref =
+    let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
+    let read () =
+      Lwt.try_bind
+        (fun () -> query_head repo gref)
+        (fun hash ->
+           let id = { Commit_id.owner_name; hash; id = gref } in
+           Lwt_result.return (Commit_id.to_git id)
+        )
+        (fun ex ->
+           Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);
+           Lwt_result.fail (`Msg (Fmt.strf "Failed to get head of %a:%a" Repo_id.pp repo Ref.pp gref))
+        )
+    in
+    let watch refresh =
+      let rec aux x =
+        x >>= fun () ->
+        let x = await_event ~owner_name in
+        refresh ();
+        Lwt_unix.sleep 10.0 >>= fun () ->   (* Limit updates to 1 per 10 seconds *)
+        aux x
+      in
+      let x = await_event ~owner_name in
+      let thread =
+        Lwt.catch
+          (fun () -> aux x)
+          (function
+            | Lwt.Canceled -> Lwt.return_unit
+            | ex -> Log.err (fun f -> f "Anonymous.head thread failed: %a" Fmt.exn ex); Lwt.return_unit
+          )
+      in
+      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+    in
+    let pp f = Fmt.pf f "Query head of %a:%a" Repo_id.pp repo Ref.pp gref in
+    let monitor = Current.Monitor.create ~read ~watch ~pp in
+    Current.component "%a:%a" Repo_id.pp repo Ref.pp gref |>
+    let> () = Current.return () in
+    Current.Monitor.get monitor
+end
+
 open Cmdliner
 
 let token_file =
