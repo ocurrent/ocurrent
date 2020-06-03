@@ -300,8 +300,7 @@ module Generic(Op : S.GENERIC) = struct
                     Log.info (fun f -> f "Result for %a has expired" pp_desired t);
                     let latched =
                       match t.op with
-                      | `Finished (Ok x) -> Some (Ok x)
-                      | `Finished (Error _) -> None
+                      | `Finished x -> Some x
                       | `Retry x -> x
                       | _ -> None
                     in
