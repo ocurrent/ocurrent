@@ -95,8 +95,7 @@ module Generic(Op : S.GENERIC) = struct
       mutable ctx : Op.t;                   (* The context for [desired]. *)
       mutable op : [
         | `Active of op * latched           (* The currently-running operation. *)
-        | `Error of [`Msg of string]        (* Why [desired] isn't possible. *)
-        | `Finished of Op.Outcome.t         (* Note: if current <> desired then rebuild. *)
+        | `Finished of (Op.Outcome.t, [`Msg of string]) result
         | `Retry of latched                 (* Need to try again. *)
       ];
       mutable mtime : float;                (* Time last operation completed (if finished or error). *)
@@ -139,9 +138,9 @@ module Generic(Op : S.GENERIC) = struct
 
     let pp f t =
       match t.op with
-      | `Error (`Msg msg) ->
+      | `Finished (Error (`Msg msg)) ->
         Fmt.pf f "%a: %s" pp_desired t msg
-      | `Finished _ ->
+      | `Finished (Ok _) ->
         Fmt.pf f "%a (completed)" pp_desired t
       | `Retry _ ->
         Fmt.pf f "%a (retry scheduled)" pp_desired t
@@ -170,7 +169,7 @@ module Generic(Op : S.GENERIC) = struct
        wanted. If called from an async thread, you must call [notify] afterwards too. *)
     let rec maybe_start ~config t =
       match t.op with
-      | `Error _ -> () (* Wait for error to be cleared. *)
+      | `Finished (Error _) -> () (* Wait for error to be cleared. *)
       | `Active _ when not Op.auto_cancel ->
         (* Already running something and we don't auto-cancel.
            When the stale job completes, we'll get called again. *)
@@ -192,7 +191,7 @@ module Generic(Op : S.GENERIC) = struct
         | _ ->
           (* Either we don't know the current state, or we know we want something different.
              We're not already running, and we haven't already failed. Time to publish! *)
-          let latched = if Op.latched then Some (Ok outcome) else None in
+          let latched = if Op.latched then Some outcome else None in
           publish ~latched ~config t
     and maybe_restart ~config t =
       maybe_start ~config t;
@@ -264,10 +263,10 @@ module Generic(Op : S.GENERIC) = struct
                   match outcome with
                   | Ok outcome ->
                     t.current <- Some (Value.digest op.value);
-                    t.op <- `Finished outcome;
+                    t.op <- `Finished (Ok outcome);
                   | Error e ->
                     if Value.equal op.value t.desired then (
-                      t.op <- `Error e
+                      t.op <- `Finished (Error e)
                     ) else (
                       (* It failed, but we have a new value to set: ignore the stale error. *)
                       t.op <- `Retry None;
@@ -301,7 +300,8 @@ module Generic(Op : S.GENERIC) = struct
                     Log.info (fun f -> f "Result for %a has expired" pp_desired t);
                     let latched =
                       match t.op with
-                      | `Finished x -> Some (Ok x)
+                      | `Finished (Ok x) -> Some (Ok x)
+                      | `Finished (Error _) -> None
                       | `Retry x -> x
                       | _ -> None
                     in
@@ -347,9 +347,8 @@ module Generic(Op : S.GENERIC) = struct
               (* The saved state was an error, but the desired value has changed, so clear it. *)
               let latched = if Op.latched then Some (Error e) else None in
               Some value, `Retry latched
-            | Error e -> Some value, `Error e
-            | Ok outcome ->
-              try Some value, `Finished (Op.Outcome.unmarshal outcome)
+            | outcome ->
+              try Some value, `Finished (Result.map Op.Outcome.unmarshal outcome)
               with ex ->
                 Log.warn (fun f -> f "Failed to restore %S cached outcome: %a (will rebuild)" Op.id Fmt.exn ex);
                 Db.invalidate ~op:Op.id (Op.Key.digest key);
@@ -371,7 +370,7 @@ module Generic(Op : S.GENERIC) = struct
       | Some job_id ->
         let rebuild () =
           match t.op with
-          | `Finished _ | `Error _ | `Retry _ ->
+          | `Finished _ | `Retry _ ->
             t.op <- `Retry None;
             invalidate t;
             maybe_restart ~config t;
@@ -404,7 +403,7 @@ module Generic(Op : S.GENERIC) = struct
 
     let register_actions ~schedule ~config t =
       match t.op with
-      | `Finished _ | `Error _ | `Retry _ -> register_resolved ~schedule ~config t
+      | `Finished _ | `Retry _ -> register_resolved ~schedule ~config t
       | `Active _ ->
         cancel_expires t;
         t.ref_count <- t.ref_count + 1;
@@ -436,10 +435,10 @@ module Generic(Op : S.GENERIC) = struct
           t.desired <- value;
           (* Clear any error when the desired value changes: *)
           match Op.latched, t.op with
-          | _, (`Active _ | `Finished _) -> ()
+          | _, (`Active _ | `Finished (Ok _)) -> ()
           | true, `Retry _ -> ()
-          | true, `Error x -> t.op <- `Retry (Some (Error x));
-          | false, (`Error _ | `Retry _ )-> t.op <- `Retry None
+          | true, `Finished (Error x) -> t.op <- `Retry (Some (Error x));
+          | false, (`Finished (Error _) | `Retry _ )-> t.op <- `Retry None
         );
       )
 
@@ -453,8 +452,7 @@ module Generic(Op : S.GENERIC) = struct
       (* Return the current state: *)
       let v, update =
         match t.op with
-        | `Finished x -> Ok x, None
-        | `Error e -> (Error e :> Op.Outcome.t Current_term.Output.t), None
+        | `Finished x -> (x :> Op.Outcome.t Current_term.Output.t), None
         | `Retry None -> Error (`Active `Ready), None
         | `Retry (Some latched) -> (latched :> Op.Outcome.t Current_term.Output.t), Some `Ready
         | `Active (op, latched) ->
