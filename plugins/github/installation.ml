@@ -12,11 +12,15 @@ module Metrics = struct
     Gauge.v_label ~label_name:"account" ~help ~namespace ~subsystem "repositories_total"
 end
 
+type repository_metadata = {
+  archived : bool;
+}
+
 type t = {
   iid : int;
   account : string;
   api : Api.t;
-  repos : Api.Repo.t list Current.Monitor.t;
+  repos : (Api.Repo.t * repository_metadata) list Current.Monitor.t;
 }
 
 let installation_repositories_cond = Lwt_condition.create ()
@@ -55,7 +59,9 @@ let list_repositories ~api ~token ~account =
         |> to_list
         |> List.map (fun r ->
             let name = r |> member "name" |> to_string in
-            api, Repo_id.{ owner = account; name }
+            let archived = r |> member "archived" |> to_bool in
+            let metadata = { archived } in
+            (api, Repo_id.{ owner = account; name }), metadata
           )
       in
       begin match next (Cohttp.Response.headers resp) with
@@ -102,7 +108,16 @@ let v ~iid ~account ~api =
 
 let api t = t.api
 
-let repositories t =
+let repositories ?(include_archived=false) t =
   Current.component "list repos" |>
   let> t = t in
+  let process =
+    if include_archived then List.map fst
+    else
+      List.filter_map (function
+          | _, { archived = true } -> None
+          | repo, { archived = false } -> Some repo
+        )
+  in
   Current.Monitor.get t.repos
+  |> Current.Primitive.map_result (Result.map process)

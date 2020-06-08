@@ -126,9 +126,10 @@ module Installation : sig
   val pp : t Fmt.t
   (** The GitHub account that installed the app. *)
 
-  val repositories : t Current.t -> Api.Repo.t list Current.t
+  val repositories : ?include_archived:bool -> t Current.t -> Api.Repo.t list Current.t
   (** [repositories t] evaluates to the list of repositories which the user
-      configured for this installation. *)
+      configured for this installation.
+      @param include_archived If [false] (the default) then filter out archived repositories. *)
 
   val compare : t -> t -> int
   (** Order by installation ID. *)
