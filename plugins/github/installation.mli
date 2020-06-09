@@ -1,6 +1,8 @@
 (* Public API; see Current_git.mli for details of these: *)
 
 type t
+
+val account : t -> string
 val api : t -> Api.t
 val pp : t Fmt.t
 val compare : t -> t -> int

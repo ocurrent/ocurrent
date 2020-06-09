@@ -120,6 +120,9 @@ module Installation : sig
   type t
   (** Details about a specific installation of a GitHub app. *)
 
+  val account : t -> string
+  (** The GitHub account name (organisation or owner) for this installation. *)
+
   val api : t -> Api.t
   (** Provides access to the API as this installation. *)
 
