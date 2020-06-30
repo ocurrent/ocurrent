@@ -306,8 +306,9 @@ module Generic(Op : S.GENERIC) = struct
                     in
                     t.op <- `Retry latched;
                     t.current <- None;
-                    let config = Option.get (Current_incr.observe Current.Config.now) in
-                    maybe_restart ~config t
+                    match Current_incr.observe Current.Config.now with
+                    | Some config -> maybe_restart ~config t
+                    | None -> Log.warn (fun f -> f "Can't trigger restart as config is now None (shutting down?)")
                   )
                )
                (function
