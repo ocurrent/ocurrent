@@ -25,7 +25,13 @@ module Value = struct
     ]
 end
 
-module Outcome = Current.Unit
+module Outcome = struct
+  include Current.String
+
+  let unmarshal = function
+    | "()" -> failwith "Result from old version. Need rebuild"
+    | repo_id -> repo_id
+end
 
 let create_cmd ~config ~tag {Value.manifests} =
   Cmd.docker ~config ~docker_context:None (["manifest"; "create"; tag] @ manifests)
@@ -51,7 +57,18 @@ let publish auth job tag value =
         let cmd = Cmd.login ~config ~docker_context:None user in
         Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
     end >>!= fun () ->
-    Current.Process.exec ~cancellable:true ~job (push_cmd ~config tag)
+    Current.Process.check_output ~cancellable:true ~job (push_cmd ~config tag) >>!= fun output ->
+    (* docker-manifest is still experimental and doesn't have a sensible output format yet. *)
+    Current.Job.write job output;
+    let output = String.trim output in
+    let hash =
+      match Astring.String.cut ~rev:true ~sep:"\n" output with
+      | None -> output
+      | Some (_, id) -> id
+    in
+    let repo_id = Printf.sprintf "%s@%s" tag hash in
+    Current.Job.log job "--> %S" repo_id;
+    Lwt_result.return repo_id
 
 let pp f (tag, value) =
   Fmt.pf f "push %s = %s" tag (Value.digest value)
