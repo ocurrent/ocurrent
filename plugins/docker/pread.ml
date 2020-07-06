@@ -1,7 +1,7 @@
 open Lwt.Infix
 
 type t = {
-  pool : Current.Pool.t option;
+  pool : unit Current.Pool.t option;
 }
 
 let id = "docker-pread"

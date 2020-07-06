@@ -45,7 +45,7 @@ val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commi
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
-  ?pool:Current.Pool.t ->
+  ?pool:unit Current.Pool.t ->
   job:Current.Job.t ->
   Commit.t ->
   (Fpath.t -> 'a Current.or_error Lwt.t) ->

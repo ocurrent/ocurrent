@@ -2,7 +2,7 @@ open Lwt.Infix
 
 type t = {
   pull : bool;
-  pool : Current.Pool.t option;
+  pool : unit Current.Pool.t option;
   timeout : Duration.t option;
 }
 
