@@ -181,13 +181,22 @@ end
 (** Resource pools, to control how many jobs can use a resource at a time.
     To use a pool within a job, pass the pool to {!Job.start} or call {!Job.use_pool}. *)
 module Pool : sig
-  type t
+  type 'a t
 
   type priority = [ `High | `Low ]
 
-  val create : label:string -> int -> t
+  val create : label:string -> int -> unit t
   (** [create ~label n] is a pool with [n] resources.
       @param label Used for metric reporting and logging. *)
+
+  val of_fn :
+    label : string ->
+    (priority:priority -> switch:Switch.t -> 'a Lwt.t * (unit -> unit Lwt.t)) ->
+    'a t
+  (** [of_fn ~label f] is a pool that uses [f] to get a resource.
+      It should return a promise for the resource and a function that cancels
+      the request (if still queued). Return the resource to the pool when
+      [switch] is turned off. *)
 end
 
 (** Jobs with log files. This is mostly an internal interface - use {!Current_cache} instead. *)
@@ -207,12 +216,15 @@ module Job : sig
       @param priority Passed to the pool when {!start} is called. Default is [`Low].
       @param label A label to use in the job's filename (for debugging). *)
 
-  val start : ?timeout:Duration.t -> ?pool:Pool.t -> level:Level.t -> t -> unit Lwt.t
+  val start : ?timeout:Duration.t -> ?pool:unit Pool.t -> level:Level.t -> t -> unit Lwt.t
   (** [start t ~level] marks [t] as running. This can only be called once per job.
       If confirmation has been configured for [level], then this will wait for confirmation first.
       @param timeout If given, the job will be cancelled automatically after this period of time.
-      @param pool If given, the job cannot start until a pool resource is available.
-                  The resource is freed when the job finishes. *)
+      @param pool Deprecated. Use [start_with] instead. *)
+
+  val start_with : ?timeout:Duration.t -> pool:'a Pool.t -> level:Level.t -> t -> 'a Lwt.t
+  (** [start_with] is like [start] except that it waits for a resource from [pool].
+      The resource is freed when the job finishes. *)
 
   val start_time : t -> float Lwt.t
   (** [start_time t] is the time when [start] was called, or an
@@ -275,7 +287,7 @@ module Job : sig
   val register_actions : job_id -> actions -> unit
   (** [register_actions job_id actions] is used to register handlers for e.g. rebuilding jobs. *)
 
-  val use_pool : ?priority:Pool.priority -> switch:Switch.t -> t -> Pool.t -> unit Lwt.t
+  val use_pool : ?priority:Pool.priority -> switch:Switch.t -> t -> 'a Pool.t -> 'a Lwt.t
   (** [use_pool ~switch t pool] gets one resource from [pool].
       The resource is returned to the pool when the switch is turned off.
       The operation will be aborted if the job is cancelled. *)

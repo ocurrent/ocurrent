@@ -31,7 +31,7 @@ module Raw : sig
     ?timeout:Duration.t ->
     ?squash:bool ->
     ?dockerfile:[`File of Fpath.t | `Contents of Dockerfile.t] ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
     [ `Git of Current_git.Commit.t | `No_context ] ->
@@ -39,14 +39,14 @@ module Raw : sig
 
   val run :
     docker_context:string option ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
     Image.t -> args:string list ->
     unit Current.Primitive.t
 
   val pread :
     docker_context:string option ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
     Image.t -> args:string list ->
     string Current.Primitive.t

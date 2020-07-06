@@ -1,15 +1,21 @@
-type t
+type 'a t
 
 type priority = [ `High | `Low ]
 
-val create : label:string -> int -> t
+val create : label:string -> int -> unit t
+
+val of_fn :
+  label : string ->
+  (priority:priority -> switch:Switch.t -> 'a Lwt.t * (unit -> unit Lwt.t)) ->
+  'a t
 
 val get :
+  'a t ->
   priority:priority ->
-  on_cancel:((string -> unit Lwt.t) -> unit Lwt.t) ->
   switch:Switch.t ->
-  t -> unit Lwt.t
-(** [get ~priority ~on_cancel ~switch t] waits for a resource and then returns.
+  'a Lwt.t * (unit -> unit Lwt.t)
+(** [get ~priority ~switch t] waits for a resource and then returns.
+    It also returns a function that can be used to cancel the request.
     The resource will be returned to the pool when [switch] is turned off. *)
 
-val pp : t Fmt.t
+val pp : _ t Fmt.t

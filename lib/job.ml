@@ -159,9 +159,14 @@ let with_handler t ~on_cancel fn =
     Lwt.finalize fn (fun () -> Lwt_dllist.remove node; Lwt.return_unit)
 
 let use_pool ?(priority=`Low) ~switch t pool =
-  Pool.get ~priority ~on_cancel:(on_cancel t) ~switch pool
+  let th, cancel = Pool.get ~priority ~switch pool in
+  on_cancel t (fun _ -> cancel ()) >>= fun () ->
+  th
 
-let confirm t ?pool level =
+let no_pool =
+  Pool.of_fn ~label:"no pool" (fun ~priority:_ ~switch:_ -> Lwt.return_unit, Lwt.return)
+
+let confirm t ~pool level =
   let confirmed =
     let confirmed = Config.confirmed level t.config in
     on_cancel t (fun _ -> Lwt.cancel confirmed; Lwt.return_unit) >>= fun () ->
@@ -183,15 +188,13 @@ let confirm t ?pool level =
       Lwt.return_unit
   in
   confirmed >>= fun () ->
-  match pool with
-  | None -> Lwt.return_unit
-  | Some pool ->
-    let res = use_pool t ~priority:t.priority ~switch:t.switch pool in
-    if Lwt.is_sleeping res then (
-      log t "Waiting for resource in pool %a" Pool.pp pool;
-      res >|= fun () ->
-      log t "Got resource from pool %a" Pool.pp pool
-    ) else res
+  let res = use_pool t ~priority:t.priority ~switch:t.switch pool in
+  if Lwt.is_sleeping res then (
+    log t "Waiting for resource in pool %a" Pool.pp pool;
+    res >|= fun r ->
+    log t "Got resource from pool %a" Pool.pp pool;
+    r
+  ) else res
 
 let pp_duration f d =
   let d = Duration.to_f d in
@@ -199,8 +202,8 @@ let pp_duration f d =
   else if d > 2.0 then Fmt.pf f "%.1f seconds" d
   else Fmt.pf f "%f seconds" d
 
-let start ?timeout ?pool ~level t =
-  confirm t ?pool level >|= fun () ->
+let start_with ?timeout ~pool ~level t =
+  confirm t ~pool level >|= fun r ->
   if is_running t then (
     Log.warn (fun f -> f "start called, but job %s is already running!" t.id);
     Fmt.failwith "Job.start called twice!"
@@ -214,7 +217,10 @@ let start ?timeout ?pool ~level t =
           | `Cancelled _ -> ()
           | `Hooks _ -> cancel t (Fmt.strf "Timeout (%a)" pp_duration duration)
         )
-    )
+    );
+  r
+
+let start ?timeout ?(pool=no_pool) = start_with ?timeout ~pool
 
 let start_time t = t.start_time
 

@@ -27,7 +27,7 @@ module type DOCKER = sig
     ?squash:bool ->
     ?label:string ->
     ?dockerfile:[`File of Fpath.t | `Contents of Dockerfile.t] Current.t ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
     source ->
@@ -41,7 +41,7 @@ module type DOCKER = sig
 
   val run :
     ?label:string ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
     Image.t Current.t -> args:string list ->
     unit Current.t
@@ -51,7 +51,7 @@ module type DOCKER = sig
 
   val pread :
     ?label:string ->
-    ?pool:Current.Pool.t ->
+    ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
     Image.t Current.t -> args:string list ->
     string Current.t
