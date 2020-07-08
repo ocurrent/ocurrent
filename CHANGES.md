@@ -1,3 +1,156 @@
+### v0.3
+
+The main changes are:
+
+- "latching" of a previous pipeline stage output while building the new one.
+  For example, while doing `docker pull` to check for updates to an image
+  it will continue using the old one until the check finishes.
+  Jobs with latched results are scheduled at a lower priority than jobs without
+  any output yet.
+
+- Many improvements to the web UI, including access controls, streaming of
+  logs, improved querying, and custom extra pages.
+
+Core:
+
+- Allow user-defined pools (@talex5, #206).
+  Add `Pool.of_fn` so that users can provide their own pools. This allows
+  waiting for resources from an external service before marking a job as
+  started.
+
+- Add simple job priorities (@talex5, #187).
+  Pools now have high and low priority queues.
+  The cache puts jobs on the low priority queue if they have a latched result available.
+
+- Allow jobs to latch previous output while rebuilding (@talex5, #178).
+  If a rebuild is triggered by the schedule, do the rebuild in the background
+  without changing the output to pending. This allows polling for changes
+  without disrupting the rest of the pipeline.
+  Such jobs are displayed with a gradient background (from the pending
+  colour on the left to the latched output's colour on the right).
+
+- Add `Current_cache.Generic` to control latching behaviour (@talex5, #179).
+  This provides the full API. `BUILDER` and `PUBLISHER` are now special cases of `GENERIC`.
+
+- Also latch failed results when cache entries expire (@talex5, #202).
+
+- Don't clear latched result when auto-cancelling (@talex5, #195).
+
+- Fix rebuilding of stale cache entries (@talex5, #169).
+  If a build was already invalid when we loaded it from the database, we invalidated the key but didn't trigger an update properly.
+
+- Fix `Option.get` crash when shutting down (@talex5, #205).
+  If an error occurs on startup and a cache entry has expired then
+  we set config to None to exit the engine, and the timer thread tries to
+  read the config and crashes, hiding the real error.
+
+- Fix scheduled builds for very fast jobs (@talex5, #185).
+  We cleared the expiry timer when the job reported an active state. However,
+  if the job was very quick (no async operations) we wouldn't see this state.
+  Then we'd think the old timer was still in place and would be good to handle
+  the new deadline too. Reported by Kate.
+
+- Move `Current_cache.output` to new `Instance` submodule (@talex5, #201).
+  The name "output" came from before the build and publish caches were unified and was confusing.
+
+- Handle uncaught exceptions in monitor read functions (@talex5, #191).
+
+- Add missing `?cwd` to `Current.Process.exec` (@kit-ty-kate, #177).
+
+- Delete directories with `Lwt` (@talex5, #192).
+  Using `Unix.unlink` was causing high latencies in some cases.
+
+Web UI:
+
+- Improvements to query page (@talex5, #196).
+  - Add toggles to query page to allow rebuilding multiple jobs at once.
+  - Filter by job ID prefix in the query page. This makes it easy to restrict results to a particular day (or month, hour, etc).
+  - Filter by operation type in query page.
+  - Allow filtering by rebuild status in query page.
+  - Show job queue time and run time in query page.
+
+- Stream log files (@talex5, #165).
+  If the job is still running, keep the connection open and stream the data as it arrives.
+
+- Add `Site` and `Context` modules (@talex5, #170).
+
+- Auto-generate links in nav-bar from routes (@talex5, #182).
+  Expose routes in web API. This allows the user to provide whatever routes they like, or to use their own server.
+
+- Update to new Routes API (@anuragsoni, #189 #190).
+
+- Add a basic access control system (@talex5, #172).
+  - `Site` now takes `authn` and `has_role` arguments.
+  - `authn` (if given) is used to create a "Login" link in the navbar.
+  - `has_role` is used to decide who can access which resource.
+  - The GitHub plugin now provides an authentication backend that authenticates users with GitHub.
+
+- Display the build history in the job page (@talex5, #166).
+  Allows navigating to previous build results easily.
+
+Diagram generation:
+
+- Extend, rather than replace, the context in `with_context` (@talex5, #197).
+
+- Truncate long tooltips in Graphviz diagrams. Graphviz rejects long messages with the error `longer than 16384?`.
+
+Docker plugin:
+
+- Return the RepoId after pushing a manifest (@talex5, #207).
+
+- Add `Raw` module with low-level API (@talex5, #168).
+  This is useful if you need to create your own custom components (for example,
+  because you want to use a `Current.t` input to generate one of the fixed
+  arguments such as `~run_args`). See `examples/docker_custom.ml` for an example.
+
+Git plugin:
+
+- Add `?pool` argument to `Git.with_checkout` (@talex5, #184).
+  Git checkout operations can use a lot of CPU and IO, so allow users to supply a pool to limit the number of concurrent operations.
+
+- Make `Commit_id.pp_user_clone` public (@talex5, #176).
+  Also, `Commit.id` now returns a `Commit_id.t`. Use `Commit.hash` to get the hash.
+
+- Fix clone instructions for GitHub PRs (@talex5, #164).
+  GitHub only provides the `refs/pull/NNN/head` branches when fetching, not when cloning (with the default refspec).
+  Detect this case and show an alternative command that the user can run to reproduce the operation.
+
+GitHub plugin:
+
+- Get all installation repositories, not just the first 30 (@talex5, #193).
+  For now, as a precaution, ignore any installation that has configured all repositories to be tested (this is likely an accident).
+
+- If listing repositories fails, retry after 30s (@talex5, #198).
+
+- Add `Installation.repositories ?include_archived` option (@talex5, #203).
+  Filtering archived repositories is now the default.
+  There's not much point doing CI on them as you can't write the status result back.
+
+- Add `GitHub.Installation.account` to get account name (@talex5, #204).
+
+- Add `Api.Anonymous.head_of` (@talex5, #200).
+  This allows monitoring the head of a public GitHub repository without needing
+  an OAuth token. It's useful for the `ocaml-ci-local` command, allowing users
+  to test the pipeline easily.
+
+- Catch cohttp end-of-file exceptions (@talex5, #175).
+
+- Remove unicorn from error string (@talex5, #183).
+  When a GraphQL query returned a server error, we previously returned the body
+  of the HTTP response as the error message. However, this includes a large
+  picture of a unicorn, which is not suitable as an error string.
+
+Slack plugin:
+
+- Upgrade TLS library to cope with Slack's new TLS policy (@talex5, #174 #194).
+
+Build:
+
+- Update to dune 2 (@talex5, #171).
+
+- Add missing alcotest dependency (@talex5, #163).
+
+
 ### v0.2
 
 The main new feature is that OCurrent now evaluates pipelines incrementally.
