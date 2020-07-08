@@ -19,6 +19,7 @@ depends: [
   "current" {= version}
   "current_ansi" {= version}
   "ocaml" {>= "4.08.0"}
+  "ppx_deriving_yojson" {>= "3.5.1"}
   "base64"
   "session"
   "session-cohttp-lwt"
