@@ -34,7 +34,7 @@ module Installs = Current.Var(struct
 type t = {
   app_id : string;
   key : Mirage_crypto_pk.Rsa.priv;
-  whitelist : string list;      (* Accounts which can use this app. *)
+  allowlist : string list;      (* Accounts which can use this app. *)
   installations : Installs.t;
 }
 
@@ -78,7 +78,7 @@ let get_installations app =
       json |> to_list |> List.filter_map (fun json ->
           let id = json |> member "id" |> to_int in
           let account = json |> member "account" |> member "login" |> to_string in
-          if List.mem account app.whitelist then (
+          if List.mem account app.allowlist then (
             Log.info (fun f -> f "Found installation %d for %S" id account);
             let repository_selection = json |> member "repository_selection" |> to_string in
             match repository_selection with
@@ -90,7 +90,7 @@ let get_installations app =
               Log.warn (fun f -> f "Installation %S has unknown repository_selection %S - skipping" account x);
               None
           ) else (
-            Log.warn (fun f -> f "Installation %d for %S : account not on whitelist!" id account);
+            Log.warn (fun f -> f "Installation %d for %S : account not on allowlist!" id account);
             None
           )
         )
@@ -140,13 +140,13 @@ let installations t =
 
 (* Command-line options *)
 
-let make_config app_id private_key_file whitelist =
+let make_config app_id private_key_file allowlist =
   let data = Api.read_file private_key_file in
   match X509.Private_key.decode_pem (Cstruct.of_string data) with
     | Error (`Msg msg) -> Fmt.failwith "Failed to parse secret key!@ %s" msg
     | Ok (`RSA key) ->
       let installations = Installs.create ~name:"installations" (Error (`Active `Running)) in
-      let t = { app_id; key; whitelist; installations } in
+      let t = { app_id; key; allowlist; installations } in
       Lwt.async (monitor_installations t);
       t
 
@@ -168,13 +168,13 @@ let app_id =
     ~docv:"ID"
     ["github-app-id"]
 
-let whitelist =
+let allowlist =
   Arg.required @@
   Arg.opt Arg.(some (list string)) None @@
   Arg.info
-    ~doc:"A comma-separated list of whilelisted GitHub accounts"
+    ~doc:"A comma-separated list of allowed GitHub accounts"
     ~docv:"ACCOUNTS"
-    ["github-account-whitelist"]
+    ["github-account-allowlist"]
 
 let cmdliner =
-  Term.(const make_config $ app_id $ private_key_file $ whitelist)
+  Term.(const make_config $ app_id $ private_key_file $ allowlist)
