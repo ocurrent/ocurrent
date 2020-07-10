@@ -31,10 +31,24 @@ module Installs = Current.Var(struct
     let pp = Fmt.using (fun t -> Int_map.bindings t |> List.map fst) Fmt.(Dump.list int)
   end)
 
+module Allowlist : sig
+
+  type t
+
+  val of_list : string list -> t
+
+  val mem : string -> t -> bool
+
+end = struct
+  type t = string list
+  let of_list = List.map String.lowercase_ascii
+  let mem name l = List.exists ((=) (String.lowercase_ascii name)) l
+end
+
 type t = {
   app_id : string;
   key : Mirage_crypto_pk.Rsa.priv;
-  allowlist : string list;      (* Accounts which can use this app. *)
+  allowlist : Allowlist.t;      (* Accounts which can use this app. *)
   installations : Installs.t;
 }
 
@@ -78,7 +92,7 @@ let get_installations app =
       json |> to_list |> List.filter_map (fun json ->
           let id = json |> member "id" |> to_int in
           let account = json |> member "account" |> member "login" |> to_string in
-          if List.mem account app.allowlist then (
+          if Allowlist.mem account app.allowlist then (
             Log.info (fun f -> f "Found installation %d for %S" id account);
             let repository_selection = json |> member "repository_selection" |> to_string in
             match repository_selection with
@@ -169,6 +183,7 @@ let app_id =
     ["github-app-id"]
 
 let allowlist =
+  Term.app (Term.const Allowlist.of_list) @@
   Arg.required @@
   Arg.opt Arg.(some (list string)) None @@
   Arg.info
