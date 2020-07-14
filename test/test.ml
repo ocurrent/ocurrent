@@ -278,11 +278,9 @@ let test_metadata () =
   let job_id = Current_incr.observe (Term.Executor.run pipeline) in
   Alcotest.(check (result (option string) reject)) "Got job ID" (Ok (Some "1")) job_id
 
-module Cli = Alcotest.Cli.Make(Lwt)
-
 let () =
   Lwt_main.run begin
-    Cli.run "test" [
+    Alcotest_lwt.run "test" [
       "pipelines", [
         Driver.test_case_gc "v1"          test_v1;
         Driver.test_case_gc "v1-cancel"   test_v1_cancel;

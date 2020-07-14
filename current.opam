@@ -35,5 +35,5 @@ depends: [
   "dune" {>= "2.0"}
   "re"
   "lwt-dllist"
-  "alcotest-lwt" {>= "1.0.1" & with-test}
+  "alcotest-lwt" {>= "1.2.0" & with-test}
 ]
