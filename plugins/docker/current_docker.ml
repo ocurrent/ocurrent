@@ -9,8 +9,8 @@ module Raw = struct
 
   module PC = Current_cache.Make(Pull)
 
-  let pull ~docker_context ~schedule tag =
-    PC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag }
+  let pull ~docker_context ~schedule ?arch tag =
+    PC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag; arch }
 
   module BC = Current_cache.Make(Build)
 
