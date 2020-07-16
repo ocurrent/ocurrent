@@ -23,7 +23,8 @@ module Raw : sig
 
   val pull :
     docker_context:string option ->
-    schedule:Current_cache.Schedule.t -> string -> Image.t Current.Primitive.t
+    schedule:Current_cache.Schedule.t ->
+    ?arch:string -> string -> Image.t Current.Primitive.t
 
   val build :
     docker_context:string option ->

@@ -17,8 +17,13 @@ module type DOCKER = sig
 
   val docker_context : string option
 
-  val pull : ?label:string -> schedule:Current_cache.Schedule.t -> string -> Image.t Current.t
+  val pull :
+    ?label:string ->
+    ?arch:string ->
+    schedule:Current_cache.Schedule.t ->
+    string -> Image.t Current.t
   (** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
+      @param arch Select a specific architecture from a multi-arch manifest.
       @param schedule Controls how often we check for updates. If the schedule
                       has no [valid_for] limit then we will only ever pull once. *)
 
