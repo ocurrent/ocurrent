@@ -22,13 +22,20 @@ let id = "docker-pull"
 
 let get_digest_from_manifest manifest arch =
   let open Yojson.Basic.Util in
-  try Yojson.Basic.from_string manifest |>
-      member "manifests" |> to_list |>
+  match Yojson.Basic.from_string manifest with
+  | exception ex -> Fmt.error_msg "Failed to parse manifest JSON: %a@\n%S" Fmt.exn ex manifest
+  | json ->
+    try
+      json |> member "manifests" |> to_list |>
       List.find (fun j -> member "platform" j |> fun j ->
                           (member "architecture" j |> to_string = arch) &&
                           (member "os" j |> to_string = "linux")) |>
       member "digest" |> fun digest -> Ok (to_string digest)
-  with _ -> Error (`Msg (Fmt.strf "failed to parse docker manifest to find arch: %S" manifest))
+    with ex ->
+      Fmt.error_msg "Failed to find arch %S in manifest (%a):@,%a"
+        arch
+        Fmt.exn ex
+        (Yojson.Basic.pretty_print ~std:true) json
 
 let build No_context job key =
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->

@@ -107,11 +107,15 @@ module Make (Host : S.HOST) = struct
 
   let docker_context = Host.docker_context
 
-  let pull ?label ~schedule tag =
+  let pp_opt_arch f = function
+    | None -> ()
+    | Some arch -> Fmt.pf f "@,%s" arch
+
+  let pull ?label ?arch ~schedule tag =
     let label = Option.value label ~default:tag in
-    Current.component "pull %s" label |>
+    Current.component "pull %s%a" label pp_opt_arch arch |>
     let> () = Current.return () in
-    Raw.pull ~docker_context ~schedule tag
+    Raw.pull ~docker_context ~schedule ?arch tag
 
   let pp_sp_label = Fmt.(option (prefix sp string))
 
