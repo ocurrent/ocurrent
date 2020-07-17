@@ -93,7 +93,12 @@ let cancel t reason =
   | `Hooks hooks ->
     t.cancel_hooks <- `Cancelled reason;
     log t "Cancelling: %s" reason;
-    Lwt.async (fun () -> run_cancel_hooks ~reason hooks)
+    Lwt.async (fun () ->
+        Lwt.catch
+          (fun () -> run_cancel_hooks ~reason hooks)
+          (fun ex -> Fmt.failwith "Uncaught exception from cancel hook for %S: %a" (id t) Fmt.exn ex)
+      )
+
 
 let create ?(priority=`Low) ~switch ~label ~config () =
   if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
