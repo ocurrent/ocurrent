@@ -47,6 +47,8 @@ let db = lazy (
                    PRIMARY KEY (op, key, build))" |> or_fail "create table";
   Sqlite3.exec db "CREATE INDEX IF NOT EXISTS cache_job_id \
                    ON cache (job_id)" |> or_fail "create index";
+  Sqlite3.exec db "CREATE INDEX IF NOT EXISTS cache_finish_time \
+                   ON cache (finished)" |> or_fail "create index";
   let record = Sqlite3.prepare db "INSERT OR REPLACE INTO cache \
                                    (op, key, job_id, value, ok, outcome, ready, running, finished, build) \
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" in
@@ -150,14 +152,14 @@ let sqlite_bool = function
 let query ?op ?ok ?rebuild ?job_prefix () =
   let job_pattern =
     job_prefix |> Option.map (fun s ->
-        if String.contains s '%' then Fmt.failwith "Bad character in job prefix %S" s;
-        s ^ "%"
+        if String.contains s '*' || String.contains s '?' then Fmt.failwith "Bad character in job prefix %S" s;
+        s ^ "*"
       ) in
   let tests = List.filter_map Fun.id [
       Option.map (fun x -> Fmt.strf "ok=?", sqlite_bool x) ok;
       Option.map (fun x -> Fmt.strf "op=?", Sqlite3.Data.TEXT x) op;
       Option.map (fun x -> Fmt.strf "rebuild=?", sqlite_bool x) rebuild;
-      Option.map (fun x -> Fmt.strf "job_id LIKE ?", Sqlite3.Data.TEXT x) job_pattern;
+      Option.map (fun x -> Fmt.strf "job_id GLOB ?", Sqlite3.Data.TEXT x) job_pattern;
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (
