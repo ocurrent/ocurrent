@@ -119,10 +119,6 @@ module Make (Host : S.HOST) = struct
 
   let pp_sp_label = Fmt.(option (prefix sp string))
 
-  let option_map f = function
-    | None -> None
-    | Some x -> Some (f x)
-
   let get_build_context = function
     | `No_context -> Current.return `No_context
     | `Git commit -> Current.map (fun x -> `Git x) commit
