@@ -1,6 +1,8 @@
 open Current.Syntax
 open Lwt.Infix
 
+let ( >>!= ) = Lwt_result.bind
+
 module Metrics = struct
   open Prometheus
 
@@ -64,7 +66,7 @@ let http { app_id; key; _ } op uri =
   | `OK | `Created ->
     let json = Yojson.Safe.from_string body in
     Log.debug (fun f -> f "@[<v2>Got response:@,%a@]" Yojson.Safe.pp json);
-    json
+    resp, json
   | err -> Fmt.failwith "@[<v2>Error accessing GitHub App API at %a: %s@,%s@]"
              Uri.pp uri
              (Cohttp.Code.string_of_status err)
@@ -78,37 +80,54 @@ let minute = 60.0
 let get_token app iid =
   let uri = access_tokens_endpoint iid in
   let now = Unix.gettimeofday () in
-  http app post uri >|= fun json ->
+  http app post uri >|= fun (_resp, json) ->
   let open Yojson.Safe.Util in
   let token = Ok (json |> member "token" |> to_string) in
   (* The token is valid for 60 minutes, so request a new one after 50 minutes. *)
   let expiry = Some (now +. 50.0 *. minute) in
   Api.{ token; expiry }
 
+let next headers =
+  headers
+  |> Cohttp.Header.get_links
+  |> List.find_opt (fun (link : Cohttp.Link.t) ->
+      List.exists (fun r -> r = Cohttp.Link.Rel.next) link.arc.relation
+    )
+  |> Option.map (fun link -> link.Cohttp.Link.target)
+
 let get_installations app =
   Lwt.catch (fun () ->
-      http app get list_installations_endpoint >>= fun json ->
-      let open Yojson.Safe.Util in
-      json |> to_list |> List.filter_map (fun json ->
-          let id = json |> member "id" |> to_int in
-          let account = json |> member "account" |> member "login" |> to_string in
-          if Allowlist.mem account app.allowlist then (
-            Log.info (fun f -> f "Found installation %d for %S" id account);
-            let repository_selection = json |> member "repository_selection" |> to_string in
-            match repository_selection with
-            | "selected" -> Some (id, account)
-            | "all" ->
-              Log.warn (fun f -> f "Installation %S has selected all repositories - skipping as probably a mistake" account);
-              None
-            | x ->
-              Log.warn (fun f -> f "Installation %S has unknown repository_selection %S - skipping" account x);
-              None
-          ) else (
-            Log.warn (fun f -> f "Installation %d for %S : account not on allowlist!" id account);
-            None
-          )
-        )
-      |> Lwt_result.return
+     let rec aux uri =
+       http app get uri >>= fun (resp, json) ->
+       let open Yojson.Safe.Util in
+       let installs =
+         json |> to_list |> List.filter_map (fun json ->
+             let id = json |> member "id" |> to_int in
+             let account = json |> member "account" |> member "login" |> to_string in
+             if Allowlist.mem account app.allowlist then (
+               Log.info (fun f -> f "Found installation %d for %S" id account);
+               let repository_selection = json |> member "repository_selection" |> to_string in
+               match repository_selection with
+               | "selected" -> Some (id, account)
+               | "all" ->
+                 Log.warn (fun f -> f "Installation %S has selected all repositories - skipping as probably a mistake" account);
+                 None
+               | x ->
+                 Log.warn (fun f -> f "Installation %S has unknown repository_selection %S - skipping" account x);
+                 None
+             ) else (
+               Log.warn (fun f -> f "Installation %d for %S : account not on allowlist!" id account);
+               None
+             )
+           )
+       in
+       match next (Cohttp.Response.headers resp) with
+       | None -> Lwt_result.return installs
+       | Some target ->
+         aux target >>!= fun next_installs ->
+         Lwt_result.return (installs @ next_installs)
+     in
+     aux list_installations_endpoint
     ) (fun ex ->
       Lwt_result.fail (`Msg (Fmt.strf "Failed to get GitHub installations: %a" Fmt.exn ex))
     )
