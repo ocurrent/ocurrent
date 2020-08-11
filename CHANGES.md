@@ -1,3 +1,27 @@
+### dev
+
+Core:
+
+- Optimise the SQL query for the Query page, by adding an
+  index on the finish time and doing a case-insensitive
+  search (@talex5 #215).
+
+Docker plugin:
+
+- Add an architecture flag in the Docker builder to enable
+  multiarch builds (including 32-bit) (@avsm #213).
+
+GitHub plugin:
+
+- Use the term `allowlist` for permitted usernames and
+  make it case-insensitive (@avsm #210, @Julow #211).
+
+Build fixes and cleanup:
+
+- Adapt to the Alcotest 1.2 interface (@talex5 #212).
+- Add missing dependency on `ppx_deriving_yojson` (@talex5 #209).
+- Remove unused `Option.map` (@talex5 #216)
+
 ### v0.3
 
 The main changes are:
