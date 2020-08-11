@@ -25,7 +25,7 @@ let streams _switch () =
   Current.Switch.turn_off switch >>= fun () ->
   assert (Lwt.state log_data != Lwt.Sleep);
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
-  Alcotest.(check string) "Combined results" "1970-01-01 00:00.00: Exec: \"sh\" \"-c\" \"echo out1; echo >&2 out2; echo out3\"\n\
+  Alcotest.(check string) "Combined results" "1970-01-01 00:00.00: Exec: 'sh' '-c' 'echo out1; echo >&2 out2; echo out3'\n\
                                               out1\nout2\nout3\n" (read path);
   Lwt.return_unit
 
@@ -39,7 +39,7 @@ let output _switch () =
   Current.Switch.turn_off switch >>= fun () ->
   Alcotest.(check string) "Output" "out1\nout3\n" out;
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
-  Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: \"sh\" \"-c\" \"echo out1; echo >&2 out2; echo out3\"\n\
+  Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: 'sh' '-c' 'echo out1; echo >&2 out2; echo out3'\n\
                                  out2\n" (read path);
   Lwt.return_unit
 
@@ -54,11 +54,11 @@ let cancel _switch () =
   thread >>= fun res ->
   begin match res with
     | Ok () -> Alcotest.fail "Should have failed!"
-    | Error `Msg m when Astring.String.is_prefix ~affix:"Command \"sleep\" \"120\" failed with signal" m -> ()
+    | Error `Msg m when Astring.String.is_prefix ~affix:"Command 'sleep' '120' failed with signal" m -> ()
     | Error `Msg m -> Alcotest.failf "Expected signal error, not %S" m
   end;
   let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
-  Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: \"sleep\" \"120\"\n\
+  Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: 'sleep' '120'\n\
                                  1970-01-01 00:00.00: Cancelling: Timeout\n" (read path);
   Lwt.return_unit
 
