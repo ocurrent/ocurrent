@@ -5,9 +5,10 @@ let () =
 
 let failf fmt = fmt |> Fmt.kstrf @@ fun msg -> Error (`Msg msg)
 
-let pp_args =
-  let sep = Fmt.(const string) " " in
-  Fmt.(array ~sep (quote string))
+let pp_args f args =
+  match Array.to_list args with
+  | [] -> failwith "empty command!"
+  | x :: xs -> Fmt.string f (Filename.quote_command x xs)
 
 let pp_cmd f = function
   | "", args -> pp_args f args
