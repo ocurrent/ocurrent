@@ -45,4 +45,4 @@ let cp_r ~cancellable ~job ~src ~dst =
   Current.Process.exec ~cancellable ~job ("", cmd)
 
 let git_submodule_update ~cancellable ~job ~repo =
-  git ~cancellable ~job ~cwd:repo ["submodule"; "update"; "--recursive"]
+  git ~cancellable ~job ~cwd:repo ["submodule"; "update"; "--init"; "--recursive"]
