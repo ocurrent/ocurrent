@@ -33,4 +33,5 @@ depends: [
   "tyxml"
   "routes" {>= "0.8.0"}
   "dune" {>= "2.0"}
+  "conf-graphviz"
 ]
