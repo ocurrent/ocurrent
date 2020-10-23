@@ -7,10 +7,15 @@ let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,"
 module Raw = struct
   module Image = Image
 
-  module PC = Current_cache.Make(Pull)
+  module PullC = Current_cache.Make(Pull)
 
   let pull ~docker_context ~schedule ?arch tag =
-    PC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag; arch }
+    PullC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag; arch }
+
+  module PeekC = Current_cache.Make(Peek)
+
+  let peek ~docker_context ~schedule ~arch tag =
+    PeekC.get ~schedule Peek.No_context { Peek.Key.docker_context; tag; arch }
 
   module BC = Current_cache.Make(Build)
 
@@ -116,6 +121,12 @@ module Make (Host : S.HOST) = struct
     Current.component "pull %s%a" label pp_opt_arch arch |>
     let> () = Current.return () in
     Raw.pull ~docker_context ~schedule ?arch tag
+
+  let peek ?label ~arch ~schedule tag =
+    let label = Option.value label ~default:tag in
+    Current.component "peek %s@,%s" label arch |>
+    let> () = Current.return () in
+    Raw.peek ~docker_context ~schedule ~arch tag
 
   let pp_sp_label = Fmt.(option (prefix sp string))
 

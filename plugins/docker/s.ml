@@ -27,6 +27,16 @@ module type DOCKER = sig
       @param schedule Controls how often we check for updates. If the schedule
                       has no [valid_for] limit then we will only ever pull once. *)
 
+  val peek :
+    ?label:string ->
+    arch:string ->
+    schedule:Current_cache.Schedule.t ->
+    string -> repo_id Current.t
+  (** [peek ~schedule ~arch tag] gets the latest version of [tag] without actually pulling it.
+      @param arch Select a specific architecture from a multi-arch manifest.
+      @param schedule Controls how often we check for updates. If the schedule
+                      has no [valid_for] limit then we will only ever check once. *)
+
   val build :
     ?schedule:Current_cache.Schedule.t ->
     ?timeout:Duration.t ->
