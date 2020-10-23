@@ -26,6 +26,11 @@ module Raw : sig
     schedule:Current_cache.Schedule.t ->
     ?arch:string -> string -> Image.t Current.Primitive.t
 
+  val peek :
+    docker_context:string option ->
+    schedule:Current_cache.Schedule.t ->
+    arch:string -> string -> S.repo_id Current.Primitive.t
+
   val build :
     docker_context:string option ->
     ?schedule:Current_cache.Schedule.t ->
