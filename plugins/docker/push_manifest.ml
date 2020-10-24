@@ -34,10 +34,10 @@ module Outcome = struct
 end
 
 let create_cmd ~config ~tag {Value.manifests} =
-  Cmd.docker ~config ~docker_context:None (["manifest"; "create"; tag] @ manifests)
+  Cmd.docker ~config ~docker_context:None (["manifest"; "create"; "--insecure"; tag] @ manifests)
 
 let push_cmd ~config tag =
-  Cmd.docker ~config ~docker_context:None ["manifest"; "push"; tag]
+  Cmd.docker ~config ~docker_context:None ["manifest"; "push"; "--insecure"; tag]
 
 let or_fail = function
   | Ok x -> x
