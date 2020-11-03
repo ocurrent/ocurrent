@@ -69,6 +69,11 @@ module Raw : sig
     docker_context:string option ->
     name:string -> image:Image.t -> unit -> unit Current.Primitive.t
 
+  val compose :
+    docker_context:string option ->
+    name:string ->
+    contents:string -> unit -> unit Current.Primitive.t
+
   (** Building Docker commands. *)
   module Cmd : sig
     type t = Lwt_process.command
