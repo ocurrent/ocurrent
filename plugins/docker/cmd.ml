@@ -9,6 +9,9 @@ let config_args = function
 let docker ?config ~docker_context args =
   "", Array.of_list ("docker" :: config_args config @ context_args docker_context @ args)
 
+let compose ~docker_context args =
+  "", Array.of_list ("docker-compose" :: context_args docker_context @ args)
+
 let login ?config ~docker_context user =
   docker ?config ~docker_context ["login"; "--password-stdin"; "--username"; user]
 
