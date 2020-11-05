@@ -26,7 +26,7 @@ end
 
 module Outcome = Current.Unit
 
-let cmd args { Key.docker_context; name; _ } =
+let cmd args { Key.docker_context; name } =
   Cmd.compose ~docker_context (["-f"; "/dev/stdin"; "-p"; name ] @ args)
 
 let cmd_pull = cmd ["pull"]
