@@ -21,6 +21,6 @@ depends: [
   "yojson"
   "lwt"
   "tls" {>= "0.12.0"}
-  "cohttp-lwt-unix"
+  "cohttp-lwt-unix" { < "3.0.0"}
   "dune" {>= "2.0"}
 ]
