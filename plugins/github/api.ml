@@ -246,10 +246,10 @@ let query_default =
        prefix \
        name \
        target { \
-        ...on Commit { \
-          oid \
-          committedDate \ 
-        } \ 
+         ...on Commit { \
+           oid \
+           committedDate \
+         } \
        } \
      } \
    } \
