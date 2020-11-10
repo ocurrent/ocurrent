@@ -124,9 +124,10 @@ module Commit_id = struct
     owner_name : string;    (* e.g. "owner/name" *)
     id : Ref.t;
     hash : string;
+    committed_date : string;
   } [@@deriving to_yojson]
 
-  let to_git { owner_name; id; hash } =
+  let to_git { owner_name; id; hash; _ } =
     let repo = Fmt.str "https://github.com/%s.git" owner_name in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
@@ -136,7 +137,7 @@ module Commit_id = struct
 
   let pp_id = Ref.pp
 
-  let compare {owner_name; id; hash} b =
+  let compare {owner_name; id; hash; _} b =
     match compare hash b.hash with
     | 0 ->
       begin match Ref.compare id b.id with
@@ -145,8 +146,8 @@ module Commit_id = struct
       end
     | x -> x
 
-  let pp f { owner_name; id; hash } =
-    Fmt.pf f "%s@ %a@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
+  let pp f { owner_name; id; hash; committed_date } =
+    Fmt.pf f "%s@ %a@ %s@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash) committed_date
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -245,7 +246,10 @@ let query_default =
        prefix \
        name \
        target { \
-         oid \
+        ...on Commit { \
+          oid \
+          committedDate \ 
+        } \ 
        } \
      } \
    } \
@@ -276,7 +280,8 @@ let default_ref t { Repo_id.owner; name } =
       let prefix = def / "prefix" |> to_string in
       let name = def / "name" |> to_string in
       let hash = def / "target" / "oid" |> to_string in
-      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
+      let committed_date = def / "target" / "committedDate" |> to_string in 
+      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -339,7 +344,10 @@ let query_branches_and_open_prs = {|
           node {
             name
             target {
-              oid
+              ...on Commit {
+                oid
+                committedDate
+              }
             }
           }
         }
@@ -350,6 +358,13 @@ let query_branches_and_open_prs = {|
           node {
             number
             headRefOid
+            commits(last: 1) {
+              nodes {
+                commit {
+                  committedDate
+                }
+              } 
+            }
           }
         }
       }
@@ -362,14 +377,18 @@ let parse_ref ~owner_name ~prefix json =
   let node = json / "node" in
   let name = node / "name" |> to_string in
   let hash = node / "target" / "oid" |> to_string in
-  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
+  let committed_date = node / "target" / "committedDate" |> to_string in
+  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
 
 let parse_pr ~owner_name json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let hash = node / "headRefOid" |> to_string in
   let pr = node / "number" |> to_int in
-  { Commit_id.owner_name; id = `PR pr; hash }
+  let nodes = node / "commits" / "nodes" |> to_list in 
+  if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s" owner_name else 
+  let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
+  { Commit_id.owner_name; id = `PR pr; hash; committed_date }
 
 let get_ci_refs t { Repo_id.owner; name } =
     let variables = [
@@ -451,13 +470,36 @@ let to_ci_refs refs =
   |> Ref_map.bindings
   |> List.map snd
 
-let ci_refs t repo =
+let now () =
+  Ptime.of_float_s (Unix.gettimeofday ()) |> function
+  | Some t -> t
+  | None -> Fmt.failwith "Failed to get current time"
+
+let to_ptime str =
+  Ptime.of_rfc3339 str |> function
+  | Ok (t, _, _) -> t
+  | Error _ -> Fmt.failwith "Datetime parsing error for: %s" str
+  
+(** Check if the elapsed time from timestamps [start, finish] is within [cutoff] days ago *)
+let active_date_cutoff ~start ~finish cutoff = 
+  let diff = Ptime.diff finish start in
+  let (days, _) = Ptime.Span.to_d_ps diff in
+    cutoff - days > 0 
+
+let ci_refs ?(staleness=None) t repo =
   let+ refs =
     Current.component "%a CI refs" Repo_id.pp repo |>
     let> () = Current.return () in
     refs t repo
   in
-  to_ci_refs refs
+  match staleness with 
+    | None -> to_ci_refs refs 
+    | Some n when n < 0 -> to_ci_refs refs 
+    | Some n -> 
+      let cutoff x s = 
+        active_date_cutoff ~start:(to_ptime x.Commit_id.committed_date) ~finish:(now ()) s  
+      in
+        to_ci_refs (Ref_map.filter (fun _ (_, x) -> cutoff x n) refs)
 
 let head_of t repo id =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
@@ -562,6 +604,8 @@ module Commit = struct
 
   let hash (_, id) = id.Commit_id.hash
 
+  let committed_date (_, id) = id.Commit_id.committed_date
+
   let pp = Fmt.using snd Commit_id.pp
 
   let set_status commit context status =
@@ -628,7 +672,7 @@ module Anonymous = struct
       Lwt.try_bind
         (fun () -> query_head repo gref)
         (fun hash ->
-           let id = { Commit_id.owner_name; hash; id = gref } in
+           let id = { Commit_id.owner_name; hash; id = gref; committed_date = "" } in
            Lwt_result.return (Commit_id.to_git id)
         )
         (fun ex ->

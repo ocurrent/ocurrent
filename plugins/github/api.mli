@@ -13,6 +13,7 @@ module Commit : sig
   val repo_id : t -> Repo_id.t
   val owner_name : t -> string
   val hash : t -> string
+  val committed_date : t -> string 
   val pp : t Fmt.t
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
@@ -34,7 +35,7 @@ val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yo
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
 val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Primitive.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
-val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
+val ci_refs : ?staleness:(int option) -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
 
 module Repo : sig

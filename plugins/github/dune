@@ -13,6 +13,7 @@
    current.term
    current_git
    current_web
+   ptime
    fmt
    logs
    lwt
