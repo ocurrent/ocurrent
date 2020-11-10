@@ -99,11 +99,10 @@ module Api : sig
   (** [head_of t repo id] evaluates to the commit at the head of [id] in [repo].
       e.g. [head_of t repo (`Ref "refs/heads/master")] *)
 
-  val ci_refs : ?staleness:(int option) -> t -> Repo_id.t -> Commit.t list Current.t
+  val ci_refs : ?staleness:(Duration.t option) -> t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages.
-      The optional [staleness] argument can be used to specify the number of days beyond which the latest
-      commit of a PR or branch is deemed too old and will be removed. It defaults to [None] and supplying 
-      a number less than [0] behaves like [None]. *)
+      The optional [staleness] argument can be used to specify the duration beyond which the latest
+      commit of a PR or branch is deemed too old and will be removed. It defaults to [None]. *)
 
   val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].

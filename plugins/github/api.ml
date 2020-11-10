@@ -478,13 +478,14 @@ let now () =
 let to_ptime str =
   Ptime.of_rfc3339 str |> function
   | Ok (t, _, _) -> t
-  | Error _ -> Fmt.failwith "Datetime parsing error for: %s" str
+  | Error (`RFC3339 (_, e)) -> Fmt.failwith "%a" Ptime.pp_rfc3339_error e
   
-(** Check if the elapsed time from timestamps [start, finish] is within [cutoff] days ago *)
+(** Check if the elapsed time from timestamps [start, finish] is within the [cutoff] duration *)
 let active_date_cutoff ~start ~finish cutoff = 
   let diff = Ptime.diff finish start in
-  let (days, _) = Ptime.Span.to_d_ps diff in
-    cutoff - days > 0 
+  match Ptime.Span.to_int_s diff with 
+    | Some s -> (Duration.to_sec cutoff) - s > 0 
+    | None -> Fmt.failwith "Failed to calculate ptime diff: %a" Ptime.Span.pp diff
 
 let ci_refs ?(staleness=None) t repo =
   let+ refs =
@@ -494,8 +495,7 @@ let ci_refs ?(staleness=None) t repo =
   in
   match staleness with 
     | None -> to_ci_refs refs 
-    | Some n when n < 0 -> to_ci_refs refs 
-    | Some n -> 
+    | Some n ->
       let cutoff x s = 
         active_date_cutoff ~start:(to_ptime x.Commit_id.committed_date) ~finish:(now ()) s  
       in
