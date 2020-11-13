@@ -22,6 +22,9 @@ module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
 
+  type ci_refs 
+  (** Reference information for the repository *)
+
   module Status : sig
     type t
     (** GitHub commit context status type. *)
@@ -104,7 +107,7 @@ module Api : sig
       The optional [staleness] argument can be used to specify the duration beyond which the latest
       commit of a PR or branch is deemed too old and will be removed. It defaults to [None]. *)
 
-  val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Primitive.t
+  val refs : t -> Repo_id.t -> ci_refs Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].
       This is the low-level API for getting the refs.
       It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly.

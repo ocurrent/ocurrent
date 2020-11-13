@@ -161,7 +161,10 @@ type t = {
   mutable ci_refs_monitors : ci_refs Current.Monitor.t Repo_map.t;
 }
 and commit = t * Commit_id.t
-and ci_refs = commit Ref_map.t
+and ci_refs = {
+  default_ref: string;
+  all_refs: commit Ref_map.t
+}
 
 let v ~get_token account =
   let head_monitors = Repo_map.empty in
@@ -338,6 +341,9 @@ let query_branches_and_open_prs = {|
     }
     repository(owner: $owner, name: $name) {
       nameWithOwner
+      defaultBranchRef {
+        name
+      }
       refs(first: 100, refPrefix:"refs/heads/") {
         totalCount
         edges {
@@ -402,6 +408,7 @@ let get_ci_refs t { Repo_id.owner; name } =
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
       let owner_name = repo / "nameWithOwner" |> to_string in
+      let default_ref = repo / "defaultBranchRef" / "name" |> to_string |> ( ^ ) "refs/heads/" in 
       let refs =
         repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/") in
       let prs =
@@ -420,6 +427,7 @@ let get_ci_refs t { Repo_id.owner; name } =
       Ref_map.empty
       |> add refs
       |> add prs
+      |> fun all_refs -> { default_ref; all_refs }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -494,12 +502,16 @@ let ci_refs ?(staleness=None) t repo =
     refs t repo
   in
   match staleness with 
-    | None -> to_ci_refs refs 
+    | None -> to_ci_refs refs.all_refs 
     | Some n ->
       let cutoff x s = 
         active_date_cutoff ~start:(to_ptime x.Commit_id.committed_date) ~finish:(now ()) s  
       in
-        to_ci_refs (Ref_map.filter (fun _ (_, x) -> cutoff x n) refs)
+      let is_default = function 
+        | { Commit_id.id = `Ref t; _ } -> String.equal refs.default_ref t 
+        | _ -> false 
+      in 
+      to_ci_refs (Ref_map.filter (fun _ (_, x) -> is_default x || cutoff x n) refs.all_refs)
 
 let head_of t repo id =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
@@ -508,7 +520,7 @@ let head_of t repo id =
   |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    match Ref_map.find_opt id refs with
+    match Ref_map.find_opt id refs.all_refs with
     | Some x -> Ok x
     | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
 
@@ -640,7 +652,7 @@ module Repo = struct
       let> (api, repo) = t in
       refs api repo
     in
-    to_ci_refs refs
+    to_ci_refs refs.all_refs
 end
 
 module Anonymous = struct
