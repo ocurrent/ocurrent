@@ -110,8 +110,15 @@ module Api : sig
   val refs : t -> Repo_id.t -> ci_refs Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].
       This is the low-level API for getting the refs.
-      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly.
+      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly, 
+      [get_default_ref] and [get_all_refs] will expose useful information for you. 
       The result is cached (so calling it twice will return the same primitive). *)
+
+  val get_default_ref : ci_refs -> string 
+  (** [get_default_ref ci_refs] will return the full name of the repository's default branch ref *)
+
+  val get_all_refs : ci_refs -> Commit.t Ref_map.t
+  (** [get_all_refs ci_refs] will return a map of all the repository's refs *)
 
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t

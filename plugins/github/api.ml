@@ -166,6 +166,10 @@ and ci_refs = {
   all_refs: commit Ref_map.t
 }
 
+let get_default_ref t = t.default_ref 
+
+let get_all_refs t = t.all_refs
+
 let v ~get_token account =
   let head_monitors = Repo_map.empty in
   let ci_refs_monitors = Repo_map.empty in
