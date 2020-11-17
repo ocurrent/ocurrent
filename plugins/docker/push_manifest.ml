@@ -47,16 +47,16 @@ let publish auth job tag value =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   Current.Process.with_tmpdir ~prefix:"push-manifest" @@ fun config ->
   Bos.OS.File.write Fpath.(config / "config.json") {|{"experimental": "enabled"}|} |> or_fail;
+  begin match auth with
+    | None -> Lwt.return (Ok ())
+    | Some (user, password) ->
+      let cmd = Cmd.login ~config ~docker_context:None user in
+      Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
+  end >>!= fun () ->
   Current.Process.exec ~cancellable:true ~job (create_cmd ~config ~tag value) >>= function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     Lwt_mutex.with_lock push_mutex @@ fun () ->
-    begin match auth with
-      | None -> Lwt.return (Ok ())
-      | Some (user, password) ->
-        let cmd = Cmd.login ~config ~docker_context:None user in
-        Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
-    end >>!= fun () ->
     Current.Process.check_output ~cancellable:true ~job (push_cmd ~config tag) >>!= fun output ->
     (* docker-manifest is still experimental and doesn't have a sensible output format yet. *)
     Current.Job.write job output;
