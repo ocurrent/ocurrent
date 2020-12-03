@@ -13,7 +13,7 @@ module Commit : sig
   val repo_id : t -> Repo_id.t
   val owner_name : t -> string
   val hash : t -> string
-  val committed_date : t -> string 
+  val committed_date : t -> string
   val pp : t Fmt.t
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
@@ -30,13 +30,13 @@ end
 module Ref_map : Map.S with type key = Ref.t
 
 type t
-type ci_refs 
+type refs
 val of_oauth : string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
-val refs : t -> Repo_id.t -> ci_refs Current.Primitive.t
-val get_default_ref : ci_refs -> string 
-val get_all_refs : ci_refs -> Commit.t Ref_map.t
+val refs : t -> Repo_id.t -> refs Current.Primitive.t
+val default_ref : refs -> string
+val all_refs : refs -> Commit.t Ref_map.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
 val ci_refs : ?staleness:(Duration.t option) -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t

@@ -22,7 +22,7 @@ module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
 
-  type ci_refs 
+  type refs
   (** Reference information for the repository *)
 
   module Status : sig
@@ -52,7 +52,7 @@ module Api : sig
     val hash : t -> string
     (** [hash t] is the Git commit hash of [t]. *)
 
-    val committed_date : t -> string 
+    val committed_date : t -> string
     (** [committed_date t] is the datetime when [t] was committed *)
 
     val pp : t Fmt.t
@@ -107,18 +107,18 @@ module Api : sig
       The optional [staleness] argument can be used to specify the duration beyond which the latest
       commit of a PR or branch is deemed too old and will be removed. It defaults to [None]. *)
 
-  val refs : t -> Repo_id.t -> ci_refs Current.Primitive.t
+  val refs : t -> Repo_id.t -> refs Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].
       This is the low-level API for getting the refs.
-      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly, 
-      [get_default_ref] and [get_all_refs] will expose useful information for you. 
+      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly,
+      [default_ref] and [all_refs] will expose useful information for you.
       The result is cached (so calling it twice will return the same primitive). *)
 
-  val get_default_ref : ci_refs -> string 
-  (** [get_default_ref ci_refs] will return the full name of the repository's default branch ref *)
+  val default_ref : refs -> string
+  (** [get_default_ref refs] will return the full name of the repository's default branch ref *)
 
-  val get_all_refs : ci_refs -> Commit.t Ref_map.t
-  (** [get_all_refs ci_refs] will return a map of all the repository's refs *)
+  val all_refs : refs -> Commit.t Ref_map.t
+  (** [get_all_refs refs] will return a map of all the repository's refs *)
 
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
