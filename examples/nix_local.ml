@@ -48,40 +48,22 @@ module Realise = struct
   let auto_cancel = true
 end
 
-module Instantiate = struct
-  let id = "nix-instantiate"
+module Eval = struct
+  let id = "nix-eval"
 
   type t = {
     pool : unit Current.Pool.t option;
   }
 
   (* TODO this should track nixpkgs & opam2nix hashes *)
-  module Key = struct
-    type t = {
-      nixpkgs: Git.Commit.t;
-      attr: string;
-    }
-
-    let cmd t tmpdir =
-      [ "nix-instantiate"; "--attr"; t.attr; Fpath.to_string tmpdir ]
-
-    (* let pp_cmd = Fmt.(list ~sep:sp (quote string)) *)
-    let pp f { attr; nixpkgs } = Fmt.string f "TODO"
-
-    let digest { attr; nixpkgs } =
-      Yojson.Safe.to_string @@ `Assoc [
-        "attr", `String attr;
-        "nixpkgs", `String (Git.Commit_id.digest (Git.Commit.id nixpkgs));
-      ]
-  end
+  module Key = Current.String
   module Value = Realise.Key
 
   let build { pool } job key =
     let ( >>!= ) = Lwt_result.bind in
     Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-    Git.with_checkout ?pool ~job key.Key.nixpkgs (fun tmpdir ->
-      Current.Process.check_output ~cancellable:true ~job ("", Key.cmd key tmpdir |> Array.of_list)
-    ) >>!= fun drv ->
+    let cmd = [ "nix-instantiate"; "--expr"; key ] |> Array.of_list in
+    Current.Process.check_output ~cancellable:true ~job ("", cmd) >>!= fun drv ->
     let drv = String.trim drv in
     Current.Job.log job "Resolved -> %S" drv;
     Lwt_result.return { Realise.Key.drv_path = drv }
@@ -97,10 +79,10 @@ module Raw = struct
   let realise ?pool drv =
     RealiseC.get { Realise.pool } drv
 
-  module InstantiateC = Current_cache.Make(Instantiate)
+  module EvalC = Current_cache.Make(Eval)
 
-  let instantiate ?pool (nixpkgs: Git.Commit.t) attr =
-    InstantiateC.get { Instantiate.pool } Instantiate.{ nixpkgs; attr }
+  let eval ?pool expr =
+    EvalC.get { Eval.pool } expr
 end
 
 module Nix = struct
@@ -111,22 +93,44 @@ module Nix = struct
     let> drv = drv in
     Raw.realise ?pool drv
 
-  let instantiate ?label ?pool nixpkgs attr =
+  let eval ?label ?pool expr =
     Current.component "nix-instantiate%a" pp_sp_label label |>
-    let> nixpkgs: Git.Commit.t = nixpkgs
-    (* TODO why does let> ... in let> ... in not work? what even is this syntax? *)
-    and> attr = attr in
-    Raw.instantiate ?pool nixpkgs attr
+    let> expr = expr in
+    Raw.eval ?pool expr
+    
+  let fetchgit ?label ?pool commit =
+    (* NOTE this is efficient on 1 host (.git cloned once and re-fetched as needed,
+     * but wasteful on multi-host (it's only needed on the host that's doing the instantiate)
+     *)
+    let expr = commit |> Current.map (fun commit ->
+      "builtins.fetchGit {\n"
+      ^ "url = \""^ (Git.Commit_id.repo commit) ^ "\";\n"
+      ^ "rev = \""^ (Git.Commit_id.hash commit) ^ "\";\n"
+      ^ "}"
+    ) in
+
+    let fetched = (Current.component "fetchgit%a" pp_sp_label label |>
+      let> expr = expr in
+      Raw.eval ?pool expr
+    ) in
+    (* We want the side effect of fetching, but don't need the result. There's probably a better way *)
+    Current.pair fetched expr |> Current.map snd
 end
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~github () : unit Current.t =
-  let head = Github.Api.head_commit github Github.{owner = "nixos"; name = "nixpkgs" } in
-  let src = Git.fetch (Current.map Github.Api.Commit.id head) in
+  let head_commit repo = Github.Api.head_commit github repo
+      |> Current.map Github.Api.Commit.id in
+  let nixpkgs = Nix.fetchgit ~label:"nixpkgs" (head_commit Github.{owner = "nixos"; name = "nixpkgs" }) in
+
   let build attr =
-    let drv = Nix.instantiate ~label:attr src (Current.return attr) in
+    let expr = nixpkgs |> Current.map (fun nixpkgs ->
+      "(import ("^nixpkgs^") {})."^attr
+    ) in
+    let drv = Nix.eval ~label:attr expr in
     Nix.realise drv
   in
+  
   Current.all [
     build "hello";
     build "ocaml-ng.ocamlPackages_4_10.ocaml";
