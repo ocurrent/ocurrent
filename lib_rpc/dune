@@ -17,4 +17,4 @@
 (rule
  (targets schema.ml schema.mli)
  (deps schema.capnp)
- (action (run capnpc -o %{bin:capnpc-ocaml} %{deps})))
+ (action (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))
