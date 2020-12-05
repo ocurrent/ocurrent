@@ -3,6 +3,7 @@
                docker_service
                docker_custom
                build_matrix
+               nix_local
                auth
                github
                github_app
