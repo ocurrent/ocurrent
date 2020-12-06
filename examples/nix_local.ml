@@ -93,84 +93,58 @@ module Build_plan = struct
 
   module Value = Drv_list
   
-  module Dry_run = struct
-    type section = Unknown | Build | Download
-    type state = {
-      section: section;
-      build: Key.t list;
-    }
-    let initial = { section = Unknown; build = []; }
-    let accumulate_output ~job line ({ section; build } as state) =
-      let is_indented = try
-        let first = String.get line 0 in
-        Current.Job.log job "first char: %C" first;
-        first = ' ' || first = '\t'
-      with Invalid_argument _ -> false in
-
-      let line = line |> String.trim in
-      if is_indented then (
-        (* Add to existing state *)
-        match section with
-          | Build -> (
-            Current.Job.log job "Build: %s" line;
-            let drv = Key.{ drv_path = line } in
-            { build = drv :: build; section }
-          )
-          | Download -> (
-            Current.Job.log job "Download: %s" line;
-            state
-          )
-          | Unknown -> (
-            Current.Job.log job "UNKNOWN ACTION: %s" line;
-            state
-          )
-      ) else (
-        if String.equal line "these derivations will be built:" then (
-          { build; section = Build }
-        ) else if String.equal line "these derivations will be downloaded:" then (
-          { build; section = Download }
-        ) else (
-          Current.Job.log job "WARN: unknown section marker in --dry-run output: %s" line;
-          { build; section = Unknown }
-        )
-      )
-
-    let copy_to_log ~job src =
-      let rec aux () =
-        Lwt_io.read ~count:4096 src >>= function
-        | "" -> Lwt.return_unit
-        | data -> Current.Job.write job data; aux ()
-      in
-      aux ()
-  end
+  let copy_to_log ~job src =
+    let rec aux () =
+      Lwt_io.read ~count:4096 src >>= function
+      | "" -> Lwt.return_unit
+      | data -> Current.Job.write job data; aux ()
+    in
+    aux ()
+    
+  module StringSet = Set.Make(String)
 
   let build { pool } job key =
     Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-    let cmd = [ "nix-store"; "--realise"; "--dry-run"; key.Key.drv_path ] in
+    let references_cmd = [ "nix-store"; "--query"; "--references"; key.Key.drv_path ] in
+    let dry_run_cmd = [ "nix-store"; "--realise"; "--dry-run"; key.Key.drv_path ] in
+    
+    let lines ~desc channel =
+      Lwt_io.read_lines channel
+      |> Lwt_stream.map (fun line ->
+        Current.Job.log job "[%s] %s" desc line;
+        String.trim line
+      )
+      |> Lwt_stream.filter (fun line -> not (String.equal line ""))
+      |> Lwt_stream.to_list
+    in
+
     (* TODO could run in parallel *)
-    Current.Process.exec_with ~cancellable:true ~job ("", cmd |> Array.of_list) (fun proc ->
-      let open Dry_run in
-      Current.Job.log job "waiting for exec...";
+    Current.Process.exec_with ~cancellable:true ~job ("", dry_run_cmd |> Array.of_list) (fun proc ->
       (* can't use check_output since dry-run outputs to stderr *)
       let copy_thread = copy_to_log ~job proc#stdout in
-      let stderr_lines = Lwt_io.read_lines proc#stderr in
-      let stderr_lines = Lwt_stream.map (fun line ->
-        Current.Job.log job "[stderr] %s" line;
-        line
-      ) stderr_lines in
-      let result = Lwt_stream.fold (accumulate_output ~job) stderr_lines initial in
-      copy_thread >>= fun () ->
-      result |> Lwt.map (Result.ok)
-    ) |> Lwt_result.map (fun state ->
-      if state = initial then (
-        Current.Job.log job "NOTE: no derivations need building"
-      );
-      Current.Job.log job "got state with build = %a" (Fmt.list Key.pp) state.build;
-      let deps = state.build |> List.filter (fun drv ->
-        not (Key.equal drv key)
-      ) in
-      Value.{ self = key; deps }
-    )
+      let result = lines ~desc:"dry-run" proc#stderr |> Lwt.map Result.ok in
+      copy_thread >>= fun () -> result
+    ) >>= fun dry_run ->
+    Current.Process.exec_with ~cancellable:true ~job ("", references_cmd |> Array.of_list) (fun proc ->
+      (* can't use check_output since dry-run outputs to stderr *)
+      let copy_thread = copy_to_log ~job proc#stderr in
+      let result = lines ~desc:"references" proc#stdout |> Lwt.map Result.ok in
+      copy_thread >>= fun () -> result
+    ) >>= fun references ->
+    (* TODO ugly *)
+    Lwt.return (Result.bind references (fun references ->
+      dry_run |> Result.map (fun dry_run ->
+        let intersection = StringSet.inter
+          (StringSet.of_list references)
+          (StringSet.of_list dry_run)
+          |> StringSet.elements
+          |> List.sort String.compare
+        in
+
+        Current.Job.log job "Found required dependencies: %a" (Fmt.list Fmt.string) intersection;
+        intersection |> List.map Drv.unmarshal
+      )
+    ))
 
   let pp = Key.pp
 
@@ -254,6 +228,7 @@ module Raw = struct
     
   module Build_planC = Current_cache.Make(Build_plan)
   
+  (* TODO rename deps *)
   let build_plan ?pool drv =
     Build_planC.get { Build_plan.pool } drv
 
@@ -272,38 +247,29 @@ module Nix = struct
   let pp_sp_label = Fmt.(option (prefix sp string))
 
   let rec realise ?label ?pool drv =
-    let plan = Current.component "plan%a" pp_sp_label label |>
+    let deps = Current.component "plan%a" pp_sp_label label |>
       let> drv = drv in
       Raw.build_plan ?pool drv
     in
 
-    let self_build = plan |> Current.bind (fun Build_plan.Value.{ self; _ } ->
-      Current.component "nix-store --realise%a" pp_sp_label label |>
-        (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
-        (* OK I'm really confused by let>, need to investigate this is odd *)
-        let> self = Current.return self in (* what a strange thing to write *)
-        Raw.realise_one ?pool self
-    ) in
+    let self_build drv = Current.component "build%a" pp_sp_label label |>
+      (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
+      (* OK I'm really confused by let>, need to investigate this is odd *)
+      let> drv = drv in
+      Raw.realise_one ?pool drv
+    in
 
-    let deps = plan |> Current.map (fun Build_plan.Value.{ deps; _ } -> deps ) in
     let deps_module = (module struct
-      (* include Realise.Key *)
-      open Realise
-      open Key
-      type t = Key.t
-      let compare = Key.compare
-      let pp f { drv_path } =
-        let desc = String.index_opt drv_path '-' |> Option.fold ~none:drv_path ~some:(fun i ->
-          String.sub drv_path (i+1) (String.length drv_path - (i + 1))
-        ) in
-        Fmt.string f desc
-    end : Current_term.S.ORDERED with type t = Realise.Key.t) in
+      type t = Drv.t
+      let compare = Drv.compare
+      let pp = Drv.pp_short
+    end : Current_term.S.ORDERED with type t = Drv.t) in
 
     deps |> Current.bind ~info:(Current.component "deps%a" pp_sp_label label) (function
-      | [] -> self_build
+      | [] -> self_build drv
       | deps ->
         let deps_built = Current.return deps |> Current.list_iter deps_module (realise ?pool) in
-        Current.gate ~on:deps_built self_build
+        self_build (Current.gate ~on:deps_built drv)
     )
     
   let eval ?label ?pool expr =
