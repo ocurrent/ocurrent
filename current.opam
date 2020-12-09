@@ -1,6 +1,6 @@
 opam-version: "2.0"
 synopsis: "Pipeline language for keeping things up-to-date"
-description: """
+description: """\
 OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
 It is used in ocaml-ci (which provides CI for OCaml projects on GitHub),
@@ -14,13 +14,8 @@ run steps in parallel where possible."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
-bug-reports: "https://github.com/ocurrent/ocurrent/issues"
-dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
 doc: "https://ocurrent.github.io/ocurrent/"
-build: [
-  ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
-]
+bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
   "current_incr" {= version}
@@ -37,3 +32,8 @@ depends: [
   "lwt-dllist"
   "alcotest-lwt" {>= "1.2.0" & with-test}
 ]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"

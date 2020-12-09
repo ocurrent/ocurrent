@@ -1,6 +1,6 @@
 opam-version: "2.0"
 synopsis: "Test web UI for OCurrent"
-description: """
+description: """\
 OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
 This package provides a basic web UI for service administrators.
@@ -10,11 +10,6 @@ maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
-dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-build: [
-  ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
-]
 depends: [
   "current" {= version}
   "current_ansi" {= version}
@@ -35,3 +30,8 @@ depends: [
   "dune" {>= "2.0"}
   "conf-graphviz"
 ]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
