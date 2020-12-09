@@ -1,6 +1,6 @@
 opam-version: "2.0"
 synopsis: "GitHub plugin for OCurrent"
-description: """
+description: """\
 OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
 This package provides primitives for interacting with GitHub.
@@ -11,11 +11,6 @@ maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
-dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-build: [
-  ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
-]
 depends: [
   "current" {= version}
   "current_git" {= version}
@@ -24,10 +19,28 @@ depends: [
   "fmt"
   "lwt"
   "yojson"
-  "cohttp-lwt-unix" { < "3.0.0"}
+  "cohttp-lwt-unix" {< "3.0.0"}
   "mirage-crypto"
   "mirage-crypto-pk"
   "x509" {>= "0.10.0"}
   "tls" {>= "0.11.0"}
   "dune" {>= "2.0"}
+  "astring" {>= "0.8.5"}
+  "base64" {>= "3.4.0"}
+  "cmdliner" {>= "1.0.4"}
+  "cohttp" {>= "2.5.4"}
+  "cohttp-lwt" {>= "2.5.4"}
+  "cstruct" {>= "5.2.0"}
+  "logs" {>= "0.7.0"}
+  "ppx_deriving_yojson" {>= "3.6.1"}
+  "prometheus" {>= "0.7"}
+  "result" {>= "1.5"}
+  "rresult" {>= "0.6.0"}
+  "tyxml" {>= "4.4.0"}
+  "uri" {>= "4.0.0"}
 ]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"

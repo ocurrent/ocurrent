@@ -9,7 +9,6 @@
    fpath
    logs
    lwt
-   lwt.unix
    result
    stdint)
  (flags (:standard -w -53-55)))

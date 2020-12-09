@@ -1,6 +1,6 @@
 opam-version: "2.0"
 synopsis: "Self-adjusting computations"
-description: """
+description: """\
 This is a small, self-contained library for self-adjusting (incremental) computations.
 It was written for OCurrent, but can be used separately too.
 
@@ -9,20 +9,19 @@ has no external dependencies.
 
 It is also similar to the react library, but the results do not depend on the
 behaviour of the garbage collector. In particular, functions stop being called
-as soon as they are no longer needed.
-"""
+as soon as they are no longer needed."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
 homepage: "https://github.com/ocurrent/ocurrent"
-bug-reports: "https://github.com/ocurrent/ocurrent/issues"
-dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
 doc: "https://ocurrent.github.io/ocurrent/"
-build: [
-  ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
-]
+bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.0"}
   "alcotest" {with-test}
 ]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
