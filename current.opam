@@ -30,7 +30,12 @@ depends: [
   "dune" {>= "2.0"}
   "re"
   "lwt-dllist"
+  "alcotest" {>= "1.2.0" & with-test}
   "alcotest-lwt" {>= "1.2.0" & with-test}
+  "astring" {>= "0.8.5"}
+  "fpath" {>= "0.7.3"}
+  "logs" {>= "0.7.0"}
+  "result" {>= "1.5"}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]

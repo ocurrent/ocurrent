@@ -25,6 +25,19 @@ depends: [
   "current_rpc" {= version}
   "capnp-rpc-unix" {>= "0.5"}
   "dune" {>= "2.0"}
+  "capnp-rpc" {>= "0.8.0"}
+  "capnp-rpc-lwt" {>= "0.8.0"}
+  "capnp-rpc-net" {>= "0.8.0"}
+  "dockerfile" {>= "7.0.0"}
+  "fpath" {>= "0.7.3"}
+  "logs" {>= "0.7.0"}
+  "ppx_deriving" {>= "5.1"}
+  "ppx_deriving_yojson" {>= "3.6.1"}
+  "prometheus" {>= "0.7"}
+  "result" {>= "1.5"}
+  "routes" {>= "0.8.0"}
+  "uri" {>= "4.0.0"}
+  "yojson" {>= "1.7.0"}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]

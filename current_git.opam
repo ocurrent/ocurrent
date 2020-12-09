@@ -20,6 +20,11 @@ depends: [
   "ppx_deriving_yojson" {>= "3.5.1"}
   "yojson"
   "dune" {>= "2.0"}
+  "astring" {>= "0.8.5"}
+  "bos" {>= "0.2.0"}
+  "fpath" {>= "0.7.3"}
+  "logs" {>= "0.7.0"}
+  "result" {>= "1.5"}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]
