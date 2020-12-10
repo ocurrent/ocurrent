@@ -311,17 +311,30 @@ module Opam2nix = struct
     package: string;
   }
 
-  (* let resolve { nixpkgs; opam2nix; repo_commit; ocaml_version; package } =
-    let expr =
+  let resolve { nixpkgs; opam2nix; repo_commit; ocaml_version; package } =
+    let api =
       let> nixpkgs = nixpkgs
       and> opam2nix = opam2nix
       and> repo_commit = repo_commit
       and> ocaml_version = ocaml_version
       and> package = package in
-      "(import ("^nixpkgs^") {})."^package
+      "(import ("^opam2nix^") {\n"
+      ^ "nixpkgs = import ("^nixpkgs^") {};\n"
+      ^ "}).make {"
     in
-    let drv = Nix.shell_result ~label:"opam2nix-resolve" expr (Fpath.of_string "opam2nix-selection.nix") in
-    Nix.realise drv *)
+    let drv = Nix.eval ~label:"opam2nix" opam2nix_expr in
+    let impl = Nix.realise drv in
+    let solution_nix = Nix.run impl "bin/opam2nix"
+      [
+      "--resolve";
+      "--ocaml-version"; "4.10.0";
+      "--ocaml-attr"; "ocaml-ng.ocamlPackages_4_10.ocaml";
+      "--output"; "/dev/stdout";
+      "lwt"
+      ]
+    in
+    let full_expression = 
+    Nix.realise eval solution_nix
 end
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
