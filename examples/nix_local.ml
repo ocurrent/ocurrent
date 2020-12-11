@@ -53,6 +53,20 @@ module Drv_list = struct
   let unmarshal str = String.split_on_char '\n' str |> List.map Drv.unmarshal
 end
 
+module Str_list = struct
+  type t = string list
+
+  let pp = Fmt.list Fmt.string
+
+  let digest drvs : string = Format.asprintf "%a"
+    (Fmt.list ~sep:(fun f () -> Fmt.string f "\n") Fmt.string) drvs
+
+  (* TODO this could be cleaner as JSON *)
+  let marshal drvs = String.concat "\n" (List.map Current.String.marshal drvs)
+
+  let unmarshal str = String.split_on_char '\n' str |> List.map Current.String.unmarshal
+end
+
 module Realise = struct
   let id = "nix-store-realise"
 
@@ -91,6 +105,7 @@ module Build_plan = struct
 
   module Key = Drv
 
+  (* TODO indicate whether self needs build *)
   module Value = Drv_list
   
   let copy_to_log ~job src =
@@ -151,6 +166,7 @@ module Build_plan = struct
   let auto_cancel = true
 end
 
+(* calculate a concrete .drv file from a nix expression *)
 module Eval = struct
   let id = "nix-eval"
 
@@ -176,6 +192,7 @@ module Eval = struct
   let auto_cancel = true
 end
 
+(* invoke a shell and capture its stdout *)
 module Shell = struct
   let id = "nix-shell"
 
@@ -183,37 +200,63 @@ module Shell = struct
     pool : unit Current.Pool.t option;
   }
 
-  module Key = struct
-    type t = {
-      expr : string;
-      path : Fpath.t;
-    }
-
-    let digest { expr; path } =
-      Yojson.Safe.to_string @@ `Assoc [
-        "expr", `String expr;
-        "path", `String (Fpath.to_string path);
-      ]
-
-      let pp f { expr; _ } = Fmt.string f expr (* TODO print both *)
-  end
+  module Key = Drv
 
   module Value = Current.String
 
   let build { pool } job key =
     Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-    let cmd = ["nix-shell"; "--expr"; key.Key.expr] in
-    Current.Process.with_tmpdir ~prefix:"opam2nix-resolve-" (fun cwd ->
-      (* TODO result instead of exceptions? *)
-      Current.Process.exec ~cwd ~cancellable:true ~job ("", cmd |> Array.of_list) >>!= (fun () ->
-        let path = Fpath.append cwd key.Key.path in
-        Lwt_io.with_file ~mode:Lwt_io.Input (Fpath.to_string path) (fun file ->
-          Lwt_io.read_lines file
-            |> Lwt_stream.to_list
-            |> Lwt.map (String.concat "\n")
-        ) |> Lwt.map (Result.ok)
-      )
-    )
+    let cmd = ["nix-shell"; key.Key.drv_path; "--run"; "true"] in
+    Current.Process.check_output ~cancellable:true ~job ("", cmd |> Array.of_list)
+
+  let pp = Key.pp
+
+  let auto_cancel = true
+end
+
+module Exec = struct
+  type t = {
+    drv : Drv.t;
+    exe: string;
+    args: string list;
+  }
+
+  let pp f { drv; exe; args } =
+    Fmt.pf f "drv=%a, exe=%a, args=%a"
+      Drv.pp drv
+      Fmt.string exe
+      (Fmt.list Fmt.string) args
+
+  let digest { drv; exe; args } =
+    let Drv.{drv_path} = drv in
+    Yojson.Safe.to_string @@ `Assoc [
+      "drv", `String drv_path;
+      "exe", `String exe;
+      "args", `List (args |> List.map (fun a -> `String a));
+    ]
+end
+
+module Exec_impl = struct
+  let id = "nix-exec"
+
+  type t = {
+    pool : unit Current.Pool.t option;
+  }
+
+  module Key = Exec
+
+  module Value = Current.String
+
+  open Exec
+
+  let build { pool } job { drv; exe; args } =
+    (* drv should have already been built, but we have to run instantiate to
+     * ensure its result is present locally *)
+    Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
+    let cmd = Drv.cmd drv in
+    Current.Process.check_output ~cancellable:true ~job ("", cmd |> Array.of_list) >>!= fun impl ->
+    let cmd = [Filename.concat impl exe] @ args in
+    Current.Process.check_output ~cancellable:true ~job ("", cmd |> Array.of_list)
 
   let pp = Key.pp
 
@@ -239,24 +282,22 @@ module Raw = struct
 
   module ShellC = Current_cache.Make(Shell)
 
-  let shell ?pool expr path =
-    ShellC.get { Shell.pool } { expr; path }
+  let shell ?pool drv =
+    ShellC.get { Shell.pool } drv
+
+  module ExecC = Current_cache.Make(Exec_impl)
+
+  let exec ?pool cmd =
+    ExecC.get { Exec_impl.pool } cmd
 end
 
-module Nix = struct
-  let pp_sp_label = Fmt.(option (prefix sp string))
+let pp_sp_label = Fmt.(option (prefix sp string))
 
-  let rec realise ?label ?pool drv =
+module Nix = struct
+  let rec _build_deps_then ?label ?pool drv fn =
     let deps = Current.component "plan%a" pp_sp_label label |>
       let> drv = drv in
       Raw.build_plan ?pool drv
-    in
-
-    let self_build drv = Current.component "build%a" pp_sp_label label |>
-      (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
-      (* OK I'm really confused by let>, need to investigate this is odd *)
-      let> drv = drv in
-      Raw.realise_one ?pool drv
     in
 
     let deps_module = (module struct
@@ -266,25 +307,56 @@ module Nix = struct
     end : Current_term.S.ORDERED with type t = Drv.t) in
 
     deps |> Current.bind ~info:(Current.component "deps%a" pp_sp_label label) (function
-      | [] -> self_build drv
+      | [] -> fn drv
       | deps ->
         let deps_built = Current.return deps |> Current.list_iter deps_module (realise ?pool) in
-        self_build (Current.gate ~on:deps_built drv)
+        fn (Current.gate ~on:deps_built drv)
     )
-    
+
+  and realise ?label ?pool drv =
+    _build_deps_then ?label ?pool drv (fun drv ->
+      Current.component "build%a" pp_sp_label label |>
+        (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
+        (* OK I'm really confused by let>, need to investigate this is odd *)
+        let> drv = drv in
+        Raw.realise_one ?pool drv
+    )
+
+  (* let rec shell ?label ?pool drv = *)
+  (*   _build_deps_then ?label ?pool drv (fun drv -> *)
+  (*     Current.component "build%a" pp_sp_label label |> *)
+  (*       (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *) *)
+  (*       (* OK I'm really confused by let>, need to investigate this is odd *) *)
+  (*       let> drv = drv in *)
+  (*       Raw.realise_one ?pool drv *)
+  (*   ) *)
+  let exec ?label ?pool cmd =
+    let open Exec in
+    let built = realise ?pool ?label (cmd |> Current.map (fun key -> key.drv)) in
+    let x : string Current.t =(
+      Current.component "exec%a" pp_sp_label label |>
+        let> cmd = cmd in
+        Raw.exec ?pool cmd
+    ) in
+    Current.gate ~on:built     x
+
   let eval ?label ?pool expr =
     Current.component "nix-instantiate%a" pp_sp_label label |>
     let> expr = expr in
     Raw.eval ?pool expr
 
-  let shell_result ?label ?pool expr path =
-    Current.component "nix-shell%a" pp_sp_label label |>
-    let> expr = expr in
-    Raw.shell ?pool expr path
+  let build ?label ?pool expr =
+    realise ?label ?pool (eval ?label ?pool expr)
+
+  (* let shell_result ?label ?pool expr path = *)
+    (* Current.component "nix-shell%a" pp_sp_label label |> *)
+    (* let> expr = expr in *)
+    (* Raw.shell ?pool expr path *)
 
   let fetchgit ?label ?pool commit =
     (* NOTE this is efficient on 1 host (.git cloned once and re-fetched as needed,
      * but wasteful on multi-host (it's only needed on the host that's doing the instantiate)
+     * Doing it in parallel on the same host is also bad, because nix doesn't lock concurrent fetches of the same expression properly
      *)
     let expr = commit |> Current.map (fun commit ->
       "builtins.fetchGit {\n"
@@ -306,35 +378,55 @@ module Opam2nix = struct
   type resolve = {
     repo_commit: Git.Commit_id.t;
     nixpkgs: string;
-    ocaml_version: string;
     opam2nix: string;
+    ocaml_version: string;
+    ocaml_attr: string; (* TODO could be derived *)
     package: string;
+    version: string;
   }
 
-  let resolve { nixpkgs; opam2nix; repo_commit; ocaml_version; package } =
-    let api =
-      let> nixpkgs = nixpkgs
-      and> opam2nix = opam2nix
-      and> repo_commit = repo_commit
-      and> ocaml_version = ocaml_version
-      and> package = package in
-      "(import ("^opam2nix^") {\n"
-      ^ "nixpkgs = import ("^nixpkgs^") {};\n"
-      ^ "}).make {"
+  let resolve ?pool ?label t =
+    (* let{ nixpkgs; opam2nix; repo_commit; ocaml_attr; ocaml_version; package; version } = *)
+    (* TODO use current ocaml for opam2nix? *)
+    let prelude = t |> Current.map (fun { nixpkgs; opam2nix; _ } ->
+        "let\n"
+      ^ "pkgs = import ("^nixpkgs^") {};\n"
+      ^ "opam2nix = (import ("^opam2nix^") {\n"
+      ^   "inherit pkgs;\n"
+      ^ "});\n"
+      ^ "in\n"
+    ) in
+
+    let exe_drv = Nix.eval ?pool ?label (prelude |> Current.map (fun expr -> expr ^ "opam2nix")) in
+
+    let cmd = Current.pair exe_drv t |> Current.map (fun (drv, { repo_commit; ocaml_version; package; version; _ }) ->
+      Exec.{
+        drv;
+        exe = "bin/opam2nix";
+        (* TODO this can't be called concurrently on the same host *)
+        args = [ "--resolve";
+          "--ocaml-version"; ocaml_version;
+          "--repo-commit"; (Git.Commit_id.hash repo_commit);
+          "--dest"; "/dev/stdout";
+          package^"="^version;
+        ]
+      }
+    ) in
+
+    let selection_expr = Current.gate ~on:(Nix.realise ?pool ?label exe_drv) (Nix.exec ?pool ?label cmd) in
+
+    let package_expr =
+      let+ prelude = prelude
+      and+ t = t
+      and+ selection_expr = selection_expr
+      in prelude
+      ^ "(opam2nix.build {\n"
+      ^   "ocaml = pkgs."^t.ocaml_attr^";\n"
+      ^   "selection = ("^selection_expr^");\n"
+      ^ "}).\"" ^ t.package ^ "\""
     in
-    let drv = Nix.eval ~label:"opam2nix" opam2nix_expr in
-    let impl = Nix.realise drv in
-    let solution_nix = Nix.run impl "bin/opam2nix"
-      [
-      "--resolve";
-      "--ocaml-version"; "4.10.0";
-      "--ocaml-attr"; "ocaml-ng.ocamlPackages_4_10.ocaml";
-      "--output"; "/dev/stdout";
-      "lwt"
-      ]
-    in
-    let full_expression = 
-    Nix.realise eval solution_nix
+
+    Nix.realise ?pool ?label (Nix.eval ?pool ?label package_expr)
 end
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
@@ -342,32 +434,38 @@ let pipeline ~github () : unit Current.t =
   let head_commit repo = Github.Api.head_commit github repo
       |> Current.map Github.Api.Commit.id in
   let nixpkgs = Nix.fetchgit ~label:"nixpkgs" (head_commit {owner = "nixos"; name = "nixpkgs" }) in
-  let opam2nix_expr = Nix.fetchgit ~label:"opam2nix" (head_commit {owner = "timbertson"; name = "opam2nix" }) in
-  let _opam2nix_impl =
-    let expr = Current.pair nixpkgs opam2nix_expr |> Current.map (fun (nixpkgs, opam2nix) ->
-      "(import ("^opam2nix^") { pkgs = ("^nixpkgs^"); })"
-    ) in
-    let drv = Nix.eval ~label:"opam2nix" expr in
-    Nix.realise drv
-  in
-
-  let _repo_commit = head_commit {owner = "ocaml"; name = "opam-repository" } in
+  let opam2nix = Nix.fetchgit ~label:"opam2nix" (head_commit {owner = "timbertson"; name = "opam2nix" }) in
+  let repo_commit = head_commit {owner = "ocaml"; name = "opam-repository" } in
   
-  let build ~label expr =
-    let drv = Nix.eval ~label expr in
-    Nix.realise drv
-  in
-  let buildpkg attr = build ~label:attr (nixpkgs |> Current.map (fun nixpkgs ->
-      "(import ("^nixpkgs^") {})."^attr
-    ))
-  in
+  (* let build ~label expr = *)
+    (* let drv = Nix.eval ~label expr in *)
+    (* Nix.realise drv *)
+  (* in *)
+  (* let buildpkg attr = build ~label:attr (nixpkgs |> Current.map (fun nixpkgs -> *)
+      (* "(import ("^nixpkgs^") {})."^attr *)
+    (* )) *)
+  (* in *)
   
   Current.all [
-    buildpkg "hello";
-    buildpkg "ocaml-ng.ocamlPackages_4_10.ocaml";
-    build ~label:"yojson" (
-      Current.return "((import /home/tim/dev/ocaml/opam2nix/examples/package/generic.nix) {}).selection.yojson"
-    )
+    (* buildpkg "hello"; *)
+    (* buildpkg "ocaml-ng.ocamlPackages_4_10.ocaml"; *)
+    (* build ~label:"yojson" ( *)
+      (* Current.return "((import /home/tim/dev/ocaml/opam2nix/examples/package/generic.nix) {}).selection.yojson" *)
+    (* ); *)
+    Opam2nix.(resolve (
+      let+ repo_commit = repo_commit
+      and+ nixpkgs = nixpkgs
+      and+ opam2nix = opam2nix
+      in
+      {
+        repo_commit;
+        nixpkgs;
+        opam2nix;
+        ocaml_version = "4.10.0";
+        ocaml_attr = "ocaml-ng.ocamlPackages_4_10.ocaml";
+        package = "lwt";
+        version = "5.3.0";
+      }))
   ]
 
 let main config mode github =
