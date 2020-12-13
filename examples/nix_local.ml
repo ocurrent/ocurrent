@@ -10,6 +10,11 @@ let ( >>!= ) = Lwt_result.bind
 open Current.Syntax
 module S = Current_cache.S
 
+module Log = struct
+  let src = Logs.Src.create "nix" ~doc:"Nix support"
+  include (val Logs.src_log src : Logs.LOG)
+end
+
 module Drv = struct
   type t = {
     drv_path : string;
@@ -19,7 +24,7 @@ module Drv = struct
     [ "nix-store"; "--realise"; drv_path ]
 
   (* let pp_cmd = Fmt.(list ~sep:sp (quote string)) *)
-  let pp f { drv_path } = Fmt.string f drv_path
+  let pp f { drv_path } = (Fmt.quote Fmt.string) f drv_path
 
   let pp_short f { drv_path } = Fmt.string f
     (String.index_opt drv_path '-' |> Option.fold ~none:drv_path ~some:(fun i ->
@@ -43,14 +48,16 @@ end
 module Drv_list = struct
   type t = Drv.t list
 
-  let pp = Fmt.list Drv.pp
+  let pp f = Fmt.pf f "[%a]" (Fmt.list Drv.pp)
 
   let digest drvs = String.concat "\n" (List.map Drv.digest drvs)
 
   (* TODO this could be cleaner as JSON *)
   let marshal drvs = String.concat "\n" (List.map Drv.marshal drvs)
 
-  let unmarshal str = String.split_on_char '\n' str |> List.map Drv.unmarshal
+  let unmarshal = function
+    | "" -> []
+    | str -> String.split_on_char '\n' str |> List.map Drv.unmarshal
 end
 
 module Str_list = struct
@@ -129,8 +136,18 @@ module Build_plan = struct
         Current.Job.log job "[%s] %s" desc line;
         String.trim line
       )
-      |> Lwt_stream.filter (fun line -> not (String.equal line ""))
+      |> Lwt_stream.filter (fun line ->
+        let result = not (String.equal line "") in
+        Log.info (fun f -> f "filtering line -> %a // %a"
+          (Fmt.quote Fmt.string) line
+          Fmt.bool result
+        );
+        not (String.equal line ""))
       |> Lwt_stream.to_list
+      |> Lwt.map (fun lines ->
+        Log.info (fun f -> f "filtered stream -> [%a]" (Fmt.list (Fmt.quote Fmt.string)) lines);
+        lines
+      )
     in
 
     (* TODO could run in parallel *)
@@ -141,7 +158,6 @@ module Build_plan = struct
       copy_thread >>= fun () -> result
     ) >>= fun dry_run ->
     Current.Process.exec_with ~cancellable:true ~job ("", references_cmd |> Array.of_list) (fun proc ->
-      (* can't use check_output since dry-run outputs to stderr *)
       let copy_thread = copy_to_log ~job proc#stderr in
       let result = lines ~desc:"references" proc#stdout |> Lwt.map Result.ok in
       copy_thread >>= fun () -> result
@@ -156,8 +172,9 @@ module Build_plan = struct
           |> List.sort String.compare
         in
 
-        Current.Job.log job "Found required dependencies: %a" (Fmt.list Fmt.string) intersection;
-        intersection |> List.map Drv.unmarshal
+        let result = intersection |> List.map Drv.unmarshal in
+        Current.Job.log job "Found required dependencies: [%a]" Drv_list.pp result;
+        result
       )
     ))
 
@@ -309,6 +326,7 @@ module Nix = struct
     deps |> Current.bind ~info:(Current.component "deps%a" pp_sp_label label) (function
       | [] -> fn drv
       | deps ->
+        Log.info (fun f -> f "bind deps -> %a" Drv_list.pp deps);
         let deps_built = Current.return deps |> Current.list_iter deps_module (realise ?pool) in
         fn (Current.gate ~on:deps_built drv)
     )
@@ -332,13 +350,10 @@ module Nix = struct
   (*   ) *)
   let exec ?label ?pool cmd =
     let open Exec in
-    let built = realise ?pool ?label (cmd |> Current.map (fun key -> key.drv)) in
-    let x : string Current.t =(
-      Current.component "exec%a" pp_sp_label label |>
-        let> cmd = cmd in
-        Raw.exec ?pool cmd
-    ) in
-    Current.gate ~on:built     x
+    Current.component "exec%a" pp_sp_label label |>
+      let> () = realise ?pool ?label (cmd |> Current.map (fun key -> key.drv))
+      and> cmd = cmd
+      in Raw.exec ?pool cmd
 
   let eval ?label ?pool expr =
     Current.component "nix-instantiate%a" pp_sp_label label |>
@@ -413,7 +428,11 @@ module Opam2nix = struct
       }
     ) in
 
-    let selection_expr = Current.gate ~on:(Nix.realise ?pool ?label exe_drv) (Nix.exec ?pool ?label cmd) in
+    let selection_expr =
+      Current.component "selection.nix" |>
+      let** _ = Nix.realise ?pool ?label exe_drv
+      in Nix.exec ?pool ?label cmd
+    in
 
     let package_expr =
       let+ prelude = prelude
@@ -433,25 +452,16 @@ end
 let pipeline ~github () : unit Current.t =
   let head_commit repo = Github.Api.head_commit github repo
       |> Current.map Github.Api.Commit.id in
-  let nixpkgs = Nix.fetchgit ~label:"nixpkgs" (head_commit {owner = "nixos"; name = "nixpkgs" }) in
+  (* Hackity hack to get more cache hits locally *)
+  let override_commit sha commit = commit |> Current.map (fun c ->
+    let open Git.Commit_id in
+    v ~repo:(repo c) ~gref:sha ~hash:sha
+  ) in
+  let nixpkgs = Nix.fetchgit ~label:"nixpkgs" (override_commit "cf7475d2061ac3ada4b226571a4a1bb91420b578" (head_commit {owner = "nixos"; name = "nixpkgs" })) in
   let opam2nix = Nix.fetchgit ~label:"opam2nix" (head_commit {owner = "timbertson"; name = "opam2nix" }) in
   let repo_commit = head_commit {owner = "ocaml"; name = "opam-repository" } in
   
-  (* let build ~label expr = *)
-    (* let drv = Nix.eval ~label expr in *)
-    (* Nix.realise drv *)
-  (* in *)
-  (* let buildpkg attr = build ~label:attr (nixpkgs |> Current.map (fun nixpkgs -> *)
-      (* "(import ("^nixpkgs^") {})."^attr *)
-    (* )) *)
-  (* in *)
-  
   Current.all [
-    (* buildpkg "hello"; *)
-    (* buildpkg "ocaml-ng.ocamlPackages_4_10.ocaml"; *)
-    (* build ~label:"yojson" ( *)
-      (* Current.return "((import /home/tim/dev/ocaml/opam2nix/examples/package/generic.nix) {}).selection.yojson" *)
-    (* ); *)
     Opam2nix.(resolve (
       let+ repo_commit = repo_commit
       and+ nixpkgs = nixpkgs
