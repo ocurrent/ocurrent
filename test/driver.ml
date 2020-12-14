@@ -124,7 +124,23 @@ let test ?config ?final_stats ~name v actions =
 let test_case_gc name fn =
   Alcotest_lwt.test_case name `Quick (fun switch () ->
       let old_errors = Logs.err_count () in
-      fn switch () >|= fun () ->
+      fn switch () >>= fun () ->
+      SVar.set selected (Error (`Msg "no-test"));
+      Current_incr.propagate ();
+      Lwt.pause () >|= fun () ->
       Gc.full_major ();
-      Alcotest.(check int) "No errors logged" 0 @@ Logs.err_count () - old_errors
+      Alcotest.(check int) "No errors logged" 0 @@ Logs.err_count () - old_errors;
+      Prometheus.CollectorRegistry.(collect default)
+      |> Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output
+      |> String.split_on_char '\n'
+      |> List.iter (fun line ->
+          if Astring.String.is_prefix ~affix:"ocurrent_cache_memory_cache_items{" line then (
+            match Astring.String.cut ~sep:"} " line with
+            | None -> Fmt.failwith "Bad metrics line: %S" line
+            | Some (key, _) when Astring.String.is_infix ~affix:"_total{" key -> ()
+            | Some (key, value) ->
+              if float_of_string value <> 0.0 then
+                Fmt.failwith "Non-zero metric after test: %s=%s" key value
+          )
+        );
     )

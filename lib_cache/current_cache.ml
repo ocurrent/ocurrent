@@ -101,6 +101,7 @@ module Generic(Op : S.GENERIC) = struct
       mutable mtime : float;                (* Time last operation completed (if finished or error). *)
       mutable expires : (float * (unit -> unit)) option;  (* Time and cancel function. *)
       notify : unit Current_incr.var;       (* Async thread sets this to update results. *)
+      release : unit -> unit;               (* Remove [t] from cache (call when inactive and ref-count = 0). *)
     }
 
     (* State model:
@@ -168,6 +169,7 @@ module Generic(Op : S.GENERIC) = struct
        unless we already tried that and failed. Only call this if the instance is currently
        wanted. If called from an async thread, you must call [notify] afterwards too. *)
     let rec maybe_start ~config t =
+      assert (t.ref_count > 0);
       match t.op with
       | `Finished (Error _) -> () (* Wait for error to be cleared. *)
       | `Active _ when not Op.auto_cancel ->
@@ -281,6 +283,7 @@ module Generic(Op : S.GENERIC) = struct
                 (* While we were working, we might have decided we wanted something else.
                    If so, start that now. *)
                 if t.ref_count > 0 then maybe_restart ~config t
+                else t.release ()
              )
         )
 
@@ -336,7 +339,7 @@ module Generic(Op : S.GENERIC) = struct
       | None -> ()
 
     (* Create a new in-memory instance, initialising it from the database. *)
-    let load ctx key desired =
+    let load ~release ctx key desired =
       let step_id = Current.Engine.Step.now () in
       let current, job_id, op, mtime, build_number =
         match Db.lookup ~op:Op.id (Op.Key.digest key) with
@@ -359,7 +362,7 @@ module Generic(Op : S.GENERIC) = struct
       in
       let notify = Current_incr.var () in
       { key; current; desired; ctx; op; job_id; last_set = step_id;
-        ref_count = 0; mtime; build_number; notify; expires = None }
+        ref_count = 0; release; mtime; build_number; notify; expires = None }
 
     (* Register the actions for a resolved (non-active) instance.
        Report it as changed when a rebuild is requested (manually or via the schedule). *)
@@ -406,17 +409,6 @@ module Generic(Op : S.GENERIC) = struct
       | `Finished _ | `Retry _ -> register_resolved ~schedule ~config t
       | `Active _ ->
         cancel_expires t;
-        t.ref_count <- t.ref_count + 1;
-        Current.Engine.on_disable (fun () ->
-            t.ref_count <- t.ref_count - 1;
-            if t.ref_count = 0 && Op.auto_cancel then (
-              match t.op with
-              | `Active (op, _) ->
-                op.autocancelled <- true;
-                Job.cancel op.job "Auto-cancelling job because it is no longer needed"
-              | _ -> ()
-            )
-          );
         Current.Job.register_actions (Option.get t.job_id) @@ object
           method pp f = pp f t
           method rebuild = None
@@ -443,6 +435,23 @@ module Generic(Op : S.GENERIC) = struct
       )
 
     let run ~config ~schedule t =
+      t.ref_count <- t.ref_count + 1;
+      Current.Engine.on_disable (fun () ->
+          (* This is called at the end of a propagation if we're no longer needed. *)
+          t.ref_count <- t.ref_count - 1;
+          if t.ref_count = 0 then (
+            match t.op with
+            | `Finished _ | `Retry _ ->
+              cancel_expires t;
+              t.release ()
+            | `Active (op, _) ->
+              if Op.auto_cancel then (
+                op.autocancelled <- true;
+                Job.cancel op.job "Auto-cancelling job because it is no longer needed"
+              )
+              (* Will release later when job finishes, if still unneeded. *)
+          )
+        );
       (* Ensure a build is in progress if we need one: *)
       maybe_start ~config t;
       (* Read from [t.notify] so that we re-evaluate the following when something changes. *)
@@ -501,7 +510,12 @@ module Generic(Op : S.GENERIC) = struct
           | None ->
             (* Not in memory cache. Restore from disk if available, or create a new instance if not.
                Either way, [i.desired] is set to [value]. *)
-            let i = Instance.load ctx key value in
+            let release () =
+              assert (Instances.mem key_digest !instances);
+              instances := Instances.remove key_digest !instances;
+              Prometheus.Gauge.dec_one (Metrics.memory_cache_items Op.id)
+            in
+            let i = Instance.load ~release ctx key value in
             instances := Instances.add key_digest i !instances;
             Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
             i
@@ -510,6 +524,7 @@ module Generic(Op : S.GENERIC) = struct
     end
 
   let reset ~db =
+    !instances |> Instances.iter (fun _ i -> i.Instance.ref_count <- -1);
     instances := Instances.empty;
     Prometheus.Gauge.set (Metrics.memory_cache_items Op.id) 0.0;
     if db then
