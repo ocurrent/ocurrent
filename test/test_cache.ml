@@ -507,7 +507,7 @@ let clear_error _switch () =
     V.set base @@ Ok "";
     (* Generate the error state again *)
   | 5 ->
-    Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
+    Alcotest.(check result_t) "3.11 still ready" (Ok "alpine:3.11-outcome") !result;
     Lwt_condition.broadcast Latched.cond ();
   | 6 ->
     Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;

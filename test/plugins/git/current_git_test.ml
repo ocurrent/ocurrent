@@ -48,6 +48,10 @@ module Clone = struct
   let build No_context job (key : Key.t) =
     Current.Job.start job ~level:Current.Level.Average >>= fun () ->
     let ready, set_ready = Lwt.wait () in
+    Current.Job.on_cancel job (fun _ ->
+        if Lwt.is_sleeping ready then
+          Lwt.wakeup_exn set_ready Lwt.Canceled; Lwt.return_unit
+      ) >>= fun () ->
     state := RepoMap.add key.Commit.repo set_ready !state;
     ready
 

@@ -22,6 +22,8 @@
    lwt
    lwt.unix
    result
+   prometheus
+   prometheus-app
    ppx_deriving.runtime))
 
 (executable
