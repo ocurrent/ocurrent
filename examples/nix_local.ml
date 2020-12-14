@@ -60,22 +60,8 @@ module Drv_list = struct
     | str -> String.split_on_char '\n' str |> List.map Drv.unmarshal
 end
 
-module Str_list = struct
-  type t = string list
-
-  let pp = Fmt.list Fmt.string
-
-  let digest drvs : string = Format.asprintf "%a"
-    (Fmt.list ~sep:(fun f () -> Fmt.string f "\n") Fmt.string) drvs
-
-  (* TODO this could be cleaner as JSON *)
-  let marshal drvs = String.concat "\n" (List.map Current.String.marshal drvs)
-
-  let unmarshal str = String.split_on_char '\n' str |> List.map Current.String.unmarshal
-end
-
-module Realise = struct
-  let id = "nix-store-realise"
+module Build = struct
+  let id = "nix-store-build"
 
   type t = {
     pool : unit Current.Pool.t option;
@@ -112,7 +98,7 @@ module Build_plan = struct
 
   module Key = Drv
 
-  (* TODO indicate whether self needs build *)
+  (* TODO indicate whether self needs build? *)
   module Value = Drv_list
   
   let copy_to_log ~job src =
@@ -183,7 +169,7 @@ module Build_plan = struct
   let auto_cancel = true
 end
 
-(* calculate a concrete .drv file from a nix expression *)
+(* evaluate a .nix expression into a concrete .drv file *)
 module Eval = struct
   let id = "nix-eval"
 
@@ -193,7 +179,7 @@ module Eval = struct
 
   (* TODO this should track nixpkgs & opam2nix hashes *)
   module Key = Current.String
-  module Value = Realise.Key
+  module Value = Build.Key
 
   let build { pool } job key =
     Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
@@ -201,30 +187,7 @@ module Eval = struct
     Current.Process.check_output ~cancellable:true ~job ("", cmd) >>!= fun drv ->
     let drv = String.trim drv in
     Current.Job.log job "Resolved -> %S" drv;
-    Lwt_result.return { Realise.Key.drv_path = drv }
-
-  let pp = Key.pp
-
-
-  let auto_cancel = true
-end
-
-(* invoke a shell and capture its stdout *)
-module Shell = struct
-  let id = "nix-shell"
-
-  type t = {
-    pool : unit Current.Pool.t option;
-  }
-
-  module Key = Drv
-
-  module Value = Current.String
-
-  let build { pool } job key =
-    Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-    let cmd = ["nix-shell"; key.Key.drv_path; "--run"; "true"] in
-    Current.Process.check_output ~cancellable:true ~job ("", cmd |> Array.of_list)
+    Lwt_result.return { Build.Key.drv_path = drv }
 
   let pp = Key.pp
 
@@ -281,10 +244,10 @@ module Exec_impl = struct
 end
 
 module Raw = struct
-  module RealiseC = Current_cache.Make(Realise)
+  module RealiseC = Current_cache.Make(Build)
 
   let realise_one ?pool drv =
-    RealiseC.get { Realise.pool } drv
+    RealiseC.get { Build.pool } drv
     
   module Build_planC = Current_cache.Make(Build_plan)
   
@@ -296,11 +259,6 @@ module Raw = struct
 
   let eval ?pool expr =
     EvalC.get { Eval.pool } expr
-
-  module ShellC = Current_cache.Make(Shell)
-
-  let shell ?pool drv =
-    ShellC.get { Shell.pool } drv
 
   module ExecC = Current_cache.Make(Exec_impl)
 
@@ -327,11 +285,11 @@ module Nix = struct
       | [] -> fn drv
       | deps ->
         Log.info (fun f -> f "bind deps -> %a" Drv_list.pp deps);
-        let deps_built = Current.return deps |> Current.list_iter deps_module (realise ?pool) in
+        let deps_built = Current.return deps |> Current.list_iter deps_module (build_drv ?pool) in
         fn (Current.gate ~on:deps_built drv)
     )
 
-  and realise ?label ?pool drv =
+  and build_drv ?label ?pool drv =
     _build_deps_then ?label ?pool drv (fun drv ->
       Current.component "build%a" pp_sp_label label |>
         (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
@@ -351,7 +309,7 @@ module Nix = struct
   let exec ?label ?pool cmd =
     let open Exec in
     Current.component "exec%a" pp_sp_label label |>
-      let> () = realise ?pool ?label (cmd |> Current.map (fun key -> key.drv))
+      let> () = build_drv ?pool ?label (cmd |> Current.map (fun key -> key.drv))
       and> cmd = cmd
       in Raw.exec ?pool cmd
 
@@ -360,13 +318,8 @@ module Nix = struct
     let> expr = expr in
     Raw.eval ?pool expr
 
-  let build ?label ?pool expr =
-    realise ?label ?pool (eval ?label ?pool expr)
-
-  (* let shell_result ?label ?pool expr path = *)
-    (* Current.component "nix-shell%a" pp_sp_label label |> *)
-    (* let> expr = expr in *)
-    (* Raw.shell ?pool expr path *)
+  let build_nix ?label ?pool expr =
+    build_drv ?label ?pool (eval ?label ?pool expr)
 
   let fetchgit ?label ?pool commit =
     (* NOTE this is efficient on 1 host (.git cloned once and re-fetched as needed,
@@ -389,7 +342,6 @@ module Nix = struct
 end
 
 module Opam2nix = struct
-  (* not very typesafe, eh *)
   type resolve = {
     repo_commit: Git.Commit_id.t;
     nixpkgs: string;
@@ -401,8 +353,7 @@ module Opam2nix = struct
   }
 
   let resolve ?pool ?label t =
-    (* let{ nixpkgs; opam2nix; repo_commit; ocaml_attr; ocaml_version; package; version } = *)
-    (* TODO use current ocaml for opam2nix? *)
+    (* TODO use same ocaml for opam2nix and package build? *)
     let prelude = t |> Current.map (fun { nixpkgs; opam2nix; _ } ->
         "let\n"
       ^ "pkgs = import ("^nixpkgs^") {};\n"
@@ -430,7 +381,7 @@ module Opam2nix = struct
 
     let selection_expr =
       Current.component "selection.nix" |>
-      let** _ = Nix.realise ?pool ?label exe_drv
+      let** _ = Nix.build_drv ?pool ?label exe_drv
       in Nix.exec ?pool ?label cmd
     in
 
@@ -445,10 +396,9 @@ module Opam2nix = struct
       ^ "}).\"" ^ t.package ^ "\""
     in
 
-    Nix.realise ?pool ?label (Nix.eval ?pool ?label package_expr)
+    Nix.build_nix ?pool ?label package_expr
 end
 
-(* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~github () : unit Current.t =
   let head_commit repo = Github.Api.head_commit github repo
       |> Current.map Github.Api.Commit.id in
@@ -493,7 +443,7 @@ let main config mode github =
 open Cmdliner
 
 let cmd =
-  let doc = "Build the head commit of a local Git repository using Docker." in
+  let doc = "opam2nix! woo!" in
   Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner),
   Term.info program_name ~doc
 
