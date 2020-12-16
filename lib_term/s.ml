@@ -133,7 +133,16 @@ module type TERM = sig
       are failing. *)
 
   val gate : on:unit t -> 'a t -> 'a t
-  (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds. *)
+  (** [gate ~on:ctrl x] is the same as [x], once [ctrl] succeeds.
+
+      Note: [gate] does {i not} delay [x]; it only delays whatever you put after the gate.
+      e.g.
+      {[
+      let binary = build src in
+      let tests_ok = test binary in
+      binary |> gate ~on:tests_ok |> deploy
+      ]}
+  *)
 
   (** {2 Diagram control} *)
 
