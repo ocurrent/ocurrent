@@ -105,8 +105,7 @@ module Engine = struct
     jobs = Job.Map.empty;
   }
 
-  let default_trace ~next:_ r =
-    Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r.value);
+  let default_trace ~next:_ _ =
     Lwt.return_unit
 
   let pipeline t = Lazy.force t.pipeline
@@ -123,6 +122,8 @@ module Engine = struct
       (* Release all the old resources, now we've had a chance to create any replacements. *)
       flush_release_queue ();
       let r = Current_incr.observe outcome in
+      if not (Current_term.Output.equal Unit.equal r !last_result.value) then
+        Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r);
       last_result := {
         value = r;
         jobs = Job.Map.map List.hd !active_jobs;
