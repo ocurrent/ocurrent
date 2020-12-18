@@ -23,8 +23,8 @@ let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let base = Docker.pull ~schedule:weekly "ocaml/opam2" in
   let build ocaml_version =
+    let base = Docker.pull ~schedule:weekly ("ocaml/opam:debian-ocaml-" ^ ocaml_version) in
     let dockerfile =
       let+ base = base in
       `Contents (dockerfile ~base ~ocaml_version)
@@ -33,8 +33,8 @@ let pipeline ~repo () =
     Docker.tag ~tag:(Fmt.strf "example-%s" ocaml_version)
   in
   Current.all [
-    build "4.07";
-    build "4.08"
+    build "4.10";
+    build "4.11"
   ]
 
 let main config mode repo =
