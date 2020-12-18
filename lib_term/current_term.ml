@@ -11,6 +11,43 @@ module Make (Metadata : sig type t end) = struct
 
   type 'a t = 'a Node.t
 
+  module Quick_stats = struct
+    let v =
+      ref { S.
+            ok = 0;
+            ready = 0;
+            running = 0;
+            failed = 0;
+            blocked = 0;  (* Calculated from [quick_stats_total] *)
+          }
+
+    (* The expected total of all the values in [quick_stats].
+       If [v] doesn't add up to this, the missing ones are assumed to be blocked. *)
+    let total = ref 0
+
+    let dec_ok ()      = v := { !v with ok = !v.ok - 1 }
+    let dec_ready ()   = v := { !v with ready = !v.ready - 1 }
+    let dec_running () = v := { !v with running = !v.running - 1 }
+    let dec_failed ()  = v := { !v with failed = !v.failed - 1 }
+
+    let update ~id : _ Dyn.t -> unit = function
+      | Ok _                        -> v := { !v with ok = !v.ok + 1 }; Current_incr.on_release dec_ok
+      | Error (src, _) when not (Id.equal src id) -> ()
+      | Error (_, `Active `Ready)   -> v := { !v with ready = !v.ready + 1 }; Current_incr.on_release dec_ready
+      | Error (_, `Active `Running) -> v := { !v with running = !v.running + 1 }; Current_incr.on_release dec_running
+      | Error (_, `Msg _)           -> v := { !v with failed = !v.failed + 1 }; Current_incr.on_release dec_failed
+
+    let dec_total () = decr total
+
+    let update_total () =
+      incr total;
+      Current_incr.on_release dec_total
+
+    let get () =
+      let v = !v in
+      { v with blocked = !total - v.ok - v.ready - v.running - v.failed }
+  end
+
   let bind_context : bind_context ref = ref None
 
   let node ?(id=Id.mint ()) ty v = { id; v; ty; bind = !bind_context }
@@ -58,9 +95,11 @@ module Make (Metadata : sig type t end) = struct
     end
 
   let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
+    Quick_stats.update_total ();
     let bind_in = node (Bind_in (Term x, info)) x.v in
     let t =
       x.v |> Current_incr.map @@ fun v ->
+      Quick_stats.update ~id:x.id v;
       with_bind_context (Term bind_in) @@ fun () ->
       match v with
       | Error _ as e -> node (Constant None) @@ Current_incr.const e
@@ -87,6 +126,7 @@ module Make (Metadata : sig type t end) = struct
     end
 
   let primitive ~info (f:'a -> 'b primitive) (x:'a t) =
+    Quick_stats.update_total ();
     let id = Id.mint () in
     let v_meta =
       Current_incr.of_cc begin
@@ -95,7 +135,9 @@ module Make (Metadata : sig type t end) = struct
         | Ok y ->
           let output = f y in
           Current_incr.read output @@ fun (v, job) ->
-          Current_incr.write (with_id id v, job)
+          let v = with_id id v in
+          Quick_stats.update ~id v;
+          Current_incr.write (v, job)
       end
     in
     let v = Current_incr.map fst v_meta in
@@ -258,7 +300,10 @@ module Make (Metadata : sig type t end) = struct
 
   let of_output x =
     let id = Id.mint () in
-    node ~id (Constant None) @@ Current_incr.const (with_id id x)
+    let x = with_id id x in
+    Quick_stats.update_total ();
+    Quick_stats.update ~id x;
+    node ~id (Constant None) @@ Current_incr.const x
 
   module Executor = struct
     let run (t : 'a t) = Current_incr.map Dyn.run t.v
@@ -276,5 +321,7 @@ module Make (Metadata : sig type t end) = struct
         | _ -> failwith "metadata: this is not a primitive term!"
       in
       node (Constant None) @@ Current_incr.map Result.ok @@ aux (Term t)
+
+    let quick_stat = Quick_stats.get
   end
 end

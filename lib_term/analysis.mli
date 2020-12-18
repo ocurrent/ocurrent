@@ -3,7 +3,7 @@
 module Make (Metadata : sig type t end) : sig
   type 'a t
 
-  val stats : _ t -> S.stats
+  val stat : _ t -> S.stats
 
   val pp : _ t Fmt.t
   val pp_dot :

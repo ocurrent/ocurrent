@@ -89,7 +89,7 @@ let test_v3 _switch () =
       failed = 1;
       ready = 0;
       running = 1;
-      blocked = 6;
+      blocked = 3;
     }
   in
   Driver.test ~name:"v3" (with_commit v3) ~final_stats @@ function
@@ -131,14 +131,32 @@ let v5 commit =
   |> Current.list_iter (module Git.Commit) (fun s -> s |> fetch |> build |> test)
 
 let test_v5 _switch () =
-  Driver.test ~name:"v5" (with_commit v5) @@ function
+  let final_stats =
+    { Current_term.S.
+      ok = 7;
+      failed = 0;
+      ready = 0;
+      running = 2;
+      blocked = 4;
+    }
+  in
+  Driver.test ~name:"v5" ~final_stats (with_commit v5) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
 let test_v5_nil _switch () =
+  let final_stats =
+    { Current_term.S.
+      ok = 7;
+      failed = 0;
+      ready = 0;
+      running = 0;
+      blocked = 3;
+    }
+  in
   let test_commit = Git.Commit.v ~repo:"my/project" ~hash:"456" in
-  Driver.test ~name:"v5n" (with_commit v5) @@ function
+  Driver.test ~name:"v5n" ~final_stats (with_commit v5) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
@@ -150,16 +168,34 @@ let test_option ~case commit =
   |> Current.ignore_value
 
 let test_option_some _switch () =
+  let final_stats =
+    { Current_term.S.
+      ok = 6;
+      failed = 0;
+      ready = 0;
+      running = 0;
+      blocked = 0;
+    }
+  in
   test_option ~case:(Some "ocamlformat")
   |> with_commit
-  |> (fun c -> Driver.test ~name:"option-some" c @@ function
+  |> (fun c -> Driver.test ~final_stats ~name:"option-some" c @@ function
   | 1 -> Git.complete_clone test_commit
   | _ -> raise Exit)
 
 let test_option_none _switch () =
+  let final_stats =
+    { Current_term.S.
+      ok = 5;
+      failed = 0;
+      ready = 0;
+      running = 0;
+      blocked = 1;
+    }
+  in
   test_option ~case:None
   |> with_commit
-  |> (fun c -> Driver.test ~name:"option-none" c @@ function
+  |> (fun c -> Driver.test ~final_stats ~name:"option-none" c @@ function
     | 1 -> Git.complete_clone test_commit
     | _ -> raise Exit)
 
@@ -195,6 +231,14 @@ let test_pair _switch () =
     ]
   in
   Driver.test ~name:"pair" pipeline (fun _ -> raise Exit)
+    ~final_stats:
+    { Current_term.S.
+      ok = 2;
+      failed = 0;
+      ready = 0;
+      running = 0;
+      blocked = 3;
+    }
 
 (* This is just to check the diagram. *)
 let test_context _switch () =

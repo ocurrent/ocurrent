@@ -97,7 +97,8 @@ let test ?config ?final_stats ~name v actions =
       try actions !step with
       | Exit ->
         final_stats |> Option.iter (fun expected ->
-            Alcotest.check stats "Check final stats" expected @@ Current.Analysis.stats test_pipeline
+            Alcotest.check stats "Check final stats" expected @@ Current.Analysis.quick_stat ();
+            (* Alcotest.check stats "Check final stats" expected @@ Current.Analysis.stats test_pipeline *)
           );
         SVar.set selected (Error (`Msg "test-over"));
         step := -1
