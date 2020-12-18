@@ -173,8 +173,9 @@ module Engine = struct
 
   let thread t = t.thread
 
-  let update_metrics t =
-    let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats (pipeline t) in
+  let update_metrics _t =
+    (*  { Current_term.S.ok; ready; running; failed; blocked } = Analysis.stats (pipeline t) in *)
+    let { Current_term.S.ok; ready; running; failed; blocked } = Analysis.quick_stat () in
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "ok") (float_of_int ok);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "ready") (float_of_int ready);
     Prometheus.Gauge.set (Metrics.pipeline_stage_total "running") (float_of_int running);

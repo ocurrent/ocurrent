@@ -303,7 +303,7 @@ module Make (Meta : sig type t end) = struct
     Fmt.pf f "}@]@."
 
   (* This is similar to [pp_dot], except that for each call to [node] we call [count] instead. *)
-  let stats x =
+  let stat x =
     let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
     let next = ref 0 in
     let ok = ref 0 in

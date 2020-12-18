@@ -50,8 +50,16 @@ module type ANALYSIS = sig
                       displayed using a gradient from the update status colour
                       to the current output colour. *)
 
-  val stats : _ term -> stats
-  (** [stats t] count how many stages are in each state. *)
+  (** {2 Stats} *)
+
+  val stat : _ term -> stats
+  (** [stat t] count how many stages are in each state.
+      This can be slow for large pipelines. Consider using {!quick_stat} instead. *)
+
+  val quick_stat : unit -> stats
+  (** [quick_stat ()] returns the current values of the counters. This is O(1).
+      It only counts some operations (binds, primitives and of_output). *)
+
 end
 
 module type TERM = sig
