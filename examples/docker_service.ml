@@ -16,7 +16,7 @@ let program_name = "docker_service"
 module Git = Current_git
 module Docker = Current_docker.Default
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
@@ -31,7 +31,7 @@ let main config mode service repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo ~service) in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
-  Logging.run begin
+  Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -60,7 +60,7 @@ let repo =
 
 let cmd =
   let doc = "Keep a Docker SwarmKit service up-to-date." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ service $ repo),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ service $ repo)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

@@ -7,7 +7,7 @@ let pull = false    (* Whether to check for updates using "docker build --pull" 
 
 let timeout = Duration.of_min 50    (* Max build time *)
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
@@ -19,7 +19,7 @@ let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
   let engine = Current.Engine.create ~config (pipeline ~repo) in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
-  Logging.run begin
+  Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -40,7 +40,7 @@ let repo =
 
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

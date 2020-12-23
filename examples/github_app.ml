@@ -13,7 +13,7 @@ module Docker = Current_docker.Default
 (* Limit to one build at a time. *)
 let pool = Current.Pool.create ~label:"docker" 1
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 (* Link for GitHub statuses. *)
 let url = Uri.of_string "http://localhost:8080"
@@ -52,7 +52,7 @@ let pipeline ~app () =
   |> Github.Api.Commit.set_status head "ocurrent"
 
 let main config mode app =
-  Logging.run begin
+  Lwt_main.run begin
     let engine = Current.Engine.create ~config (pipeline ~app) in
     let routes =
       Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
@@ -71,7 +71,7 @@ open Cmdliner
 
 let cmd =
   let doc = "Monitor a GitHub app's repositories." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

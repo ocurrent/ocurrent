@@ -12,7 +12,7 @@ open Current.Syntax
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 module Test = struct
   module Raw = Current_docker.Raw
@@ -88,7 +88,7 @@ let pipeline () =
 let main config mode =
   let engine = Current.Engine.create ~config pipeline in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
-  Logging.run begin
+  Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -101,7 +101,7 @@ open Cmdliner
 
 let cmd =
   let doc = "Check that the nginx container can serve a web page" in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

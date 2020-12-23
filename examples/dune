@@ -31,7 +31,7 @@
    logs.fmt
    lwt
    lwt.unix
-   prometheus
+   prometheus-app.unix
    result
    routes
    uri

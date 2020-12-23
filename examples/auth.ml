@@ -9,7 +9,7 @@ module Docker = Current_docker.Default
 let pull = false
 let timeout = Duration.of_min 50
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
@@ -35,7 +35,7 @@ let main config mode repo auth =
     Routes.(s "login" /? nil @--> Current_github.Auth.login auth) ::
     Current_web.routes engine in
   let site = Current_web.Site.v ?authn ~has_role ~name:program_name routes in
-  Logging.run begin
+  Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -56,7 +56,7 @@ let repo =
 
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo $ Current_github.Auth.cmdliner),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo $ Current_github.Auth.cmdliner)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

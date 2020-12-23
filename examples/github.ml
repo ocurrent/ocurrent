@@ -9,7 +9,7 @@ module Git = Current_git
 module Github = Current_github
 module Docker = Current_docker.Default
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 (* Link for GitHub statuses. *)
 let url = Uri.of_string "http://localhost:8080"
@@ -50,7 +50,7 @@ let main config mode github repo =
     Current_web.routes engine
   in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
-  Logging.run begin
+  Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -71,7 +71,7 @@ let repo =
 
 let cmd =
   let doc = "Monitor a GitHub repository." in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo)),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)

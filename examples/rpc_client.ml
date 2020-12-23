@@ -31,7 +31,7 @@
 open Lwt.Infix
 open Capnp_rpc_lwt
 
-let () = Logging.init ~level:Logs.Warning ()
+let () = Prometheus_unix.Logging.init ~default_level:Logs.Warning ()
 
 let list_jobs engine =
   Current_rpc.Engine.active_jobs engine |> Lwt_result.map @@ fun jobs ->
@@ -145,11 +145,10 @@ let cmd =
   let main engine job_id job_op =
     let job_op = to_fn job_op in
     match Lwt_main.run (main ?job_id ~job_op engine) with
-    | Ok () -> ()
-    | Error `Capnp ex -> Fmt.epr "%a@." Capnp_rpc.Error.pp ex; exit 1
-    | Error `Msg m -> Fmt.epr "%s@." m; exit 1
+    | Error `Capnp ex -> Fmt.error_msg "%a" Capnp_rpc.Error.pp ex
+    | Ok () | Error `Msg _ as x -> x
   in
-  Term.(const main $ cap $ job $ job_op),
+  Term.(term_result (const main $ cap $ job $ job_op)),
   Term.info "rpc_client" ~doc
 
 let () = Term.(exit @@ eval cmd)
