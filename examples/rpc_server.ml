@@ -18,7 +18,7 @@ module Git = Current_git
 module Docker = Current_docker.Default
 module Rpc = Current_rpc.Impl(Current)
 
-let () = Logging.init ()
+let () = Prometheus_unix.Logging.init ()
 
 (* Where we write the connection details containing the connection address and
    authorisation token. *)
@@ -39,7 +39,7 @@ let main config mode capnp repo =
   let engine = Current.Engine.create ~config (pipeline ~repo) in
   let service_id = Capnp_rpc_unix.Vat_config.derived_id capnp "engine" in
   let restore = Capnp_rpc_net.Restorer.single service_id (Rpc.engine engine) in
-  Logging.run begin
+  Lwt_main.run begin
     Capnp_rpc_unix.serve capnp ~restore >>= fun vat ->
     let uri = Capnp_rpc_unix.Vat.sturdy_uri vat service_id in
     let ch = open_out cap_file in
@@ -73,7 +73,7 @@ let man = [
 
 let cmd =
   let doc = "A build server that can be controlled via Cap'n Proto RPC" in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Capnp_rpc_unix.Vat_config.cmd $ repo),
+  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Capnp_rpc_unix.Vat_config.cmd $ repo)),
   Term.info program_name ~doc ~man
 
 let () = Term.(exit @@ eval cmd)
