@@ -1,4 +1,4 @@
-### dev
+### v0.4
 
 Core:
 
@@ -6,21 +6,63 @@ Core:
   index on the finish time and doing a case-insensitive
   search (@talex5 #215).
 
+- Remove in-memory cache entries when no longer needed (@talex5 #235).
+
+- Provide `Analysis.quick_stat` for faster stats (@talex5 #239).  
+  With large pipelines (above 20,000 boxes or so) collecting the Prometheus stats
+  for pipeline states was getting slow.
+
+- Improve error message if a cancel hook raises (@talex5 #214).  
+  Say which job raised the error.
+
+Web UI:
+
+- Add dependency on conf-graphviz (@dra27 #225).
+
 Docker plugin:
 
 - Add an architecture flag in the Docker builder to enable
   multiarch builds (including 32-bit) (@avsm #213).
 
+- Add `Current_docker.Raw.peek` (@talex5 #226).  
+  This can be used to check the latest version of an image without pulling it.
+
+- Add Docker Compose support to the Docker plugin (@avsm #228).
+
+- Log in before creating manifests (@talex5 #232).  
+  Otherwise, we may hit the anonymous use limit.
+
+Git plugin:
+
+- Use `--init` with `git submodule update --init --recursive` (@talex5 #224).  
+  Otherwise, it's not really recursive.
+
 GitHub plugin:
 
-- Use the term `allowlist` for permitted usernames and
-  make it case-insensitive (@avsm #210, @Julow #211).
+- Use the term `allowlist` for permitted usernames and make it case-insensitive (@avsm #210, @Julow #211).
+
+- Handle larger numbers of app installations (@talex5 #219).  
+  GitHub sends them in batches, and we previously only used the first batch.
+
+Examples:
+
+- Replace custom logging in examples with Prometheus defaults (@talex5 #241).
 
 Build fixes and cleanup:
 
 - Adapt to the Alcotest 1.2 interface (@talex5 #212).
+
 - Add missing dependency on `ppx_deriving_yojson` (@talex5 #209).
+
 - Remove unused `Option.map` (@talex5 #216)
+
+- Switch from "capnpc" to "capnp compile" (@MisterDA  #233).  
+  `capnpc` is the old name, and isn't present on Windows.
+
+- Switch to `ocaml/opam` as the base image for the Dockerfile (@avsm #230).
+
+- Use `Cmdliner.Term.term_result` for correct error handling (@talex5 #241).
+
 
 ### v0.3
 
