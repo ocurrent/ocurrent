@@ -5,10 +5,19 @@ let dir_exists d =
   | Ok x -> x
   | Error (`Msg x) -> failwith x
 
+let hexchars = "0123456789abcdef"
+
+let pp_hex f d =
+  for x = 0 to Cstruct.len d - 1 do
+    let byte = Cstruct.get_uint8 d x in
+    Fmt.pf f "%02x" byte
+  done
+
 let id_of_repo repo =
+  let module Hash = Mirage_crypto.Hash.SHA256 in
   let base = Filename.basename repo in
-  let digest = Digest.string repo |> Digest.to_hex in
-  Fmt.strf "%s-%s" base digest
+  let digest = Hash.digest (Cstruct.of_string repo) in
+  Fmt.strf "%s-%a" base pp_hex digest
 
 (* .../var/git/myrepo-hhh *)
 let local_copy repo =

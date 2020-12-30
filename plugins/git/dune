@@ -3,6 +3,7 @@
  (libraries
    astring
    bos
+   cstruct
    current
    current.cache
    current.term
@@ -12,6 +13,7 @@
    logs
    lwt
    lwt.unix
+   mirage-crypto
    ppx_deriving_yojson
    result)
  (preprocess (pps ppx_deriving_yojson)))
