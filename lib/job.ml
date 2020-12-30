@@ -50,7 +50,7 @@ let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
     !timestamp () |> Unix.gmtime in
   let fmt = "%04d-%02d-%02d %02d:%02d.%02d: @[" ^^ fmt ^^ "@]@." in
-  Fmt.kstrf (write t) fmt
+  Fmt.kstr (write t) fmt
     (tm_year + 1900) (tm_mon + 1) tm_mday
     tm_hour tm_min tm_sec
 
