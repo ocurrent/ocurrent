@@ -91,7 +91,7 @@ let test ?config ?final_stats ~name v actions =
     end;
     current_watches := step_result;
     let { Current.Engine.value = x; _} = step_result in
-    Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.unit "()")) x);
+    Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.any "()")) x);
     begin
       if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
       try actions !step with

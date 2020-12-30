@@ -2,7 +2,7 @@ open Current.Syntax
 
 module S = S
 
-let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,") string)
+let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(any ":@,") string)
 
 module Raw = struct
   module Image = Image

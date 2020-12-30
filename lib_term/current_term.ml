@@ -197,8 +197,8 @@ module Make (Metadata : sig type t end) = struct
     let** results = aux items in
     match results with
     | Ok () -> return ()
-    | Error (`Same (ls, e)) -> fail (Fmt.str "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
-    | Error (`Diff ls) -> fail (Fmt.str "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
+    | Error (`Same (ls, e)) -> fail (Fmt.str "%a failed: %s" Fmt.(list ~sep:(any ", ") string) ls e)
+    | Error (`Diff ls) -> fail (Fmt.str "%a failed" Fmt.(list ~sep:(any ", ") string) ls)
 
   (* A node with the constant value [v], but that depends on [old]. *)
   let replace old v =

@@ -43,7 +43,7 @@ let disk_cache () =
   |> List.map (fun { Current_cache.Db.job_id = _; outcome; ready; running; finished; build; value = _; rebuild = _ } ->
       let running = Option.map truncate running in
       Fmt.str "%a %.0f/%a/%.0f +%Ld" Fmt.(result ~ok:string ~error:pp_error) outcome
-        ready Fmt.(option ~none:(unit "-") int) running finished build
+        ready Fmt.(option ~none:(any "-") int) running finished build
     )
   |> List.sort compare
 

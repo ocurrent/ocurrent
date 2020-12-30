@@ -143,7 +143,7 @@ let finalize stmt () =
 
 let pp_where_clause f = function
   | [] -> ()
-  | tests -> Fmt.pf f "WHERE %a" Fmt.(list ~sep:(unit " AND ") string) tests
+  | tests -> Fmt.pf f "WHERE %a" Fmt.(list ~sep:(any " AND ") string) tests
 
 let sqlite_bool = function
   | false -> Sqlite3.Data.INT 0L

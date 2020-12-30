@@ -32,4 +32,4 @@ let of_string x =
   | Some x -> Ok x
   | None ->
     Error (`Msg (Fmt.str "Unknown level %S; expected one of %a" x
-                   Fmt.(list ~sep:(unit ", ") pp) values))
+                   Fmt.(list ~sep:(any ", ") pp) values))

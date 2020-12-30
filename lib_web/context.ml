@@ -41,7 +41,7 @@ let has_role t role =
   let ok = t.site.has_role t.user role in
   if not ok then
     Log.info (fun f -> f "%a does not have required role %a"
-                 (Fmt.option ~none:(Fmt.unit "(anonymous)") User.pp) t.user Role.pp role);
+                 (Fmt.option ~none:(Fmt.any "(anonymous)") User.pp) t.user Role.pp role);
   ok
 
 let request t = t.request

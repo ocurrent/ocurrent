@@ -162,7 +162,7 @@ let r ~engine = object
         let msg =
           Fmt.str "%d/%d jobs could not be restarted (because they are no longer active): %a"
             (List.length failed) (List.length jobs)
-            Fmt.(list ~sep:(unit ", ") string) failed in
+            Fmt.(list ~sep:(any ", ") string) failed in
         Context.respond_error ctx `Bad_request msg
 
   method! nav_link = Some "Query"
