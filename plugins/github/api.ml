@@ -50,7 +50,7 @@ end
 let graphql_endpoint = Uri.of_string "https://api.github.com/graphql"
 
 let status_endpoint ~owner_name ~commit =
-  Uri.of_string (Fmt.strf "https://api.github.com/repos/%s/statuses/%s"
+  Uri.of_string (Fmt.str "https://api.github.com/repos/%s/statuses/%s"
                    owner_name commit)
 
 let read_file path =
@@ -114,7 +114,7 @@ module Ref = struct
 
   let to_git = function
     | `Ref head -> head
-    | `PR id -> Fmt.strf "refs/pull/%d/head" id
+    | `PR id -> Fmt.str "refs/pull/%d/head" id
 end
 
 module Ref_map = Map.Make(Ref)
@@ -127,7 +127,7 @@ module Commit_id = struct
   } [@@deriving to_yojson]
 
   let to_git { owner_name; id; hash } =
-    let repo = Fmt.strf "https://github.com/%s.git" owner_name in
+    let repo = Fmt.str "https://github.com/%s.git" owner_name in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
@@ -286,7 +286,7 @@ let make_head_commit_monitor t repo =
   let read () =
     Lwt.catch
       (fun () -> default_ref t repo >|= fun c -> Ok (t, c))
-      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.strf "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
+      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
   in
   let watch refresh =
     let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
@@ -410,7 +410,7 @@ let make_ci_refs_monitor t repo =
   let read () =
     Lwt.catch
       (fun () -> get_ci_refs t repo >|= Stdlib.Result.ok)
-      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.strf "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
+      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
   in
   let watch refresh =
     let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
@@ -468,7 +468,7 @@ let head_of t repo id =
   | Ok refs ->
     match Ref_map.find_opt id refs with
     | Some x -> Ok x
-    | None -> Error (`Msg (Fmt.strf "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
+    | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
 
 module Commit = struct
   module Set_status = struct
@@ -633,7 +633,7 @@ module Anonymous = struct
         )
         (fun ex ->
            Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);
-           Lwt_result.fail (`Msg (Fmt.strf "Failed to get head of %a:%a" Repo_id.pp repo Ref.pp gref))
+           Lwt_result.fail (`Msg (Fmt.str "Failed to get head of %a:%a" Repo_id.pp repo Ref.pp gref))
         )
     in
     let watch refresh =

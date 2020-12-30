@@ -17,7 +17,7 @@ let id_of_repo repo =
   let module Hash = Mirage_crypto.Hash.SHA256 in
   let base = Filename.basename repo in
   let digest = Hash.digest (Cstruct.of_string repo) in
-  Fmt.strf "%s-%a" base pp_hex digest
+  Fmt.str "%s-%a" base pp_hex digest
 
 (* .../var/git/myrepo-hhh *)
 let local_copy repo =

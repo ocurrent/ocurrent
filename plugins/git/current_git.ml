@@ -114,7 +114,7 @@ module Local = struct
     let cmd = [| "git"; "-C"; Fpath.to_string t.repo; "rev-parse"; "--revs-only"; gref |] in
     Lwt_process.pread ("", cmd) >|= fun out ->
     match String.trim out with
-    | "" -> Error (`Msg (Fmt.strf "Unknown ref %S" gref))
+    | "" -> Error (`Msg (Fmt.str "Unknown ref %S" gref))
     | hash ->
       let id = { Commit_id.repo = Fpath.to_string t.repo; gref; hash } in
       Ok { Commit.repo = t.repo; id }
@@ -181,7 +181,7 @@ module Local = struct
       match String.cuts ~sep:" " (String.trim contents) with
       | [hash] -> Ok (`Commit {Commit_id.repo = Fpath.to_string repo; gref = "HEAD"; hash})
       | [_;r]  -> Ok (`Ref r)
-      | _      -> Error (`Msg (Fmt.strf "Can't parse HEAD %S" contents))
+      | _      -> Error (`Msg (Fmt.str "Can't parse HEAD %S" contents))
 
   let make_head repo =
     let dot_git = Fpath.(repo / ".git") in

@@ -13,7 +13,7 @@ let render_svg ctx a =
       let query = (k, [v]) :: List.remove_assoc k old_query in
       Some (Uri.make ~path:"/" ~query () |> Uri.to_string)
   and job_info { Current.Metadata.job_id; update } =
-    let url = job_id |> Option.map (fun id -> Fmt.strf "/job/%s" id) in
+    let url = job_id |> Option.map (fun id -> Fmt.str "/job/%s" id) in
     update, url
   in
   let dotfile = Fmt.to_to_string (Current.Analysis.pp_dot ~env ~collapse_link ~job_info) a in

@@ -38,7 +38,7 @@ let build No_context job { Key.repo; gref } =
   (* Ensure we have a local clone of the repository. *)
   begin
     if Cmd.dir_exists local_repo
-    then Cmd.git_fetch ~cancellable:true ~job ~src:repo ~dst:local_repo (Fmt.strf "%s:refs/remotes/origin/%s" gref gref)
+    then Cmd.git_fetch ~cancellable:true ~job ~src:repo ~dst:local_repo (Fmt.str "%s:refs/remotes/origin/%s" gref gref)
     else Cmd.git_clone ~cancellable:true ~job ~src:repo local_repo
   end >>!= fun () ->
   Cmd.git_rev_parse ~cancellable:true ~job ~repo:local_repo ("origin/" ^ gref) >>!= fun hash ->

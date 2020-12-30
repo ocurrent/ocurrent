@@ -77,7 +77,7 @@ let v3 commit =
   let test (_p, x) = test x in
   let tests = Current.all @@ List.map test binaries in
   let gated_deploy (p, x) =
-    let tag = Fmt.strf "foo/%s" p in
+    let tag = Fmt.str "foo/%s" p in
     x |> Current.gate ~on:tests |> push ~tag
   in
   Current.all @@ List.map gated_deploy binaries

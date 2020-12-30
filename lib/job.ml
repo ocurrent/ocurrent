@@ -68,10 +68,10 @@ let log_path job_id =
     let path = Fpath.(jobs_dir / date / (file ^ ".log")) in
     begin match Bos.OS.File.exists path with
       | Ok true -> Ok path
-      | Ok false -> Error (`Msg (Fmt.strf "Job log %a does not exist" Fpath.pp path))
+      | Ok false -> Error (`Msg (Fmt.str "Job log %a does not exist" Fpath.pp path))
       | Error _ as e -> e
     end
-  | _ -> Error (`Msg (Fmt.strf "Invalid job ID %S" job_id))
+  | _ -> Error (`Msg (Fmt.str "Invalid job ID %S" job_id))
 
 let id_of_path path =
   match Fpath.split_base path with
@@ -106,7 +106,7 @@ let create ?(priority=`Low) ~switch ~label ~config () =
   let time = !timestamp () |> Unix.gmtime in
   let date =
     let { Unix.tm_year; tm_mon; tm_mday; _ } = time in
-    Fmt.strf "%04d-%02d-%02d" (tm_year + 1900) (tm_mon + 1) tm_mday
+    Fmt.str "%04d-%02d-%02d" (tm_year + 1900) (tm_mon + 1) tm_mday
   in
   let date_dir = Fpath.(jobs_dir / date) in
   match Bos.OS.Dir.create date_dir with
@@ -114,7 +114,7 @@ let create ?(priority=`Low) ~switch ~label ~config () =
   | Ok (_ : bool) ->
     let prefix =
       let { Unix.tm_hour; tm_min; tm_sec; _ } = time in
-      Fmt.strf "%02d%02d%02d-%s-" tm_hour tm_min tm_sec label
+      Fmt.str "%02d%02d%02d-%s-" tm_hour tm_min tm_sec label
     in
     let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
@@ -220,7 +220,7 @@ let start_with ?timeout ~pool ~level t =
           Lwt_unix.sleep (Duration.to_f duration) >|= fun () ->
           match t.cancel_hooks with
           | `Cancelled _ -> ()
-          | `Hooks _ -> cancel t (Fmt.strf "Timeout (%a)" pp_duration duration)
+          | `Hooks _ -> cancel t (Fmt.str "Timeout (%a)" pp_duration duration)
         )
     );
   r

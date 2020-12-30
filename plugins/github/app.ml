@@ -23,7 +23,7 @@ let list_installations_endpoint =
   Uri.of_string "https://api.github.com/app/installations"
 
 let access_tokens_endpoint id =
-  Uri.of_string (Fmt.strf "https://api.github.com/app/installations/%d/access_tokens" id)
+  Uri.of_string (Fmt.str "https://api.github.com/app/installations/%d/access_tokens" id)
 
 module Int_map = Map.Make(Int)
 
@@ -129,7 +129,7 @@ let get_installations app =
      in
      aux list_installations_endpoint
     ) (fun ex ->
-      Lwt_result.fail (`Msg (Fmt.strf "Failed to get GitHub installations: %a" Fmt.exn ex))
+      Lwt_result.fail (`Msg (Fmt.str "Failed to get GitHub installations: %a" Fmt.exn ex))
     )
 
 let installation t ~account iid =

@@ -29,7 +29,7 @@ end
 let build_on platform ~src =
   Current.component "build-%s" platform |>
   let> c = src in
-  Current.Primitive.const @@ Fmt.strf "%s-image-%s" platform (Fpath.to_string c)
+  Current.Primitive.const @@ Fmt.str "%s-image-%s" platform (Fpath.to_string c)
 
 let build c =
   Current.component "build" |>
@@ -163,7 +163,7 @@ let reset () =
 
 let assert_finished () =
   !containers |> Containers.iter (fun key s ->
-      let ex = Failure (Fmt.strf "Container %a still running!" Key.pp key) in
+      let ex = Failure (Fmt.str "Container %a still running!" Key.pp key) in
       try Lwt.wakeup_exn s ex; raise ex
       with Invalid_argument _ -> () (* Already resolved - good! *)
     )

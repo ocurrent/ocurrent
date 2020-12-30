@@ -27,7 +27,7 @@ let pp_short f t =
 
 let check_cached t =
   let hash = hash t in
-  let branch = Fmt.strf "fetch-%s" hash in
+  let branch = Fmt.str "fetch-%s" hash in
   Cmd.git ~cwd:t.repo ["branch"; "-f"; branch; hash]
 
 let marshal t = to_yojson t |> Yojson.Safe.to_string

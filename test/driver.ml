@@ -43,7 +43,7 @@ let pp_job f j = j#pp f
 
 let find_by_descr msg =
   let jobs = (!current_watches).Current.Engine.jobs |> Current.Job.Map.bindings in
-  match List.find_opt (fun (_, job) -> Fmt.strf "%t" job#pp = msg) jobs with
+  match List.find_opt (fun (_, job) -> Fmt.str "%t" job#pp = msg) jobs with
   | None ->
     Fmt.failwith "@[<v2>No job with description %S. We have:@,%a@]" msg
       Fmt.(Dump.list pp_job) (List.map snd jobs)
@@ -80,7 +80,7 @@ let test ?config ?final_stats ~name v actions =
     if !step = 0 then raise Exit;
     begin
       Logs.info (fun f -> f "Analysis: @[%a@]" Current.Analysis.pp test_pipeline);
-      let path = Fmt.strf "%s.%d.dot" name !step in
+      let path = Fmt.str "%s.%d.dot" name !step in
       let ch = open_out path in
       let f = Format.formatter_of_out_channel ch in
       let collapse_link ~k:_ ~v:_ = None in

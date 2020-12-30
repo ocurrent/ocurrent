@@ -12,7 +12,7 @@ let settings ctx config =
     Current.Level.values
     |> List.map @@ fun level ->
     let s = Current.Level.to_string level in
-    let msg = Fmt.strf "Confirm if level >= %s" s in
+    let msg = Fmt.str "Confirm if level >= %s" s in
     let sel = if selected = Some level then [a_selected ()] else [] in
     option ~a:(a_value s :: sel) (txt msg)
   in

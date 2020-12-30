@@ -52,7 +52,7 @@ let html_to_string = Fmt.to_to_string (Tyxml.Html.pp ())
 
 let logout_form t user =
   let link_path = "/logout" in
-  let link_label = Fmt.strf "Log out %s" (User.id user) in
+  let link_label = Fmt.str "Log out %s" (User.id user) in
   let open Tyxml.Html in
   [
     li [

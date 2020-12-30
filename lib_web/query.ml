@@ -9,13 +9,13 @@ let pp_duration f x =
   Fmt.pf f "%.0fs" x
 
 let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
-  let job = Fmt.strf "/job/%s" job_id in
+  let job = Fmt.str "/job/%s" job_id in
   let times =
     match running with
     | None ->
-      Fmt.strf "%a queued" pp_duration (finished -. ready)
+      Fmt.str "%a queued" pp_duration (finished -. ready)
     | Some running ->
-      Fmt.strf "%a+%a"
+      Fmt.str "%a+%a"
         pp_duration (running -. ready)
         pp_duration (finished -. running)
   in

@@ -7,7 +7,7 @@ let or_fail label x =
 
 let format_timestamp time =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } = time in
-  Fmt.strf "%04d-%02d-%02d %02d:%02d:%02d" (tm_year + 1900) (tm_mon + 1) tm_mday tm_hour tm_min tm_sec
+  Fmt.str "%04d-%02d-%02d %02d:%02d:%02d" (tm_year + 1900) (tm_mon + 1) tm_mday tm_hour tm_min tm_sec
 
 type t = {
   db : Sqlite3.db;
@@ -156,14 +156,14 @@ let query ?op ?ok ?rebuild ?job_prefix () =
         s ^ "*"
       ) in
   let tests = List.filter_map Fun.id [
-      Option.map (fun x -> Fmt.strf "ok=?", sqlite_bool x) ok;
-      Option.map (fun x -> Fmt.strf "op=?", Sqlite3.Data.TEXT x) op;
-      Option.map (fun x -> Fmt.strf "rebuild=?", sqlite_bool x) rebuild;
-      Option.map (fun x -> Fmt.strf "job_id GLOB ?", Sqlite3.Data.TEXT x) job_pattern;
+      Option.map (fun x -> Fmt.str "ok=?", sqlite_bool x) ok;
+      Option.map (fun x -> Fmt.str "op=?", Sqlite3.Data.TEXT x) op;
+      Option.map (fun x -> Fmt.str "rebuild=?", sqlite_bool x) rebuild;
+      Option.map (fun x -> Fmt.str "job_id GLOB ?", Sqlite3.Data.TEXT x) job_pattern;
   ] in
   let t = Lazy.force db in
   let query = Sqlite3.prepare t.db (
-      Fmt.strf "SELECT job_id, value, ok, outcome,
+      Fmt.str "SELECT job_id, value, ok, outcome,
                 strftime('%%s', ready),
                 strftime('%%s', running),
                 strftime('%%s', finished),

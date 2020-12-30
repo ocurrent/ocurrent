@@ -42,7 +42,7 @@ let disk_cache () =
   Current_cache.Db.query ~op:"test-build" ~rebuild:false ()
   |> List.map (fun { Current_cache.Db.job_id = _; outcome; ready; running; finished; build; value = _; rebuild = _ } ->
       let running = Option.map truncate running in
-      Fmt.strf "%a %.0f/%a/%.0f +%Ld" Fmt.(result ~ok:string ~error:pp_error) outcome
+      Fmt.str "%a %.0f/%a/%.0f +%Ld" Fmt.(result ~ok:string ~error:pp_error) outcome
         ready Fmt.(option ~none:(unit "-") int) running finished build
     )
   |> List.sort compare
@@ -119,7 +119,7 @@ let expires _switch () =
       let+ x = get ~schedule:ten_s builds "a"
       and+ y = get ~schedule:five_s builds "a"
       in
-      Fmt.strf "%s,%s" x y
+      Fmt.str "%s,%s" x y
     )
     |> Current.map (fun x -> result := x)
   in
