@@ -76,7 +76,7 @@ let log_path job_id =
 let id_of_path path =
   match Fpath.split_base path with
   | parent_dir, leaf ->
-    Fpath.(base parent_dir // leaf) |> Fpath.to_string |> Filename.chop_extension
+    Fpath.(base parent_dir // leaf |> segs) |> String.concat "/" |> Filename.chop_extension
 
 let run_cancel_hooks ~reason hooks =
   let rec aux () =
