@@ -476,46 +476,40 @@ let refs t repo =
       i
   )
 
-let to_ci_refs refs =
-  refs
-  |> Ref_map.remove (`Ref "refs/heads/gh-pages")
-  |> Ref_map.bindings
-  |> List.map snd
-
-let now () =
-  Ptime.of_float_s (Unix.gettimeofday ()) |> function
-  | Some t -> t
-  | None -> Fmt.failwith "Failed to get current time"
-
 let to_ptime str =
   Ptime.of_rfc3339 str |> function
   | Ok (t, _, _) -> t
   | Error (`RFC3339 (_, e)) -> Fmt.failwith "%a" Ptime.pp_rfc3339_error e
 
-(** Check if the elapsed time from timestamps [start, finish] is within the [cutoff] duration *)
-let active_date_cutoff ~start ~finish cutoff =
-  let diff = Ptime.diff finish start in
-  match Ptime.Span.to_int_s diff with
-    | Some s -> (Duration.to_sec cutoff) - s > 0
-    | None -> Fmt.failwith "Failed to calculate ptime diff: %a" Ptime.Span.pp diff
+let remove_stale ?staleness ~default_ref refs =
+  match staleness with
+  | None -> refs
+  | Some staleness ->
+    let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
+    let active x =
+      let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
+      committed > cutoff
+    in
+    let is_default = function
+      | { Commit_id.id = `Ref t; _ } -> String.equal default_ref t
+      | _ -> false
+    in
+    List.filter (fun (_, x) -> is_default x || active x) refs
 
-let ci_refs ?(staleness=None) t repo =
+let to_ci_refs ?staleness refs =
+  refs.all_refs
+  |> Ref_map.remove (`Ref "refs/heads/gh-pages")
+  |> Ref_map.bindings
+  |> List.map snd
+  |> remove_stale ?staleness ~default_ref:refs.default_ref
+
+let ci_refs ?staleness t repo =
   let+ refs =
     Current.component "%a CI refs" Repo_id.pp repo |>
     let> () = Current.return () in
     refs t repo
   in
-  match staleness with
-    | None -> to_ci_refs refs.all_refs
-    | Some n ->
-      let cutoff x s =
-        active_date_cutoff ~start:(to_ptime x.Commit_id.committed_date) ~finish:(now ()) s
-      in
-      let is_default = function
-        | { Commit_id.id = `Ref t; _ } -> String.equal refs.default_ref t
-        | _ -> false
-      in
-      to_ci_refs (Ref_map.filter (fun _ (_, x) -> is_default x || cutoff x n) refs.all_refs)
+  to_ci_refs ?staleness refs
 
 let head_of t repo id =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
@@ -650,13 +644,13 @@ module Repo = struct
         i
     )
 
-  let ci_refs t =
+  let ci_refs ?staleness t =
     let+ refs =
       Current.component "CI refs" |>
       let> (api, repo) = t in
       refs api repo
     in
-    to_ci_refs refs.all_refs
+    to_ci_refs ?staleness refs
 end
 
 module Anonymous = struct

@@ -38,14 +38,14 @@ val refs : t -> Repo_id.t -> refs Current.Primitive.t
 val default_ref : refs -> string
 val all_refs : refs -> Commit.t Ref_map.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
-val ci_refs : ?staleness:(Duration.t option) -> t -> Repo_id.t -> Commit.t list Current.t
+val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
 
 module Repo : sig
   type nonrec t = t * Repo_id.t
 
   val id : t -> Repo_id.t
-  val ci_refs : t Current.t -> Commit.t list Current.t
+  val ci_refs : ?staleness:Duration.t -> t Current.t -> Commit.t list Current.t
   val head_commit : t Current.t -> Commit.t Current.t
   val pp : t Fmt.t
   val compare : t -> t -> int
