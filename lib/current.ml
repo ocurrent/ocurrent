@@ -123,7 +123,7 @@ module Engine = struct
       flush_release_queue ();
       let r = Current_incr.observe outcome in
       if not (Current_term.Output.equal Unit.equal r !last_result.value) then
-        Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(unit "()")) r);
+        Log.info (fun f -> f "Result: %a" Current_term.(Output.pp Fmt.(any "()")) r);
       last_result := {
         value = r;
         jobs = Job.Map.map List.hd !active_jobs;

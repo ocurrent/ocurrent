@@ -51,7 +51,7 @@ let test_pattern pattern =
                 ~finally:(fun () -> close_in ch)
             in
             Re.exec_opt re log_data |> Option.map (fun g ->
-                let text = Fmt.strf "@[<v>%a@]" dump_groups (Re.Group.all g) in
+                let text = Fmt.str "@[<v>%a@]" dump_groups (Re.Group.all g) in
                 job_id, text
               )
           | Error _ -> None
@@ -61,10 +61,10 @@ let test_pattern pattern =
   >|= fun results ->
   let open Tyxml.Html in
   match results with
-  | [] -> [p [txt (Fmt.strf "New pattern doesn't match anything in last %d jobs" n_jobs)]]
+  | [] -> [p [txt (Fmt.str "New pattern doesn't match anything in last %d jobs" n_jobs)]]
   | results ->
     [
-      p [txt (Fmt.strf "%d matches in last %d jobs:" (List.length results) n_jobs)];
+      p [txt (Fmt.str "%d matches in last %d jobs:" (List.length results) n_jobs)];
       table ~a:[a_class ["table"; "log-rules"]]
         ~thead:(thead [
             tr [
@@ -73,7 +73,7 @@ let test_pattern pattern =
             ]
           ])
         (results |> List.map @@ fun (job_id, text) ->
-         let job = Fmt.strf "/job/%s" job_id in
+         let job = Fmt.str "/job/%s" job_id in
          tr [
            td [ a ~a:[a_href job] [txt job_id] ];
            td [pre [txt text]]

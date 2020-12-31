@@ -22,7 +22,7 @@ module Commit = struct
 
   let equal = (=)
   let compare = compare
-  let digest { repo; hash } = Fmt.strf "%s#%s" repo hash
+  let digest { repo; hash } = Fmt.str "%s#%s" repo hash
 end
 
 let complete_clone {Commit.repo; hash} =

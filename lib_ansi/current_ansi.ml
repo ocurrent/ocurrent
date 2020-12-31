@@ -48,7 +48,7 @@ let with_style s txt =
       let style = if bold then [ "bold" ] else [] in
       let style = cl "fg" fg @ style in
       let style = cl "bg" bg @ style in
-      Fmt.strf "<span class='%a'>%s</span>" pp_style style txt
+      Fmt.str "<span class='%a'>%s</span>" pp_style style txt
 
 let create () = { gfx_state = default_gfx_state; buf = "" }
 

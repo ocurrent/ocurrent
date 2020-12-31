@@ -20,7 +20,7 @@ let read ~start path =
 
 let render ctx ~actions ~job_id ~log:path =
   let ansi = Current_ansi.create () in
-  let action op = a_action (Fmt.strf "/job/%s/%s" job_id op) in
+  let action op = a_action (Fmt.str "/job/%s/%s" job_id op) in
   let csrf = Context.csrf ctx in
   let rebuild_button =
     if actions#rebuild = None then []
@@ -51,7 +51,7 @@ let render ctx ~actions ~job_id ~log:path =
   let job_item ~label id =
     let label = txt label in
     if id = job_id then b [label]
-    else a ~a:[a_href (Fmt.strf "/job/%s" id)] [label]
+    else a ~a:[a_href (Fmt.str "/job/%s" id)] [label]
   in
   let history =
     match Current_cache.Db.history ~limit:10 ~job_id with
@@ -180,7 +180,7 @@ let start ~job_id = object
       Context.respond_redirect ctx (Uri.of_string ("/job/" ^ id))
 end
 
-let id ~date ~log = Fmt.strf "%s/%s" date log
+let id ~date ~log = Fmt.str "%s/%s" date log
 
 let routes ~engine = Routes.[
     s "job" / str / str /? nil @--> (fun date log -> job ~engine ~job_id:(id ~date ~log));

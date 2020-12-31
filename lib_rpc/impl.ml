@@ -108,7 +108,7 @@ module Make (Current : S.CURRENT) = struct
               begin match lookup () with
                 | None -> Results.description_set results "Inactive job"
                 | Some job ->
-                  Results.description_set results (Fmt.strf "%t" job#pp);
+                  Results.description_set results (Fmt.str "%t" job#pp);
                   Results.can_cancel_set results can_cancel;
                   Results.can_rebuild_set results (job#rebuild <> None);
               end;

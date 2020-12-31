@@ -9,13 +9,13 @@ let pp_duration f x =
   Fmt.pf f "%.0fs" x
 
 let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
-  let job = Fmt.strf "/job/%s" job_id in
+  let job = Fmt.str "/job/%s" job_id in
   let times =
     match running with
     | None ->
-      Fmt.strf "%a queued" pp_duration (finished -. ready)
+      Fmt.str "%a queued" pp_duration (finished -. ready)
     | Some running ->
-      Fmt.strf "%a+%a"
+      Fmt.str "%a+%a"
         pp_duration (running -. ready)
         pp_duration (finished -. running)
   in
@@ -162,7 +162,7 @@ let r ~engine = object
         let msg =
           Fmt.str "%d/%d jobs could not be restarted (because they are no longer active): %a"
             (List.length failed) (List.length jobs)
-            Fmt.(list ~sep:(unit ", ") string) failed in
+            Fmt.(list ~sep:(any ", ") string) failed in
         Context.respond_error ctx `Bad_request msg
 
   method! nav_link = Some "Query"

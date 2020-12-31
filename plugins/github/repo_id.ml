@@ -12,6 +12,6 @@ let cmdliner =
   let parse s =
     match Astring.String.cuts ~sep:"/" s with
     | [ owner; name] -> Ok { owner; name }
-    | _ -> Error (`Msg (Fmt.strf "%S not in the form 'owner/name'" s))
+    | _ -> Error (`Msg (Fmt.str "%S not in the form 'owner/name'" s))
   in
   Arg.conv ~docv:"REPO" (parse, pp)

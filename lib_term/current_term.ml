@@ -86,7 +86,7 @@ module Make (Metadata : sig type t end) = struct
   let catch ?(hidden=false) t =
     node (Catch { source = Term t; hidden }) @@ Current_incr.map Dyn.catch t.v
 
-  let component fmt = Fmt.strf ("@[<v>" ^^ fmt ^^ "@]")
+  let component fmt = Fmt.str ("@[<v>" ^^ fmt ^^ "@]")
 
   let join x =
     Current_incr.of_cc begin
@@ -197,8 +197,8 @@ module Make (Metadata : sig type t end) = struct
     let** results = aux items in
     match results with
     | Ok () -> return ()
-    | Error (`Same (ls, e)) -> fail (Fmt.strf "%a failed: %s" Fmt.(list ~sep:(unit ", ") string) ls e)
-    | Error (`Diff ls) -> fail (Fmt.strf "%a failed" Fmt.(list ~sep:(unit ", ") string) ls)
+    | Error (`Same (ls, e)) -> fail (Fmt.str "%a failed: %s" Fmt.(list ~sep:(any ", ") string) ls e)
+    | Error (`Diff ls) -> fail (Fmt.str "%a failed" Fmt.(list ~sep:(any ", ") string) ls)
 
   (* A node with the constant value [v], but that depends on [old]. *)
   let replace old v =

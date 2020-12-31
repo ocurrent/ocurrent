@@ -48,7 +48,7 @@ end
 module Value = Image
 
 let errorf fmt =
-  fmt |> Fmt.kstrf @@ fun msg ->
+  fmt |> Fmt.kstr @@ fun msg ->
   Error (`Msg msg)
 
 let or_raise = function

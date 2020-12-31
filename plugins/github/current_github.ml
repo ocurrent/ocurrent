@@ -24,7 +24,7 @@ let webhook = object
     Log.info (fun f -> f "input_webhook: %a" Cohttp_lwt.Request.pp_hum req);
     let headers = Cohttp.Request.headers req in
     let event = Cohttp.Header.get headers "X-GitHub-Event" in
-    Log.info (fun f -> f "Got GitHub event %a" Fmt.(option ~none:(unit "NONE") (quote string)) event);
+    Log.info (fun f -> f "Got GitHub event %a" Fmt.(option ~none:(any "NONE") (quote string)) event);
     Prometheus.Counter.inc_one (Metrics.webhook_events_total (Option.value event ~default:"NONE"));
     Cohttp_lwt.Body.to_string body >|= Yojson.Safe.from_string >>= fun body ->
     begin match event with

@@ -3,7 +3,7 @@ open Tyxml.Html
 module Job = Current.Job
 
 let render_row (id, job) =
-  let url = Fmt.strf "/job/%s" id in
+  let url = Fmt.str "/job/%s" id in
   let start_time =
     match Lwt.state (Job.start_time job) with
     | Lwt.Sleep -> "(ready to start)"

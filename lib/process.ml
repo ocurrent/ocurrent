@@ -3,7 +3,7 @@ open Lwt.Infix
 let () =
   Random.self_init ()
 
-let failf fmt = fmt |> Fmt.kstrf @@ fun msg -> Error (`Msg msg)
+let failf fmt = fmt |> Fmt.kstr @@ fun msg -> Error (`Msg msg)
 
 let pp_args =
   let sep = Fmt.(const string) " " in

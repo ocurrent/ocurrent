@@ -9,7 +9,7 @@ type t = {
   mutable state : [`On of string * callback Stack.t | `Turning_off of unit Lwt.t | `Off];
 }
 
-let pp_reason f x = Current_term.Output.pp (Fmt.unit "()") f (x :> unit Current_term.Output.t)
+let pp_reason f x = Current_term.Output.pp (Fmt.any "()") f (x :> unit Current_term.Output.t)
 
 let turn_off t =
   match t.state with

@@ -117,7 +117,7 @@ let analyse_string ?job log_text =
       try Re.Group.get group (int_of_string r)
       with ex ->
         Log.err (fun f -> f "Bad group %S in report %S: %a" r test.report Fmt.exn ex);
-        Fmt.strf "Bad group %S in report %S: %a" r test.report Fmt.exn ex
+        Fmt.str "Bad group %S in report %S: %a" r test.report Fmt.exn ex
     in
     let report = Re.replace ~all:true re_subst ~f:subst test.report in
     job |> Option.iter (fun job -> Job.log job "%s" report);

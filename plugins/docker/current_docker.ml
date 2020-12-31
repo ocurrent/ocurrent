@@ -2,7 +2,7 @@ open Current.Syntax
 
 module S = S
 
-let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(unit ":@,") string)
+let pp_tag = Fmt.using (Astring.String.cuts ~sep:":") Fmt.(list ~sep:(any ":@,") string)
 
 module Raw = struct
   module Image = Image
@@ -133,7 +133,7 @@ module Make (Host : S.HOST) = struct
     let> () = Current.return () in
     Raw.peek ~docker_context ~schedule ~arch tag
 
-  let pp_sp_label = Fmt.(option (prefix sp string))
+  let pp_sp_label = Fmt.(option (sp ++ string))
 
   let get_build_context = function
     | `No_context -> Current.return `No_context
