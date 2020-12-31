@@ -133,7 +133,7 @@ module Make (Host : S.HOST) = struct
     let> () = Current.return () in
     Raw.peek ~docker_context ~schedule ~arch tag
 
-  let pp_sp_label = Fmt.(option (prefix sp string))
+  let pp_sp_label = Fmt.(option (sp ++ string))
 
   let get_build_context = function
     | `No_context -> Current.return `No_context
