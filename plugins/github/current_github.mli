@@ -22,6 +22,9 @@ module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
 
+  type refs
+  (** Reference information for the repository *)
+
   module Status : sig
     type t
     (** GitHub commit context status type. *)
@@ -49,6 +52,9 @@ module Api : sig
     val hash : t -> string
     (** [hash t] is the Git commit hash of [t]. *)
 
+    val committed_date : t -> string
+    (** [committed_date t] is the datetime when [t] was committed *)
+
     val pp : t Fmt.t
     val compare : t -> t -> int
 
@@ -63,8 +69,10 @@ module Api : sig
     val pp : t Fmt.t
     val compare : t -> t -> int
 
-    val ci_refs : t Current.t -> Commit.t list Current.t
-    (** [ci_refs t] evaluates to the list of branches and open PRs in [t], excluding gh-pages. *)
+    val ci_refs : ?staleness:Duration.t -> t Current.t -> Commit.t list Current.t
+    (** [ci_refs t] evaluates to the list of branches and open PRs in [t], excluding gh-pages.
+        @param staleness If given, commits older than this are excluded.
+                         Note: the main branch commit is always included, even if stale. *)
 
     val head_commit : t Current.t -> Commit.t Current.t
     (** [head_commit t] evaluates to the commit at the head of the default branch in [t]. *)
@@ -96,14 +104,23 @@ module Api : sig
   (** [head_of t repo id] evaluates to the commit at the head of [id] in [repo].
       e.g. [head_of t repo (`Ref "refs/heads/master")] *)
 
-  val ci_refs : t -> Repo_id.t -> Commit.t list Current.t
-  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages. *)
+  val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
+  (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages.
+      @param staleness If given, commits older than this are excluded.
+                       Note: the main branch commit is always included, even if stale. *)
 
-  val refs : t -> Repo_id.t -> Commit.t Ref_map.t Current.Primitive.t
+  val refs : t -> Repo_id.t -> refs Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].
       This is the low-level API for getting the refs.
-      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly.
+      It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly,
+      [default_ref] and [all_refs] will expose useful information for you.
       The result is cached (so calling it twice will return the same primitive). *)
+
+  val default_ref : refs -> string
+  (** [get_default_ref refs] will return the full name of the repository's default branch ref *)
+
+  val all_refs : refs -> Commit.t Ref_map.t
+  (** [get_all_refs refs] will return a map of all the repository's refs *)
 
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t

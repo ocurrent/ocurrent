@@ -124,9 +124,10 @@ module Commit_id = struct
     owner_name : string;    (* e.g. "owner/name" *)
     id : Ref.t;
     hash : string;
+    committed_date : string;
   } [@@deriving to_yojson]
 
-  let to_git { owner_name; id; hash } =
+  let to_git { owner_name; id; hash; committed_date = _ } =
     let repo = Fmt.str "https://github.com/%s.git" owner_name in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
@@ -136,7 +137,7 @@ module Commit_id = struct
 
   let pp_id = Ref.pp
 
-  let compare {owner_name; id; hash} b =
+  let compare {owner_name; id; hash; committed_date = _} b =
     match compare hash b.hash with
     | 0 ->
       begin match Ref.compare id b.id with
@@ -145,8 +146,8 @@ module Commit_id = struct
       end
     | x -> x
 
-  let pp f { owner_name; id; hash } =
-    Fmt.pf f "%s@ %a@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash)
+  let pp f { owner_name; id; hash; committed_date } =
+    Fmt.pf f "%s@ %a@ %s@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash) committed_date
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -157,16 +158,23 @@ type t = {
   token_lock : Lwt_mutex.t;
   mutable token : token;
   mutable head_monitors : commit Current.Monitor.t Repo_map.t;
-  mutable ci_refs_monitors : ci_refs Current.Monitor.t Repo_map.t;
+  mutable refs_monitors : refs Current.Monitor.t Repo_map.t;
 }
 and commit = t * Commit_id.t
-and ci_refs = commit Ref_map.t
+and refs = {
+  default_ref : string;
+  all_refs : commit Ref_map.t
+}
+
+let default_ref t = t.default_ref
+
+let all_refs t = t.all_refs
 
 let v ~get_token account =
   let head_monitors = Repo_map.empty in
-  let ci_refs_monitors = Repo_map.empty in
+  let refs_monitors = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_monitors; ci_refs_monitors; account }
+  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; account }
 
 let of_oauth token =
   let get_token () = Lwt.return { token = Ok token; expiry = None } in
@@ -245,7 +253,10 @@ let query_default =
        prefix \
        name \
        target { \
-         oid \
+         ...on Commit { \
+           oid \
+           committedDate \
+         } \
        } \
      } \
    } \
@@ -260,7 +271,7 @@ let handle_rate_limit t name json =
   Prometheus.Counter.inc (Metrics.used_points_total t.account) (float_of_int cost);
   Prometheus.Gauge.set (Metrics.remaining_points t.account) (float_of_int remaining)
 
-let default_ref t { Repo_id.owner; name } =
+let get_default_ref t { Repo_id.owner; name } =
     let variables = [
       "owner", `String owner;
       "name", `String name;
@@ -276,7 +287,8 @@ let default_ref t { Repo_id.owner; name } =
       let prefix = def / "prefix" |> to_string in
       let name = def / "name" |> to_string in
       let hash = def / "target" / "oid" |> to_string in
-      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
+      let committed_date = def / "target" / "committedDate" |> to_string in
+      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -285,7 +297,7 @@ let default_ref t { Repo_id.owner; name } =
 let make_head_commit_monitor t repo =
   let read () =
     Lwt.catch
-      (fun () -> default_ref t repo >|= fun c -> Ok (t, c))
+      (fun () -> get_default_ref t repo >|= fun c -> Ok (t, c))
       (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
   in
   let watch refresh =
@@ -333,13 +345,19 @@ let query_branches_and_open_prs = {|
     }
     repository(owner: $owner, name: $name) {
       nameWithOwner
+      defaultBranchRef {
+        name
+      }
       refs(first: 100, refPrefix:"refs/heads/") {
         totalCount
         edges {
           node {
             name
             target {
-              oid
+              ...on Commit {
+                oid
+                committedDate
+              }
             }
           }
         }
@@ -350,6 +368,13 @@ let query_branches_and_open_prs = {|
           node {
             number
             headRefOid
+            commits(last: 1) {
+              nodes {
+                commit {
+                  committedDate
+                }
+              }
+            }
           }
         }
       }
@@ -362,16 +387,20 @@ let parse_ref ~owner_name ~prefix json =
   let node = json / "node" in
   let name = node / "name" |> to_string in
   let hash = node / "target" / "oid" |> to_string in
-  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash }
+  let committed_date = node / "target" / "committedDate" |> to_string in
+  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
 
 let parse_pr ~owner_name json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let hash = node / "headRefOid" |> to_string in
   let pr = node / "number" |> to_int in
-  { Commit_id.owner_name; id = `PR pr; hash }
+  let nodes = node / "commits" / "nodes" |> to_list in
+  if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s" owner_name else
+  let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
+  { Commit_id.owner_name; id = `PR pr; hash; committed_date }
 
-let get_ci_refs t { Repo_id.owner; name } =
+let get_refs t { Repo_id.owner; name } =
     let variables = [
       "owner", `String owner;
       "name", `String name;
@@ -383,6 +412,7 @@ let get_ci_refs t { Repo_id.owner; name } =
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
       let owner_name = repo / "nameWithOwner" |> to_string in
+      let default_ref = repo / "defaultBranchRef" / "name" |> to_string |> ( ^ ) "refs/heads/" in
       let refs =
         repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/") in
       let prs =
@@ -401,15 +431,16 @@ let get_ci_refs t { Repo_id.owner; name } =
       Ref_map.empty
       |> add refs
       |> add prs
+      |> fun all_refs -> { default_ref; all_refs }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
       raise ex
 
-let make_ci_refs_monitor t repo =
+let make_refs_monitor t repo =
   let read () =
     Lwt.catch
-      (fun () -> get_ci_refs t repo >|= Stdlib.Result.ok)
+      (fun () -> get_refs t repo >|= Stdlib.Result.ok)
       (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
   in
   let watch refresh =
@@ -427,7 +458,7 @@ let make_ci_refs_monitor t repo =
         (fun () -> aux x)
         (function
           | Lwt.Canceled -> Lwt.return_unit  (* (could clear metrics here) *)
-          | ex -> Log.err (fun f -> f "ci_refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
+          | ex -> Log.err (fun f -> f "refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
         )
     in
     Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
@@ -437,27 +468,48 @@ let make_ci_refs_monitor t repo =
 
 let refs t repo =
   Current.Monitor.get (
-    match Repo_map.find_opt repo t.ci_refs_monitors with
+    match Repo_map.find_opt repo t.refs_monitors with
     | Some i -> i
     | None ->
-      let i = make_ci_refs_monitor t repo in
-      t.ci_refs_monitors <- Repo_map.add repo i t.ci_refs_monitors;
+      let i = make_refs_monitor t repo in
+      t.refs_monitors <- Repo_map.add repo i t.refs_monitors;
       i
   )
 
-let to_ci_refs refs =
-  refs
+let to_ptime str =
+  Ptime.of_rfc3339 str |> function
+  | Ok (t, _, _) -> t
+  | Error (`RFC3339 (_, e)) -> Fmt.failwith "%a" Ptime.pp_rfc3339_error e
+
+let remove_stale ?staleness ~default_ref refs =
+  match staleness with
+  | None -> refs
+  | Some staleness ->
+    let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
+    let active x =
+      let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
+      committed > cutoff
+    in
+    let is_default = function
+      | { Commit_id.id = `Ref t; _ } -> String.equal default_ref t
+      | _ -> false
+    in
+    List.filter (fun (_, x) -> is_default x || active x) refs
+
+let to_ci_refs ?staleness refs =
+  refs.all_refs
   |> Ref_map.remove (`Ref "refs/heads/gh-pages")
   |> Ref_map.bindings
   |> List.map snd
+  |> remove_stale ?staleness ~default_ref:refs.default_ref
 
-let ci_refs t repo =
+let ci_refs ?staleness t repo =
   let+ refs =
     Current.component "%a CI refs" Repo_id.pp repo |>
     let> () = Current.return () in
     refs t repo
   in
-  to_ci_refs refs
+  to_ci_refs ?staleness refs
 
 let head_of t repo id =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
@@ -466,7 +518,7 @@ let head_of t repo id =
   |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    match Ref_map.find_opt id refs with
+    match Ref_map.find_opt id refs.all_refs with
     | Some x -> Ok x
     | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
 
@@ -562,6 +614,8 @@ module Commit = struct
 
   let hash (_, id) = id.Commit_id.hash
 
+  let committed_date (_, id) = id.Commit_id.committed_date
+
   let pp = Fmt.using snd Commit_id.pp
 
   let set_status commit context status =
@@ -590,13 +644,13 @@ module Repo = struct
         i
     )
 
-  let ci_refs t =
+  let ci_refs ?staleness t =
     let+ refs =
       Current.component "CI refs" |>
       let> (api, repo) = t in
       refs api repo
     in
-    to_ci_refs refs
+    to_ci_refs ?staleness refs
 end
 
 module Anonymous = struct
@@ -628,7 +682,7 @@ module Anonymous = struct
       Lwt.try_bind
         (fun () -> query_head repo gref)
         (fun hash ->
-           let id = { Commit_id.owner_name; hash; id = gref } in
+           let id = { Commit_id.owner_name; hash; id = gref; committed_date = "" } in
            Lwt_result.return (Commit_id.to_git id)
         )
         (fun ex ->

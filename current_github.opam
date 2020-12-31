@@ -18,6 +18,8 @@ depends: [
   "ocaml" {>= "4.08.0"}
   "fmt"
   "lwt"
+  "duration"
+  "ptime"
   "yojson"
   "cohttp-lwt-unix" {< "3.0.0"}
   "mirage-crypto"
