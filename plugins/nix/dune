@@ -1,0 +1,17 @@
+(library
+ (public_name current_nix)
+ (libraries
+   astring
+   bos
+   current
+   current.cache
+   current.term
+   fmt
+   fpath
+   irmin-watcher
+   logs
+   lwt
+   lwt.unix
+   ppx_deriving_yojson
+   result)
+ (preprocess (pps ppx_deriving_yojson)))

@@ -13,6 +13,15 @@
       "repo": "nix-wrangle",
       "type": "github"
     },
+    "ocluster": {
+      "fetch": {
+        "ref": "HEAD",
+        "relativePath": "../ocluster"
+      },
+      "ref": "HEAD",
+      "relativePath": "../ocluster",
+      "type": "git-local"
+    },
     "opam2nix": {
       "fetch": {
         "owner": "timbertson",
