@@ -1,5 +1,4 @@
 module Git = Current_git
-module Github = Current_github
 
 open Lwt.Infix
 let ( >>!= ) = Lwt_result.bind
