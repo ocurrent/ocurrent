@@ -6,6 +6,8 @@
    current
    current.cache
    current.term
+   current_git
+   current_github
    fmt
    fpath
    irmin-watcher
