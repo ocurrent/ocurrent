@@ -64,11 +64,12 @@ module Build = struct
 
   module Key = Drv
 
-  module Value = Current.Unit
+  module Value = Current.String
 
   let build { pool } job key =
     Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-    Current.Process.exec ~cancellable:true ~job ("", Key.cmd key |> Array.of_list)
+    Current.Process.check_output ~cancellable:true ~job ("", Key.cmd key |> Array.of_list)
+    |> Lwt_result.map String.trim
 
   let pp = Drv.pp
 
@@ -263,8 +264,52 @@ end
 
 let pp_sp_label = Fmt.(option (prefix sp string))
 
-module Nix = struct
-  let rec _build_deps_then ?label ?pool drv fn =
+module type Builder = sig
+  type ctx
+  type pool
+  
+  val build_drv:
+    ?label: string ->
+    pool: pool ->
+    ctx: ctx ->
+    Drv.t Current.t ->
+    string Current.t
+end
+
+module Local_build = struct
+  type ctx = unit
+  type pool = unit Current.Pool.t option
+
+  let build_drv ?label ~(pool:pool) ~ctx:_ drv =
+    Current.component "build%a" pp_sp_label label |>
+      (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
+      (* OK I'm really confused by let>, need to investigate this is odd *)
+      let> drv = drv in
+      Raw.realise_one ?pool drv
+end
+
+module Local_build_assert: Builder = struct
+  include Local_build
+end
+
+module Cluster_build = struct
+  type ctx = Current_ocluster.t
+  type pool = string
+
+  let build_drv ?label:_ ~(pool: pool) ~ctx drv =
+    let spec = drv |> Current.map (fun Drv.{ drv_path } ->
+      (* TODO this is hacky *)
+      Lwt_main.run (Cluster_api.Nix_build.Spec.from_file drv_path)
+    ) in
+    Current_ocluster.build_nix ctx ~pool spec
+end
+
+module Cluster_build_assert: Builder = struct
+  include Cluster_build
+end
+
+module Nix_instantiate (B: Builder) = struct
+  let rec _build_deps_then ?label ?pool drv fn : string Current.t =
     let deps = Current.component "plan%a" pp_sp_label label |>
       let> drv = drv in
       Raw.build_plan ?pool drv
@@ -280,11 +325,14 @@ module Nix = struct
       | [] -> fn drv
       | deps ->
         Log.info (fun f -> f "bind deps -> %a" Drv_list.pp deps);
-        let deps_built = Current.return deps |> Current.list_iter deps_module (build_drv ?pool) in
+        let deps_built = Current.return deps
+          |> Current.list_iter deps_module
+            (fun drv -> build_drv ?pool drv |> Current.map ignore)
+        in
         fn (Current.gate ~on:deps_built drv)
     )
 
-  and build_drv ?label ?pool drv =
+  and build_drv ?label ?pool drv : string Current.t =
     _build_deps_then ?label ?pool drv (fun drv ->
       Current.component "build%a" pp_sp_label label |>
         (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
@@ -292,19 +340,16 @@ module Nix = struct
         let> drv = drv in
         Raw.realise_one ?pool drv
     )
+end
 
-  (* let rec shell ?label ?pool drv = *)
-  (*   _build_deps_then ?label ?pool drv (fun drv -> *)
-  (*     Current.component "build%a" pp_sp_label label |> *)
-  (*       (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *) *)
-  (*       (* OK I'm really confused by let>, need to investigate this is odd *) *)
-  (*       let> drv = drv in *)
-  (*       Raw.realise_one ?pool drv *)
-  (*   ) *)
+module Nix = struct
+  (* TODO make this fully abstract over local / remote *)
+  include Nix_instantiate(Local_build)
+
   let exec ?label ?pool cmd =
     let open Exec in
     Current.component "exec%a" pp_sp_label label |>
-      let> () = build_drv ?pool ?label (cmd |> Current.map (fun key -> key.drv))
+      let> _: string = build_drv ?pool ?label (cmd |> Current.map (fun key -> key.drv))
       and> cmd = cmd
       in Raw.exec ?pool cmd
 

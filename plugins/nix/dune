@@ -5,6 +5,8 @@
    current.cache
    current.term
    current_git
+   current_ocluster
+   ocluster-api
    fmt
    fpath
    logs

@@ -23,8 +23,10 @@
    current_docker
    current_git
    current_github
+   current_nix
    current_rpc
    current_web
+   current_ocluster
    dockerfile
    duration
    fmt.tty

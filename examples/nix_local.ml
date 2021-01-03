@@ -5,11 +5,11 @@ module Github = Current_github
 
 let () = Logging.init ()
 
-open Lwt.Infix
-let ( >>!= ) = Lwt_result.bind
 open Current.Syntax
 
-let Nix = Current_nix
+module Nix = Current_nix
+
+module Cluster = Current_ocluster
 
 module S = Current_cache.S
 
@@ -19,7 +19,7 @@ module Log = struct
 end
 
 module Opam2nix = struct
-  type resolve = {
+  type t = {
     repo_commit: Git.Commit_id.t;
     nixpkgs: string;
     opam2nix: string;
@@ -29,7 +29,7 @@ module Opam2nix = struct
     version: string;
   }
 
-  let resolve ?pool ?label t =
+  let build ?pool ?label t =
     (* TODO use same ocaml for opam2nix and package build? *)
     let prelude = t |> Current.map (fun { nixpkgs; opam2nix; _ } ->
         "let\n"
@@ -43,7 +43,7 @@ module Opam2nix = struct
     let exe_drv = Nix.eval ?pool ?label (prelude |> Current.map (fun expr -> expr ^ "opam2nix")) in
 
     let cmd = Current.pair exe_drv t |> Current.map (fun (drv, { repo_commit; ocaml_version; package; version; _ }) ->
-      Exec.{
+      Nix.Exec.{
         drv;
         exe = "bin/opam2nix";
         (* TODO this can't be called concurrently on the same host *)
@@ -89,7 +89,7 @@ let pipeline ~github () : unit Current.t =
   let repo_commit = head_commit {owner = "ocaml"; name = "opam-repository" } in
   
   Current.all [
-    Opam2nix.(resolve (
+    Opam2nix.(build (
       let+ repo_commit = repo_commit
       and+ nixpkgs = nixpkgs
       and+ opam2nix = opam2nix
@@ -102,7 +102,7 @@ let pipeline ~github () : unit Current.t =
         ocaml_attr = "ocaml-ng.ocamlPackages_4_10.ocaml";
         package = "lwt";
         version = "5.3.0";
-      }))
+      })) |> Current.map ignore
   ]
 
 let main config mode github =
