@@ -11,6 +11,7 @@ module Log = struct
 end
 
 module Drv = struct
+  (* TODO reuse same type as Current_cluster.Nix_build.Spec? *)
   type t = {
     drv_path : string;
   }
@@ -188,6 +189,14 @@ module Eval = struct
   let pp = Key.pp
 
   let auto_cancel = true
+
+  let fetchgit commit =
+    commit |> Current.map (fun commit ->
+      "builtins.fetchGit {\n"
+      ^ "url = \""^ (Git.Commit_id.repo commit) ^ "\";\n"
+      ^ "rev = \""^ (Git.Commit_id.hash commit) ^ "\";\n"
+      ^ "}"
+    )
 end
 
 module Exec = struct
@@ -266,26 +275,54 @@ let pp_sp_label = Fmt.(option (prefix sp string))
 
 module type Builder = sig
   type ctx
-  type pool
+
+  val local_pool : ctx -> unit Current.Pool.t option
   
-  val build_drv:
+  val eval:
     ?label: string ->
-    pool: pool ->
+    ctx: ctx ->
+    string Current.t ->
+    Drv.t Current.t
+
+  val exec:
+    ?label: string ->
+    ctx: ctx ->
+    Exec.t Current.t ->
+    string Current.t
+
+  val build:
+    ?label: string ->
     ctx: ctx ->
     Drv.t Current.t ->
     string Current.t
+
 end
 
 module Local_build = struct
-  type ctx = unit
-  type pool = unit Current.Pool.t option
+  type ctx = unit Current.Pool.t option
 
-  let build_drv ?label ~(pool:pool) ~ctx:_ drv =
+  let ctx ~pool = pool
+
+  let local_pool ctx = ctx
+
+  let eval ?label ~ctx expr =
+    Current.component "nix-instantiate%a" pp_sp_label label |>
+    let> expr = expr in
+    Raw.eval ?pool:ctx expr
+
+  let build ?label ~ctx drv =
     Current.component "build%a" pp_sp_label label |>
       (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
       (* OK I'm really confused by let>, need to investigate this is odd *)
       let> drv = drv in
-      Raw.realise_one ?pool drv
+      Raw.realise_one ?pool:ctx drv
+
+  let exec ?label ~ctx cmd =
+    let open Exec in
+    Current.component "exec%a" pp_sp_label label |>
+      let> _: string = build ~ctx ?label (cmd |> Current.map (fun key -> key.drv))
+      and> cmd = cmd
+      in Raw.exec ?pool:ctx cmd
 end
 
 module Local_build_assert: Builder = struct
@@ -293,23 +330,50 @@ module Local_build_assert: Builder = struct
 end
 
 module Cluster_build = struct
-  type ctx = Current_ocluster.t
-  type pool = string
+  module Spec = Cluster_api.Nix_build.Spec
+  type ctx = {
+    cluster: Current_ocluster.t;
+    pool: string;
+    local: Local_build.ctx;
+  }
 
-  let build_drv ?label:_ ~(pool: pool) ~ctx drv =
-    let spec = drv |> Current.map (fun Drv.{ drv_path } ->
-      (* TODO this is hacky *)
-      Lwt_main.run (Cluster_api.Nix_build.Spec.from_file drv_path)
+  let local_pool ctx = Local_build.local_pool ctx.local
+
+  let ctx ~cluster ~pool ~local = { cluster; pool; local }
+
+  let eval ?label:_ ~ctx:{cluster; pool; _} expr =
+    let spec = expr |> Current.map (fun expr ->
+      Spec.Eval (`Expr expr)
     ) in
-    Current_ocluster.build_nix ctx ~pool spec
+    Current_ocluster.build_nix cluster ~pool spec |> Current.map Drv.unmarshal
+
+  let build ?label:_ ~ctx:{cluster; pool; _} drv =
+    let spec = drv |> Current.map (fun Drv.{ drv_path } ->
+      Spec.Build (`Drv drv_path)
+    ) in
+    Current_ocluster.build_nix cluster ~pool spec
+
+  let exec ?label:_ ~ctx:{cluster; pool; _} spec =
+    let spec = spec |> Current.map (fun Exec.{ drv = { drv_path }; exe; args } ->
+      Spec.(Run {drv = `Drv drv_path; exe; args})
+    ) in
+    Current_ocluster.build_nix cluster ~pool spec
 end
 
 module Cluster_build_assert: Builder = struct
   include Cluster_build
 end
 
-module Nix_instantiate (B: Builder) = struct
-  let rec _build_deps_then ?label ?pool drv fn : string Current.t =
+module Make (B: Builder) = struct
+  module Exec = Exec
+  
+  let rec _build_deps_then ?label ~ctx drv fn : string Current.t =
+    (*
+     * NOTE: build_plan currently always runs locally. This should be
+     * fine as long as the dependencies are cached (it shouldn't care that it
+     * can't actually build derivations for a different platform)
+     *)
+    let pool = B.local_pool ctx in
     let deps = Current.component "plan%a" pp_sp_label label |>
       let> drv = drv in
       Raw.build_plan ?pool drv
@@ -327,52 +391,29 @@ module Nix_instantiate (B: Builder) = struct
         Log.info (fun f -> f "bind deps -> %a" Drv_list.pp deps);
         let deps_built = Current.return deps
           |> Current.list_iter deps_module
-            (fun drv -> build_drv ?pool drv |> Current.map ignore)
+            (fun drv -> build_drv ~ctx drv |> Current.ignore_value)
         in
         fn (Current.gate ~on:deps_built drv)
     )
 
-  and build_drv ?label ?pool drv : string Current.t =
-    _build_deps_then ?label ?pool drv (fun drv ->
-      Current.component "build%a" pp_sp_label label |>
-        (* let> _deps_built = Current.list_iter (List.map build_dep deps) in *)
-        (* OK I'm really confused by let>, need to investigate this is odd *)
-        let> drv = drv in
-        Raw.realise_one ?pool drv
-    )
-end
+  and build_drv ?label ~ctx drv : string Current.t =
+    _build_deps_then ?label ~ctx drv (B.build ?label ~ctx)
 
-module Nix = struct
-  (* TODO make this fully abstract over local / remote *)
-  include Nix_instantiate(Local_build)
+  let eval = B.eval
 
-  let exec ?label ?pool cmd =
-    let open Exec in
-    Current.component "exec%a" pp_sp_label label |>
-      let> _: string = build_drv ?pool ?label (cmd |> Current.map (fun key -> key.drv))
-      and> cmd = cmd
-      in Raw.exec ?pool cmd
+  let exec = B.exec
 
-  let eval ?label ?pool expr =
-    Current.component "nix-instantiate%a" pp_sp_label label |>
-    let> expr = expr in
-    Raw.eval ?pool expr
-
-  let build_nix ?label ?pool expr =
-    build_drv ?label ?pool (eval ?label ?pool expr)
+  let build_nix ?label ~ctx expr =
+    build_drv ?label ~ctx (eval ?label ~ctx expr)
 
   let fetchgit ?label ?pool commit =
     (* NOTE this is efficient on 1 host (.git cloned once and re-fetched as needed,
      * but wasteful on multi-host (it's only needed on the host that's doing the instantiate)
      * Doing it in parallel on the same host is also bad, because nix doesn't lock concurrent fetches of the same expression properly
+     *
+     * TODO either restrict to 1 per shared cache dir, or switch to fetchFromGitHub
      *)
-    let expr = commit |> Current.map (fun commit ->
-      "builtins.fetchGit {\n"
-      ^ "url = \""^ (Git.Commit_id.repo commit) ^ "\";\n"
-      ^ "rev = \""^ (Git.Commit_id.hash commit) ^ "\";\n"
-      ^ "}"
-    ) in
-
+    let expr = Eval.fetchgit commit in
     let fetched = (Current.component "fetchgit%a" pp_sp_label label |>
       let> expr = expr in
       Raw.eval ?pool expr
@@ -381,4 +422,12 @@ module Nix = struct
     Current.pair fetched expr |> Current.map snd
 end
 
-include Nix (* public API *)
+module Local = struct
+  include Make(Local_build)
+  let ctx = Local_build.ctx
+end
+
+module Remote = struct
+  include Make(Cluster_build)
+  let ctx = Cluster_build.ctx
+end

@@ -7,7 +7,7 @@ let () = Logging.init ()
 
 open Current.Syntax
 
-module Nix = Current_nix
+module Nix = Current_nix.Remote
 
 module Cluster = Current_ocluster
 
@@ -29,7 +29,7 @@ module Opam2nix = struct
     version: string;
   }
 
-  let build ?pool ?label t =
+  let build ~ctx ?label t =
     (* TODO use same ocaml for opam2nix and package build? *)
     let prelude = t |> Current.map (fun { nixpkgs; opam2nix; _ } ->
         "let\n"
@@ -40,7 +40,7 @@ module Opam2nix = struct
       ^ "in\n"
     ) in
 
-    let exe_drv = Nix.eval ?pool ?label (prelude |> Current.map (fun expr -> expr ^ "opam2nix")) in
+    let exe_drv = Nix.eval ~ctx ?label (prelude |> Current.map (fun expr -> expr ^ "opam2nix")) in
 
     let cmd = Current.pair exe_drv t |> Current.map (fun (drv, { repo_commit; ocaml_version; package; version; _ }) ->
       Nix.Exec.{
@@ -58,8 +58,8 @@ module Opam2nix = struct
 
     let selection_expr =
       Current.component "selection.nix" |>
-      let** _ = Nix.build_drv ?pool ?label exe_drv
-      in Nix.exec ?pool ?label cmd
+      let** _ = Nix.build_drv ~ctx ?label exe_drv
+      in Nix.exec ~ctx ?label cmd
     in
 
     let package_expr =
@@ -73,10 +73,10 @@ module Opam2nix = struct
       ^ "}).\"" ^ t.package ^ "\""
     in
 
-    Nix.build_nix ?pool ?label package_expr
+    Nix.build_nix ~ctx ?label package_expr
 end
 
-let pipeline ~github () : unit Current.t =
+let pipeline ~github ~local_pool ~cluster () : unit Current.t =
   let head_commit repo = Github.Api.head_commit github repo
       |> Current.map Github.Api.Commit.id in
   (* Hackity hack to get more cache hits locally *)
@@ -87,7 +87,9 @@ let pipeline ~github () : unit Current.t =
   let nixpkgs = Nix.fetchgit ~label:"nixpkgs" (override_commit "cf7475d2061ac3ada4b226571a4a1bb91420b578" (head_commit {owner = "nixos"; name = "nixpkgs" })) in
   let opam2nix = Nix.fetchgit ~label:"opam2nix" (head_commit {owner = "timbertson"; name = "opam2nix" }) in
   let repo_commit = head_commit {owner = "ocaml"; name = "opam-repository" } in
-  
+
+  let pool = "x86_64-linux" in
+
   Current.all [
     Opam2nix.(build (
       let+ repo_commit = repo_commit
@@ -102,11 +104,12 @@ let pipeline ~github () : unit Current.t =
         ocaml_attr = "ocaml-ng.ocamlPackages_4_10.ocaml";
         package = "lwt";
         version = "5.3.0";
-      })) |> Current.map ignore
+      }) ~ctx:(Nix.ctx ~cluster ~pool ~local:local_pool)) |> Current.map ignore
   ]
 
-let main config mode github =
-  let engine = Current.Engine.create ~config (pipeline ~github) in
+let main config mode github cluster =
+  let local_pool = Some (Current.Pool.create ~label:"nix-local" 1) in
+  let engine = Current.Engine.create ~config (pipeline ~github ~local_pool ~cluster) in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
   Logging.run begin
     Lwt.choose [
