@@ -3,7 +3,9 @@ let program_name = "nix_local"
 module Git = Current_git
 module Github = Current_github
 
-let () = Logging.init ()
+let () = Logging.init
+  (* ~level:Logs.Debug *)
+  ()
 
 open Current.Syntax
 
@@ -47,7 +49,7 @@ module Opam2nix = struct
         drv;
         exe = "bin/opam2nix";
         (* TODO this can't be called concurrently on the same host *)
-        args = [ "--resolve";
+        args = [ "resolve";
           "--ocaml-version"; ocaml_version;
           "--repo-commit"; (Git.Commit_id.hash repo_commit);
           "--dest"; "/dev/stdout";
@@ -107,7 +109,21 @@ let pipeline ~github ~local_pool ~cluster () : unit Current.t =
       }) ~ctx:(Nix.ctx ~cluster ~pool ~local:local_pool)) |> Current.map ignore
   ]
 
-let main config mode github cluster =
+
+(* Command-line parsing *)
+
+open Cmdliner
+
+let main config mode github cluster_cap =
+  let or_die = function
+    | Ok x -> x
+    | Error `Msg m -> failwith m
+  in
+
+  let vat = Capnp_rpc_unix.client_only_vat () in
+  let sr = Capnp_rpc_unix.Cap_file.load vat cluster_cap |> or_die in
+  let conn = Current_ocluster.Connection.create sr in
+  let cluster = Current_ocluster.v conn in
   let local_pool = Some (Current.Pool.create ~label:"nix-local" 1) in
   let engine = Current.Engine.create ~config (pipeline ~github ~local_pool ~cluster) in
   let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
@@ -118,13 +134,23 @@ let main config mode github cluster =
     ]
   end
 
-(* Command-line parsing *)
+let connect_addr =
+  Arg.required @@
+  Arg.opt Arg.(some file) None @@
+  Arg.info
+    ~doc:"Ocluster submission.cap file"
+    ~docv:"ADDR"
+    ["c"; "connect"]
 
-open Cmdliner
+let cluster_cmdliner = Obj.magic ()
 
 let cmd =
   let doc = "opam2nix! woo!" in
-  Term.(const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner),
+  Term.(const main
+    $ Current.Config.cmdliner
+    $ Current_web.cmdliner
+    $ Current_github.Api.cmdliner
+    $ connect_addr),
   Term.info program_name ~doc
 
 let () = Term.(exit @@ eval cmd)
