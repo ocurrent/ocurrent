@@ -124,7 +124,7 @@ let analyse_string ?job log_text =
     Some report
 
 let analyse_file ?job log_path =
-  let ch = open_in (Fpath.to_string log_path) in
+  let ch = open_in_bin (Fpath.to_string log_path) in
   (* re doesn't support streaming, so load the whole log at once. *)
   let log_text =
     Fun.protect
