@@ -58,8 +58,9 @@ let fetch cid =
 
 module Clone_cache = Current_cache.Make(Clone)
 
-let clone ~schedule ?(gref="master") repo =
-  Current.component "clone@ %s@ %s" repo gref |>
+let clone ~schedule ?gref repo =
+  let pp_ref f = Fmt.pf f "@ %s" in
+  Current.component "clone@ %s%a" repo (Fmt.option pp_ref) gref |>
   let> () = Current.return () in
   Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 

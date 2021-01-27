@@ -45,6 +45,12 @@ let git_reset_hard ~job ~repo hash =
 let git_remote_set_url ~job ~repo ~remote url =
   git ~cancellable:false ~job ~cwd:repo ["remote"; "set-url"; remote; url]
 
+let git_ls_remote ?(cancellable=false) ?(ref="HEAD") ~job url =
+  let cmd = ["git"; "ls-remote"; "--symref"; url; ref] in
+  Current.Process.check_output ~cancellable ~job ("", Array.of_list cmd) >|=
+  Stdlib.Result.map String.trim >|=
+  Stdlib.Result.map (String.split_on_char '\n')
+
 let git_rev_parse ?(cancellable=false) ~job ~repo x =
   let cmd = ["git"; "-C"; Fpath.to_string repo; "rev-parse"; x] in
   Current.Process.check_output ~cancellable ~job ("", Array.of_list cmd) >|= Stdlib.Result.map String.trim
