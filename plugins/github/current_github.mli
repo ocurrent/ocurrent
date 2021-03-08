@@ -117,10 +117,10 @@ module Api : sig
       The result is cached (so calling it twice will return the same primitive). *)
 
   val default_ref : refs -> string
-  (** [get_default_ref refs] will return the full name of the repository's default branch ref *)
+  (** [default_ref refs] will return the full name of the repository's default branch ref *)
 
   val all_refs : refs -> Commit.t Ref_map.t
-  (** [get_all_refs refs] will return a map of all the repository's refs *)
+  (** [all_refs refs] will return a map of all the repository's refs *)
 
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
