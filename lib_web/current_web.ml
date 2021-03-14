@@ -36,7 +36,7 @@ let set_confirm ~engine = object
     | _ -> Context.respond_error ctx `Bad_request "Missing level"
 end
 
-let routes engine =
+let routes ?(docroot="static") engine =
   Routes.[
     empty @--> Main.r ~engine;
     s "index.html" /? nil @--> Main.r ~engine;
@@ -50,6 +50,7 @@ let routes engine =
     s "set" / s "confirm" /? nil @--> set_confirm ~engine;
     s "jobs" /? nil @--> Jobs.r;
     s "logout" /? nil @--> Resource.logout;
+    s "images" / str /? nil @--> Static.r ~docroot;
   ] @ Job.routes ~engine
 
 let handle_request ~site _conn request body =

@@ -104,8 +104,10 @@ module Resource : sig
   end
 end
 
-val routes : Current.Engine.t -> Resource.t Routes.route list
-(** [routes engine] is the default routes for a web interface to [engine]. *)
+val routes : ?docroot:string -> Current.Engine.t -> Resource.t Routes.route list
+(** [routes ~docroot engine] is the default routes for a web interface to [engine].
+    @param docroot The root directory for static resources. Files from /images
+    are served from here. Defaults to "static". *)
 
 val run : ?mode:Conduit_lwt_unix.server -> Site.t -> ('a, [`Msg of string]) result Lwt.t
 (** [run ~mode site] runs a web-server (with configuration [mode]) that handles incoming requests for [site]. *)
