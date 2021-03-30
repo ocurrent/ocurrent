@@ -228,17 +228,25 @@ let no_token = {
 }
 
 module Ref = struct
-  type t = [ `Ref of string | `PR of int ] [@@deriving to_yojson]
+
+  type pr_info = {
+    id: int;
+    base: string;
+    title: string;
+    bodyHTML: string;
+  } [@@deriving to_yojson]
+
+  type t = [ `Ref of string | `PR of pr_info ] [@@deriving to_yojson]
 
   let compare = Stdlib.compare
 
   let pp f = function
     | `Ref r -> Fmt.string f r
-    | `PR pr -> Fmt.pf f "PR %d" pr
+    | `PR {id; base; title; _} -> Fmt.pf f "PR #%d on %s:@ %s" id base title
 
   let to_git = function
     | `Ref head -> head
-    | `PR id -> Fmt.str "refs/pull/%d/head" id
+    | `PR {id; _} -> Fmt.str "refs/pull/%d/head" id
 end
 
 module Ref_map = Map.Make(Ref)
@@ -451,7 +459,7 @@ module Monitor (Query : GRAPHQL_QUERY) = struct
         Lwt.catch
           (fun () -> aux x)
           (function
-            | Lwt.Canceled -> Lwt.return_unit
+            | Lwt.Canceled -> Lwt.return_unit (* could clear metrics here *)
             | ex -> Log.err (fun f -> f "%s thread failed: %a" Query.name Fmt.exn ex); Lwt.return_unit
           )
       in
@@ -547,6 +555,9 @@ module Refs = Monitor(struct
           node {
             number
             headRefOid
+            baseRefName
+            title
+            bodyHTML
             commits(last: 1) {
               nodes {
                 commit {
@@ -573,13 +584,16 @@ module Refs = Monitor(struct
   let parse_pr ~owner ~repo json =
     let open Yojson.Safe.Util in
     let node = json / "node" in
+    let base = node / "baseRefName" |> to_string in
     let hash = node / "headRefOid" |> to_string in
     let pr = node / "number" |> to_int in
+    let title = node / "title" |> to_string in
+    let bodyHTML = node / "bodyHTML" |> to_string in
     let nodes = node / "commits" / "nodes" |> to_list in
     if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
     let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
     let message = List.hd nodes / "commit" / "message" |> to_string in
-    { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date; message }
+    { Commit_id.owner; Commit_id.repo; id = `PR {id=pr; base; title; bodyHTML}; hash; committed_date; message }
 
   let of_yojson t { Repo_id.owner; name } data =
     let open Yojson.Safe.Util in
