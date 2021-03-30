@@ -135,7 +135,14 @@ module Api : sig
   end
 
   module Ref : sig
-    type t = [ `Ref of string | `PR of int ]
+    type pr_info = {
+      id: int;
+      base: string;
+      title: string;
+      bodyHTML: string;
+    }
+    
+    type t = [ `Ref of string | `PR of pr_info ]
 
     val pp : t Fmt.t
 
