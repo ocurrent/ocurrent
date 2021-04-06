@@ -14,7 +14,7 @@ val skip_all : t -> t
 (** [skip_all t] is the empty stream at the end of [t]. *)
 
 val find : t -> char -> t option
-(** [find t c] is a stream from the first occurance of [c] in [t], if any. *)
+(** [find t c] is a stream from the first occurrence of [c] in [t], if any. *)
 
 val avail : t -> int
 (** [avail t] is the number of remaining characters in the stream. *)

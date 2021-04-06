@@ -28,9 +28,9 @@ val const : 'a -> 'a t
 (** {2 Changeable computations} *)
 
 type 'a cc
-(** An ['a cc] is a changable computation that can be run to get a value of type ['a].
+(** An ['a cc] is a changeable computation that can be run to get a value of type ['a].
     Internally, it is a function that takes a destination variable, reads zero or more
-    other changable values, and then updates the destination. *)
+    other changeable values, and then updates the destination. *)
 
 val read : 'a t -> ('a -> 'b cc) -> 'b cc
 (** [read x f] is a computation that depends on [x]. [f] will be called as necessary to

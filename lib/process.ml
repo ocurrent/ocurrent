@@ -28,7 +28,7 @@ let check_status cmd = function
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
-    | 0 -> Fmt.failwith "Failed to generate temporary directroy name!"
+    | 0 -> Fmt.failwith "Failed to generate temporary directory name!"
     | n -> (
       let tmppath =
         Printf.sprintf "%s/%s%x" parent prefix (Random.int 0x3fffffff)
