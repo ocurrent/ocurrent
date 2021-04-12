@@ -6,7 +6,7 @@ digraph pipeline {
   n9 [label="head",fillcolor="#90ee90",style="filled"]
   n8 [label="fetch",fillcolor="#90ee90",style="filled"]
   n7 [label="analyse",fillcolor="#90ee90",style="filled"]
-  subgraph cluster_4 {
+  subgraph cluster_4 {label=""
   style="dotted"n13 [label="lint",fillcolor="#d3d3d3",style="filled"]
   }
   n7 -> n13

@@ -9,7 +9,7 @@ digraph pipeline {
   n6 [label="docker run make test",fillcolor="#90ee90",style="filled"]
   n10 [label="get-revdeps",fillcolor="#90ee90",style="filled"]
   n5 [label="",fillcolor="#90ee90",style="filled",shape="circle"]
-  subgraph cluster_4 {
+  subgraph cluster_4 {label=""
   n15 [label="(empty list)",fillcolor="#d3d3d3",style="filled"]
   n14 [label="fetch",fillcolor="#d3d3d3",style="filled"]
   n13 [label="build",fillcolor="#d3d3d3",style="filled"]

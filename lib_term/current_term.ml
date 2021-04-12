@@ -209,7 +209,7 @@ module Make (Metadata : sig type t end) = struct
       bind = Some (Term old)
     }
 
-  let option_map (type a b) (f : a t -> b t) (input : a option t) : b option t =
+  let option_map (type a b) ?label (f : a t -> b t) (input : a option t) : b option t =
     let results =
       input.v |> Current_incr.map @@ function
       | Error _ as r ->
@@ -226,7 +226,7 @@ module Make (Metadata : sig type t end) = struct
         { output with v = Current_incr.map (Result.map Option.some) output.v }
     in
     let output = Current_incr.map (fun x -> Term x) results in
-    node (Option_map { item = Term input; output }) (join results)
+    node (Option_map { item = Term input; output; label }) (join results)
 
   let rec list_seq : 'a t list -> 'a list t = function
     | [] -> return []
@@ -236,7 +236,7 @@ module Make (Metadata : sig type t end) = struct
       y :: ys
 
 
-  let list_map (type a) (module M : S.ORDERED with type t = a) ?collapse_key (f : a t -> 'b t) (input : a list t) =
+  let list_map (type a) (module M : S.ORDERED with type t = a) ?collapse_key ?label (f : a t -> 'b t) (input : a list t) =
     let module Map = Map.Make(M) in
     let module Sep = Current_incr.Separate(Map) in
     (* Stage 1 : convert input list to a set.
@@ -281,10 +281,10 @@ module Make (Metadata : sig type t end) = struct
       end
     in
     let output = Current_incr.map (fun x -> Term x) results in
-    node (List_map { items = Term input; output }) (join results)
+    node (List_map { items = Term input; output; label }) (join results)
 
-  let list_iter (type a) (module M : S.ORDERED with type t = a) ?collapse_key f (xs : a list t) =
-    let+ (_ : unit list) = list_map (module M) ?collapse_key f xs in
+  let list_iter (type a) (module M : S.ORDERED with type t = a) ?collapse_key ?label f (xs : a list t) =
+    let+ (_ : unit list) = list_map (module M) ?collapse_key ?label f xs in
     ()
 
   let option_seq : 'a t option -> 'a option t = function

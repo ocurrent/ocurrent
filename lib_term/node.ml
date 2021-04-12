@@ -19,7 +19,7 @@ module Make (Metadata : sig type t end) = struct
     | Primitive of {x : generic; info : string; meta : Metadata.t option Current_incr.t }
     | Pair of generic * generic
     | Gate_on of { ctrl : generic; value : generic }
-    | List_map of { items : generic; output : generic Current_incr.t }
-    | Option_map of { item : generic; output : generic Current_incr.t }
+    | List_map of { items : generic; output : generic Current_incr.t; label: string option }
+    | Option_map of { item : generic; output : generic Current_incr.t; label: string option }
     | Collapse of { key : string; value : string; input : generic; output : generic }
 end

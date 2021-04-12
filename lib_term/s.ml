@@ -109,21 +109,21 @@ module type TERM = sig
   (** [pair a b] is the pair containing the results of evaluating [a] and [b]
       (in parallel). *)
 
-  val list_map : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ('a t -> 'b t) -> 'a list t -> 'b list t
+  val list_map : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ?label:string -> ('a t -> 'b t) -> 'a list t -> 'b list t
   (** [list_map (module T) f xs] adds [f] to the end of each input term
       and collects all the results into a single list.
       @param T Used to display labels for each item, and to avoid recreating pipelines
                unnecessarily.
       @param collapse_key If given, each element is wrapped with [collapse]. *)
 
-  val list_iter : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ('a t -> unit t) -> 'a list t -> unit t
+  val list_iter : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ?label:string -> ('a t -> unit t) -> 'a list t -> unit t
   (** Like [list_map] but for the simpler case when the result is unit. *)
 
   val list_seq : 'a t list -> 'a list t
   (** [list_seq x] evaluates to a list containing the results of evaluating
       each element in [x], once all elements of [x] have successfully completed. *)
 
-  val option_map : ('a t -> 'b t) -> 'a option t -> 'b option t
+  val option_map : ?label:string -> ('a t -> 'b t) -> 'a option t -> 'b option t
   (** [option_map f x] is a term that evaluates to [Some (f y)] if [x]
       evaluates to [Some y], or to [None] otherwise. *)
 
