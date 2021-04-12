@@ -6,7 +6,9 @@ let render_value = function
   | Error (`Msg m) -> span ~a:[a_class ["error"]] [txt m]
 
 let pp_duration f x =
-  Fmt.(pf f "%a" uint64_ns_span (Int64.of_float (x *. 1.e9)))
+  match x with
+  | 0. -> Fmt.string f "0"
+  | _ -> Fmt.(pf f "%a" uint64_ns_span (Int64.of_float (x *. 1.e9)))
 
 let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready; running; finished; outcome } =
   let job = Fmt.str "/job/%s" job_id in
