@@ -155,6 +155,9 @@ module Local = struct
       t.heads <- Ref_map.add gref i t.heads;
       i
 
+  let repo t =
+    t.repo
+
   let head t =
     Current.component "head" |>
     let> () = Current.return () in

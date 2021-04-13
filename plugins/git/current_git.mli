@@ -70,4 +70,6 @@ module Local : sig
   val commit_of_ref : t -> string -> Commit.t Current.t
   (** [commit_of_ref t gref] evaluates to the commit at the head of [gref].
       e.g. [commit_of_ref t "/refs/heads/master"] *)
+
+  val repo : t -> Fpath.t
 end
