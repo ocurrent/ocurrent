@@ -45,6 +45,19 @@ let limit_str len s =
   if String.length s <= len then s
   else String.sub s 0 (len - 3) ^ "..."
 
+
+let digraph f name =
+  let node_attrs = [
+    "shape", Some "box";
+  ]
+  in
+  Fmt.pf f "@[<v2>digraph %s {@,\
+              node%a@,\
+              rankdir=LR@,"
+    name
+    pp_options_attr_list node_attrs
+
+
 let node f ?style ?shape ?bg ?url ?tooltip i label =
   let url = Option.map fix_escaping url in
   let tooltip = Option.map (limit_str 4096) tooltip in (* (Graphviz max length is 16384) *)

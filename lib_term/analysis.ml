@@ -309,9 +309,7 @@ module Make (Meta : sig type t end) = struct
         seen := Id.Map.add t.id outputs !seen;
         outputs
     in
-    Fmt.pf f "@[<v2>digraph pipeline {@,\
-              node [shape=\"box\"]@,\
-              rankdir=LR@,";
+    Dot.digraph f "pipeline";
     let _ = aux (Term x) in
     flush_pending ();
     Fmt.pf f "}@]@."
