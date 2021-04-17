@@ -1,5 +1,7 @@
 (* Utilties for generating dot files. *)
 
+val digraph : Format.formatter -> string -> unit
+
 val node : Format.formatter -> ?style:string -> ?shape:string -> ?bg:string -> ?url:string -> ?tooltip:string -> int -> string -> unit
 val edge : Format.formatter -> ?style:string -> ?color:string -> int -> int -> unit
 val pp_option : (string * string) Fmt.t
