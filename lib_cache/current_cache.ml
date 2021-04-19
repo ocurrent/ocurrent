@@ -245,7 +245,9 @@ module Generic(Op : S.GENERIC) = struct
                   in
                   let outcome =
                     match Current.Job.cancelled_state op.job, outcome with
-                    | Error _cancelled, _ -> Error (`Msg "Cancelled")
+                    | Error (`Msg msg), _ ->
+                      Job.log job "%s" msg;
+                      Error (`Msg "Cancelled")
                     | Ok (), Ok _ -> Job.log job "Job succeeded"; outcome
                     | Ok (), Error (`Msg m) ->
                       Job.log job "Job failed: %s" m;
