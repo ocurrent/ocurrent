@@ -1,4 +1,5 @@
 module Db = Current.Db
+module Ops = Set.Make(String)
 
 let or_fail label x =
   match x with
@@ -16,7 +17,8 @@ type t = {
   drop : Sqlite3.stmt;
   lookup : Sqlite3.stmt;
   get_key : Sqlite3.stmt;
-  ops : Sqlite3.stmt;
+  add_op : Sqlite3.stmt;
+  mutable ops : Ops.t;
 }
 
 type entry = {
@@ -49,6 +51,7 @@ let db = lazy (
                    ON cache (job_id)" |> or_fail "create index";
   Sqlite3.exec db "CREATE INDEX IF NOT EXISTS cache_finish_time \
                    ON cache (finished)" |> or_fail "create index";
+  Sqlite3.exec db "CREATE TABLE IF NOT EXISTS ops AS SELECT DISTINCT op FROM cache" |> or_fail "create table ops";
   let record = Sqlite3.prepare db "INSERT OR REPLACE INTO cache \
                                    (op, key, job_id, value, ok, outcome, ready, running, finished, build) \
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" in
@@ -63,8 +66,16 @@ let db = lazy (
   let get_key = Sqlite3.prepare db "SELECT op, key FROM cache WHERE job_id = ? LIMIT 1" in
   let invalidate = Sqlite3.prepare db "UPDATE cache SET rebuild = 1 WHERE op = ? AND key = ?" in
   let drop = Sqlite3.prepare db "DELETE FROM cache WHERE op = ?" in
-  let ops = Sqlite3.prepare db "SELECT DISTINCT op FROM cache" in
-  { db; record; invalidate; drop; lookup; get_key; ops }
+  let add_op = Sqlite3.prepare db "INSERT OR IGNORE INTO ops (op) VALUES (?)" in
+  let ops =
+    let stmt = Sqlite3.prepare db "SELECT op FROM ops" in
+    Db.query stmt [] |> List.map (function
+        | Sqlite3.Data.[TEXT op] -> op
+        | row -> Fmt.failwith "Invalid ops result: %a" Current.Db.dump_row row
+      )
+    |> Ops.of_list
+  in
+  { db; record; invalidate; drop; lookup; get_key; ops; add_op }
 )
 
 let init () =
@@ -81,6 +92,10 @@ let record ~op ~key ~value ~job_id ~ready ~running ~finished ~build outcome =
     | Some time -> Sqlite3.Data.TEXT (format_timestamp time);
     | None -> Sqlite3.Data.NULL
   in
+  if not (Ops.mem op t.ops) then (
+    t.ops <- Ops.add op t.ops;
+    Db.exec t.add_op Sqlite3.Data.[ TEXT op ]
+  );
   Db.exec t.record Sqlite3.Data.[ TEXT op; BLOB key; TEXT job_id; BLOB value;
                                   INT ok; BLOB outcome;
                                   TEXT (format_timestamp ready);
@@ -129,9 +144,7 @@ let lookup_job_id job_id =
 
 let ops () =
   let t = Lazy.force db in
-  Db.query t.ops [] |> List.map @@ function
-  | Sqlite3.Data.[TEXT op] -> op
-  | row -> Fmt.failwith "Invalid ops result: %a" Current.Db.dump_row row
+  Ops.elements t.ops
 
 let drop_all op =
   let t = Lazy.force db in
