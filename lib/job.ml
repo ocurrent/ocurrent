@@ -96,7 +96,12 @@ let cancel t reason =
     Lwt.async (fun () ->
         Lwt.catch
           (fun () -> run_cancel_hooks ~reason hooks)
-          (fun ex -> Fmt.failwith "Uncaught exception from cancel hook for %S: %a" (id t) Fmt.exn ex)
+          (fun ex -> match ex with
+          | Unix.Unix_error(Unix.EPERM, "kill", _) ->
+            log t "cancel(%S, %S): permission denied when killing child process (job has used sudo?)" (id t) reason;
+            Lwt.return_unit
+          | _ ->
+            Fmt.failwith "Uncaught exception from cancel hook for %S: %a" (id t) Fmt.exn ex)
       )
 
 
