@@ -103,11 +103,13 @@ let r ~engine = object
     let ops = Db.ops () in
     let jobs = (Current.Engine.state engine).jobs in
     let need_toggles = have_active_jobs ~jobs results in
-    let rebuild_form =
-      if need_toggles then [
-        input ~a:[a_input_type `Hidden; a_value (Context.csrf ctx); a_name "csrf"] ();
-        input ~a:[a_input_type `Submit; a_value "Rebuild selected"] ();
-      ] else []
+    let rebuild_form ~csrf =
+      if need_toggles then
+        let r = [input ~a:[a_input_type `Submit; a_value "Rebuild selected"] ()] in
+        if csrf then
+          input ~a:[a_input_type `Hidden; a_value (Context.csrf ctx); a_name "csrf"] () :: r
+        else r
+      else []
     in
     let headings = [
       th [txt "Job"];
@@ -133,10 +135,11 @@ let r ~engine = object
           ];
       ];
       form ~a:[a_action "/query"; a_method `Post] (
+        rebuild_form ~csrf:true @
         table ~a:[a_class ["table"]]
           ~thead:(thead [tr headings])
           (List.map (render_row ~jobs ~need_toggles) results) ::
-        rebuild_form;
+        rebuild_form ~csrf:false;
       )
     ]
 
