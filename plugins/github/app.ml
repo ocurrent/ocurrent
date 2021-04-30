@@ -182,6 +182,7 @@ let make_config app_id private_key_file allowlist =
       let t = { app_id; key; allowlist; installations } in
       Lwt.async (monitor_installations t);
       t
+    | Ok _ -> Fmt.failwith "Unsupported private key type" [@@warning "-11"]
 
 open Cmdliner
 
