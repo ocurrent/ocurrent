@@ -76,6 +76,7 @@ let read_intermediates ~params start =
     | Some (x, s2) when is_final_byte x -> (
         let func = Stream.(start -- s2 |> string_of_span) in
         let params = Astring.String.cuts ~sep:";" params in
+        let params = List.concat_map (Astring.String.cuts ~sep:":") params in
         try `Escape (`Ctrl (parse_ctrl ~params func), s2)
         with Unknown_escape -> `Invalid s2 )
     | Some _ -> `Invalid s
