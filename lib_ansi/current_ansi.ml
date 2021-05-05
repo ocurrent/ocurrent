@@ -4,14 +4,14 @@ open Astring
 
 let max_escape_length = 20
 
-type gfx_state = { bold : bool; fg : string option; bg : string option }
+type gfx_state = { bold : bool; fg : string option; bg : string option; reversed : bool }
 
 type t = {
   mutable gfx_state : gfx_state;
   mutable buf : string;
 }
 
-let default_gfx_state = { bold = false; fg = None; bg = None }
+let default_gfx_state = { bold = false; fg = None; bg = None; reversed = false }
 
 let format_colour = function
   | `Default -> None
@@ -29,7 +29,9 @@ let apply_ctrl state = function
   | `NoBold -> { state with bold = false }
   | `FgCol c -> { state with fg = format_colour c }
   | `BgCol c -> { state with bg = format_colour c }
-  | `Italic | `NoItalic | `NoReverse | `NoUnderline | `Reverse | `Underline ->
+  | `Reverse -> { state with reversed = true }
+  | `NoReverse -> { state with reversed = false }
+  | `Italic | `NoItalic | `NoUnderline | `Underline ->
       state
   | `Reset -> default_gfx_state
 
@@ -37,8 +39,9 @@ let pp_style = Fmt.(list ~sep:(const string " ")) Fmt.string
 
 let with_style s txt =
   match s with
-  | { bold = false; fg = None; bg = None } -> txt
-  | { bold; fg; bg } ->
+  | { bold = false; fg = None; bg = None; _ } -> txt
+  | { bold; fg; bg; reversed } ->
+      let bg, fg = if reversed then fg, bg else bg, fg in
       let cl ty = function
         | None when bold && ty = "fg" -> [ "fg-bright-white" ]
         | Some c when bold && ty = "fg" -> [ Printf.sprintf "fg-bright-%s" c ]
