@@ -1,10 +1,10 @@
 type colour =
-  [ `Black | `Blue | `Cyan | `Green | `Magenta | `Red | `White | `Yellow ]
+  [ `Default | `Black | `Blue | `Cyan | `Green | `Magenta | `Red | `White | `Yellow | `Rgb of int ]
 
 type sgr =
-  [ `BgCol of [ `Default | colour ]
+  [ `BgCol of colour
   | `Bold
-  | `FgCol of [ `Default | colour ]
+  | `FgCol of colour
   | `Italic
   | `NoBold
   | `NoItalic

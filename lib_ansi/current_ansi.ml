@@ -4,17 +4,22 @@ open Astring
 
 let max_escape_length = 20
 
-type gfx_state = { bold : bool; fg : string option; bg : string option; reversed : bool }
+type gfx_state = {
+  bold : bool;
+  fg : Escape_parser.colour;
+  bg : Escape_parser.colour;
+  reversed : bool;
+}
 
 type t = {
   mutable gfx_state : gfx_state;
   mutable buf : string;
 }
 
-let default_gfx_state = { bold = false; fg = None; bg = None; reversed = false }
+let default_gfx_state = { bold = false; fg = `Default; bg = `Default; reversed = false }
 
-let format_colour = function
-  | `Default -> None
+let name_of_colour = function
+  | `Default | `Rgb _ -> None
   | `Black -> Some "black"
   | `Blue -> Some "blue"
   | `Cyan -> Some "cyan"
@@ -27,19 +32,23 @@ let format_colour = function
 let apply_ctrl state = function
   | `Bold -> { state with bold = true }
   | `NoBold -> { state with bold = false }
-  | `FgCol c -> { state with fg = format_colour c }
-  | `BgCol c -> { state with bg = format_colour c }
+  | `FgCol fg -> { state with fg }
+  | `BgCol bg -> { state with bg }
   | `Reverse -> { state with reversed = true }
   | `NoReverse -> { state with reversed = false }
   | `Italic | `NoItalic | `NoUnderline | `Underline ->
       state
   | `Reset -> default_gfx_state
 
-let pp_style = Fmt.(list ~sep:(const string " ")) Fmt.string
+let pp_attr attr ~sep f = function
+  | [] -> ()
+  | cls -> Fmt.(pf f " %s='%a'" attr (list ~sep string) cls)
+let pp_class = pp_attr "class" ~sep:Fmt.(const string " ")
+let pp_style = pp_attr "style" ~sep:Fmt.(const string "; ")
 
 let with_style s txt =
   match s with
-  | { bold = false; fg = None; bg = None; _ } -> txt
+  | { bold = false; fg = `Default; bg = `Default; _ } -> txt
   | { bold; fg; bg; reversed } ->
       let bg, fg = if reversed then fg, bg else bg, fg in
       let cl ty = function
@@ -48,10 +57,16 @@ let with_style s txt =
         | Some c -> [ Printf.sprintf "%s-%s" ty c ]
         | None -> []
       in
-      let style = if bold then [ "bold" ] else [] in
-      let style = cl "fg" fg @ style in
-      let style = cl "bg" bg @ style in
-      Fmt.str "<span class='%a'>%s</span>" pp_style style txt
+      let cls = if bold then [ "bold" ] else [] in
+      let cls = cl "fg" (name_of_colour fg) @ cls in
+      let cls = cl "bg" (name_of_colour bg) @ cls in
+      let style = function
+        | (`Rgb x, `Fg) -> [ Printf.sprintf "color: #%06x" x ]
+        | (`Rgb x, `Bg) -> [ Printf.sprintf "background-color: #%06x" x ]
+        | _ -> []
+      in
+      let style = style (fg, `Fg) @ style (bg, `Bg) in
+      Fmt.str "<span%a%a>%s</span>" pp_class cls pp_style style txt
 
 let create () = { gfx_state = default_gfx_state; buf = "" }
 

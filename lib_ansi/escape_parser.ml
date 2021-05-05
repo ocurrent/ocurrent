@@ -1,12 +1,12 @@
 module Stream = Char_stream
 
 type colour =
-  [ `Black | `Blue | `Cyan | `Green | `Magenta | `Red | `White | `Yellow ]
+  [ `Default | `Black | `Blue | `Cyan | `Green | `Magenta | `Red | `White | `Yellow | `Rgb of int ]
 
 type sgr =
-  [ `BgCol of [ `Default | colour ]
+  [ `BgCol of colour
   | `Bold
-  | `FgCol of [ `Default | colour ]
+  | `FgCol of colour
   | `Italic
   | `NoBold
   | `NoItalic
@@ -44,28 +44,44 @@ let colour = function
   | _ -> raise Unknown_escape
 
 let sgr = function
-  | "" -> `Reset
-  | x -> (
-    match int_of_string x with
-    | exception _ -> raise Unknown_escape
-    | 0 -> `Reset
-    | 1 -> `Bold
-    | 3 -> `Italic
-    | 4 -> `Underline
-    | 7 -> `Reverse
-    | 22 -> `NoBold
-    | 23 -> `NoItalic
-    | 24 -> `NoUnderline
-    | 27 -> `NoReverse
-    | x when x >= 30 && x <= 37 -> `FgCol (colour (x - 30))
-    | x when x >= 90 && x <= 97 -> `FgCol (colour (x - 90)) (* Non-standard "bright" fg colour *)
-    | 39 -> `FgCol `Default
-    | x when x >= 40 && x <= 47 -> `BgCol (colour (x - 40))
-    | 49 -> `BgCol `Default
-    | _ -> raise Unknown_escape )
+  | 0 -> `Reset
+  | 1 -> `Bold
+  | 3 -> `Italic
+  | 4 -> `Underline
+  | 7 -> `Reverse
+  | 22 -> `NoBold
+  | 23 -> `NoItalic
+  | 24 -> `NoUnderline
+  | 27 -> `NoReverse
+  | x when x >= 30 && x <= 37 -> `FgCol (colour (x - 30))
+  | x when x >= 90 && x <= 97 -> `FgCol (colour (x - 90)) (* Non-standard "bright" fg colour *)
+  | 39 -> `FgCol `Default
+  | x when x >= 40 && x <= 47 -> `BgCol (colour (x - 40))
+  | 49 -> `BgCol `Default
+  | _ -> raise Unknown_escape
+
+let sgrs params =
+  match params with
+  | "" :: _ -> [ `Reset ]
+  | _ ->
+    match List.map int_of_string params with
+    | exception Failure _ ->
+      raise Unknown_escape
+    | params ->
+      let rgb r g b = `Rgb (r lsl 16 lor g lsl 8 lor b) in
+      let rec go = function
+        | 38 :: 2 :: r :: g :: b :: rest ->
+          `FgCol (rgb r g b) :: go rest
+        | 48 :: 2 :: r :: g :: b :: rest ->
+          `BgCol (rgb r g b) :: go rest
+        | n :: rest ->
+          sgr n :: go rest
+        | [] -> []
+      in
+      go params
 
 let parse_ctrl ~params = function
-  | "m" -> `SelectGraphicRendition (List.map sgr params)
+  | "m" -> `SelectGraphicRendition (sgrs params)
   | _ -> raise Unknown_escape
 
 let read_intermediates ~params start =
