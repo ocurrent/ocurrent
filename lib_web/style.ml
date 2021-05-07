@@ -73,12 +73,23 @@ let css = {|
   table.table {
     border: 1px solid black;
     padding: 0;
+    border-collapse: collapse;
   }
 
   table.table th {
     background: #888;
     color: white;
     padding: 0.1em;
+  }
+
+  table.table tr td {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+    border: 1px solid black;
+  }
+
+  table.table tr:nth-child(even) {
+    background-color: gainsboro;
   }
 
   form {

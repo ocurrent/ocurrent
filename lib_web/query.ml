@@ -32,7 +32,7 @@ let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready
   if need_toggles then (
     let toggle =
       if Current.Job.Map.mem job_id jobs then
-        [input ~a:[a_input_type `Checkbox; a_name "id"; a_value job_id] ()]
+        [input ~a:[a_input_type `Checkbox; a_name "id"; a_value job_id; a_autocomplete false] ()]
       else
         []
     in
@@ -103,11 +103,10 @@ let r ~engine = object
     let ops = Db.ops () in
     let jobs = (Current.Engine.state engine).jobs in
     let need_toggles = have_active_jobs ~jobs results in
-    let rebuild_form =
-      if need_toggles then [
-        input ~a:[a_input_type `Hidden; a_value (Context.csrf ctx); a_name "csrf"] ();
-        input ~a:[a_input_type `Submit; a_value "Rebuild selected"] ();
-      ] else []
+    let rebuild_selected_button =
+      if need_toggles then
+        [input ~a:[a_input_type `Submit; a_value "Rebuild selected"] ()]
+      else []
     in
     let headings = [
       th [txt "Job"];
@@ -117,7 +116,11 @@ let r ~engine = object
       th [txt "Finished"];
       th [txt "Queue/run time"];
     ] in
-    let headings = if need_toggles then th [] :: headings else headings in
+    let headings =
+      if need_toggles then
+        let js = {|var e=document.getElementById('select-all'),c=document.getElementsByName('id');for(var i=0,n=c.length;i<n;i++)c[i].checked=e.checked|} in
+        th [input ~a:[a_input_type `Checkbox; a_id "select-all"; a_autocomplete false; a_onclick js] ()] :: headings
+      else headings in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
         ul ~a:[a_class ["query-form"]] [
@@ -129,10 +132,12 @@ let r ~engine = object
           ];
       ];
       form ~a:[a_action "/query"; a_method `Post] (
+        input ~a:[a_input_type `Hidden; a_value (Context.csrf ctx); a_name "csrf"] () ::
+        rebuild_selected_button @
         table ~a:[a_class ["table"]]
           ~thead:(thead [tr headings])
           (List.map (render_row ~jobs ~need_toggles) results) ::
-        rebuild_form;
+        rebuild_selected_button
       )
     ]
 
