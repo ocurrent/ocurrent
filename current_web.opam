@@ -12,7 +12,7 @@ homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "current" {= version}
-  "current_ansi" {= version}
+  "current_ansi" {>= "0.4"}
   "ocaml" {>= "4.08.0"}
   "ppx_deriving_yojson" {>= "3.5.1"}
   "base64"
