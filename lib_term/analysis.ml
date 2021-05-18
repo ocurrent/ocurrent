@@ -167,8 +167,22 @@ module Make (Meta : sig type t end) = struct
           | Error (_, `Msg msg) when error_from_self -> Some msg
           | _ -> None
         in
-        let node ?(bg=bg) ?url =
-          Dot.node ~style:"filled" ~bg ?tooltip ?url f in
+        let node ?(bg=bg) ?url ?shape idx label =
+          (* Add a marker to the node if it is for a job (i.e. can be clicked
+             through to reach a build log. *)
+          let suffix =
+            match url with
+            | None -> ""
+            | Some _ -> begin
+              match v with
+              | Ok _ -> " &#x2714;" (* Checkmark *)
+              | Error _ when not error_from_self -> "" (* Blocked *)
+              | Error (_, `Active _) -> " &#x2026;" (* Ellipsis *)
+              | Error (_, `Msg _) when error_from_self -> " &#x2717;" (* Cross *)
+              | _ -> ""
+              end
+          in
+          Dot.node ~style:"filled" ?shape ~bg ?tooltip ?url f idx (label ^ suffix) in
         let outputs =
           match t.ty with
           | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx i
