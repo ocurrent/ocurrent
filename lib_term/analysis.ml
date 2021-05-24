@@ -114,6 +114,7 @@ module Make (Meta : sig type t end) = struct
   end
 
   let colour_of_activity = function
+    | `Waiting_for_confirmation -> "#4975ff"
     | `Ready -> "#ffff00"
     | `Running -> "#ffa500"
 
@@ -319,6 +320,7 @@ module Make (Meta : sig type t end) = struct
     let seen : Out_node.t Id.Map.t ref = ref Id.Map.empty in
     let next = ref 0 in
     let ok = ref 0 in
+    let waiting_for_confirmation = ref 0 in
     let ready = ref 0 in
     let running = ref 0 in
     let failed = ref 0 in
@@ -344,6 +346,7 @@ module Make (Meta : sig type t end) = struct
           match v with
           | Ok _ -> incr ok
           | _ when not error_from_self -> incr blocked
+          | Error (_, `Active `Waiting_for_confirmation) -> incr waiting_for_confirmation
           | Error (_, `Active `Ready) -> incr ready
           | Error (_, `Active `Running) -> incr running
           | Error (_, `Msg _) -> incr failed
@@ -425,5 +428,12 @@ module Make (Meta : sig type t end) = struct
         outputs
     in
     ignore (aux (Term x));
-    { S.ok = !ok; ready = !ready; running = !running; failed = !failed; blocked = !blocked  }
+    {
+      S.ok = !ok;
+      waiting_for_confirmation = !waiting_for_confirmation;
+      ready = !ready;
+      running = !running;
+      failed = !failed;
+      blocked = !blocked;
+    }
 end

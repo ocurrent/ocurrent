@@ -469,7 +469,13 @@ module Generic(Op : S.GENERIC) = struct
         | `Active (op, latched) ->
           let a =
             let started = Job.start_time op.job in
-            if Lwt.state started = Lwt.Sleep then `Ready else `Running
+            if Lwt.state started = Lwt.Sleep then
+              if Job.is_waiting_for_confirmation op.job then
+                `Waiting_for_confirmation
+              else
+                `Ready
+            else
+              `Running
           in
           match latched with
           | None -> Error (`Active a), None
