@@ -23,6 +23,12 @@ let pp_options_stmts f options =
   let options = filtered_options options in
   Fmt.pf f "%a" (pp_options ~sep:(Fmt.any ";")) options
 
+let pp_options_attr_stmt keyword f options =
+  let f_options = filtered_options options in
+  match f_options with
+  | [] -> ()
+  | _ -> Fmt.pf f "%s%a@," keyword pp_options_attr_list options
+
 
 (* Graphviz generates invalid XML if the URL contains an ampersand. *)
 let fix_escaping s =
@@ -46,16 +52,20 @@ let limit_str len s =
   else String.sub s 0 (len - 3) ^ "..."
 
 
-let digraph f name =
-  let node_attrs = [
+let digraph f ?fontname name =
+  let base_attrs = [
+    "fontname", fontname;
+  ]
+  in
+  let node_attrs = base_attrs @ [
     "shape", Some "box";
   ]
   in
-  Fmt.pf f "@[<v2>digraph %s {@,\
-              node%a@,\
-              rankdir=LR@,"
+  Fmt.pf f "@[<v2>digraph %s {@,%a%a%arankdir=LR@,"
     name
-    pp_options_attr_list node_attrs
+    (pp_options_attr_stmt "graph") base_attrs
+    (pp_options_attr_stmt "node") node_attrs
+    (pp_options_attr_stmt "edge") base_attrs
 
 
 let node f ?style ?shape ?bg ?url ?tooltip i label =
@@ -63,6 +73,7 @@ let node f ?style ?shape ?bg ?url ?tooltip i label =
   let tooltip = Option.map (limit_str 4096) tooltip in (* (Graphviz max length is 16384) *)
   let attrs = [
     "label", Some label;
+    "color", bg;
     "fillcolor", bg;
     "style", style;
     "shape", shape;
