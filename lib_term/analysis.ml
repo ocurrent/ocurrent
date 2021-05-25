@@ -295,7 +295,7 @@ module Make (Meta : sig type t end) = struct
         seen := Id.Map.add t.id outputs !seen;
         outputs
     in
-    Dot.digraph f "pipeline";
+    Dot.digraph f ~fontname:"Roboto,sans-serif" "pipeline";
     let _ = aux (Term x) in
     flush_pending ();
     Fmt.pf f "}@]@."

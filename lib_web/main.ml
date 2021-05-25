@@ -17,7 +17,7 @@ let settings ctx config =
     option ~a:(a_value s :: sel) (txt msg)
   in
   let csrf = Context.csrf ctx in
-  form ~a:[a_action "/set/confirm"; a_method `Post] [
+  form ~a:[a_action "/set/confirm"; a_method `Post; a_class ["settings-form"]] [
     select ~a:[a_name "level"] (
       let sel = if selected = None then [a_selected ()] else [] in
       option ~a:(a_value "none" :: sel) (txt "No confirmation required") :: List.rev levels

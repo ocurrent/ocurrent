@@ -1,19 +1,21 @@
 digraph pipeline {
-  node [shape="box"]
+  graph [fontname="Roboto,sans-serif"]
+  node [fontname="Roboto,sans-serif",shape="box"]
+  edge [fontname="Roboto,sans-serif"]
   rankdir=LR
-  n3 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n2 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n9 [label="head",fillcolor="#90ee90",style="filled"]
-  n8 [label="fetch",fillcolor="#ffa500",style="filled"]
-  n7 [label="build",fillcolor="#d3d3d3",style="filled"]
-  n6 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
-  n10 [label="get-revdeps",fillcolor="#d3d3d3",style="filled"]
-  n5 [label="",fillcolor="#d3d3d3",style="filled",shape="circle"]
+  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n9 [label="head",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n8 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled"]
+  n7 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n6 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n10 [label="get-revdeps",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n5 [label="",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",shape="circle"]
   subgraph cluster_4 {label=""
-  n15 [label="(each item)",fillcolor="#d3d3d3",style="filled"]
-  n14 [label="fetch",fillcolor="#d3d3d3",style="filled"]
-  n13 [label="build",fillcolor="#d3d3d3",style="filled"]
-  n12 [label="docker run make test",fillcolor="#d3d3d3",style="filled"]
+  n15 [label="(each item)",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n14 [label="fetch",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n13 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n12 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
   }
   n13 -> n12
   n14 -> n13

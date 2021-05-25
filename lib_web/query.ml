@@ -17,7 +17,7 @@ let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready
     | None ->
       Fmt.str "%a queued" pp_duration (finished -. ready)
     | Some running ->
-      Fmt.str "%a/%a"
+      Fmt.str "%a\u{202f}/\u{2009}%a"
         pp_duration (running -. ready)
         pp_duration (finished -. running)
   in
@@ -110,11 +110,11 @@ let r ~engine = object
     in
     let headings = [
       th [txt "Job"];
-      th [txt "Build #"];
+      th [txt "Build\u{a0}#"];
       th [txt "Result"];
       th [txt "Rebuild?"];
       th [txt "Finished"];
-      th [txt "Queue/run time"];
+      th [txt "Queue\u{202f}/\u{2009}run time"];
     ] in
     let headings =
       if need_toggles then
