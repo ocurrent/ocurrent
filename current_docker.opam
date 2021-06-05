@@ -15,7 +15,7 @@ depends: [
   "current" {= version}
   "current_git" {= version}
   "ocaml" {>= "4.08.0"}
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "ppx_deriving"
   "lwt"
   "dockerfile"

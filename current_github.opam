@@ -16,7 +16,7 @@ depends: [
   "current_git" {= version}
   "current_web" {= version}
   "ocaml" {>= "4.08.0"}
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "lwt"
   "duration"
   "ptime"

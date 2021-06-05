@@ -19,7 +19,7 @@ bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
   "current_incr" {= version}
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "bos"
   "ppx_deriving"
   "lwt"

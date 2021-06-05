@@ -20,7 +20,7 @@ depends: [
   "session-cohttp-lwt"
   "mirage-crypto" {>= "0.8.7"}
   "mirage-crypto-rng"
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "bos"
   "lwt"
   "cmdliner"
