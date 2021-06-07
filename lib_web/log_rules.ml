@@ -102,7 +102,7 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
   end >>= fun test_results ->
   let csrf = Context.csrf ctx in
   Context.respond_ok ctx (message @ [
-      form ~a:[a_action "/log-rules"; a_method `Post] [
+      form ~a:[a_action "/log-rules"; a_method `Post; a_class ["log-rules"]] [
         table ~a:[a_class ["table"; "log-rules"]]
           ~thead:(thead [
               tr [

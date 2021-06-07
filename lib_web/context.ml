@@ -2,6 +2,14 @@ open Lwt.Infix
 
 let cookie_key = "__session"
 
+let img_dashboard_logo = "/images/dashboard-logo.png"
+
+let fonts =
+  [
+    "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=block";
+    "https://fonts.googleapis.com/css2?family=Roboto+Mono&display=block";
+  ]
+
 type t = {
   site : Site.t;
   session : Site.Sess.t;
@@ -65,23 +73,27 @@ let logout_form t user =
 
 let render_nav_link (link_label, path) =
   let open Tyxml.Html in
-  li [a ~a:[a_href path] [txt link_label]]
+  li [a ~a:[a_href path; a_class ["nav-menu-option"]] [txt link_label]]
 
 let template t contents =
   let site = t.site in
   let open Tyxml.Html in
   html_to_string (
     html
-      (head (title (txt site.name)) [
+      (head (title (txt site.name))
+        ((List.map (fun font -> link ~rel:[ `Stylesheet ] ~href:font ()) fonts)
+        @ [
           link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
-          meta ~a:[a_charset "UTF-8"] ();
-        ]
+          link ~rel:[ `Icon ] ~href:img_dashboard_logo ();
+          meta ~a:[ a_charset "UTF-8" ] ();
+        ])
       )
       (body [
           nav [
+            a ~a:[a_href "/"] [img ~alt:"" ~src:img_dashboard_logo ~a:[ a_height 29 ] ()];
+            div ~a:[a_class ["site-name"]] [txt site.name];
             ul (
-              li [a ~a:[a_href "/"] [txt site.name]] ::
-              li [a ~a:[a_href "/"] [txt "Home"]] ::
+              li [a ~a:[a_href "/"; a_class ["nav-menu-option"]] [txt "Home"]] ::
               List.map render_nav_link site.nav_links
             );
             ul ~a:[a_class ["right"]] (
@@ -91,7 +103,7 @@ let template t contents =
                 match t.user with
                 | None ->
                   let uri = login_uri ~csrf:(csrf t) in
-                  [li [a ~a:[a_href (Uri.to_string uri)] [txt "Log in"]]]
+                  [li [a ~a:[a_href (Uri.to_string uri); a_class ["nav-menu-option"]] [txt "Log in"]]]
                 | Some user -> logout_form t user
             )
           ];

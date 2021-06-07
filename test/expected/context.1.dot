@@ -1,11 +1,13 @@
 digraph pipeline {
-  node [shape="box"]
+  graph [fontname="Roboto,sans-serif"]
+  node [fontname="Roboto,sans-serif",shape="box"]
+  edge [fontname="Roboto,sans-serif"]
   rankdir=LR
-  n5 [label="current-test",fillcolor="#90ee90",style="filled"]
-  n4 [label="choose pipeline",fillcolor="#90ee90",style="filled"]
-  n6 [label="a",fillcolor="#90ee90",style="filled"]
-  n7 [label="b",fillcolor="#90ee90",style="filled"]
-  n1 [label="c",fillcolor="#90ee90",style="filled"]
+  n5 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n4 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n6 [label="a",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n7 [label="b",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n1 [label="c",color="#90ee90",fillcolor="#90ee90",style="filled"]
   n7 -> n1
   n6 -> n1
   n4 -> n1
