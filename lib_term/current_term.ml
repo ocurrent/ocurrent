@@ -15,6 +15,7 @@ module Make (Metadata : sig type t end) = struct
     let v =
       ref { S.
             ok = 0;
+            waiting_for_confirmation = 0;
             ready = 0;
             running = 0;
             failed = 0;
@@ -26,6 +27,7 @@ module Make (Metadata : sig type t end) = struct
     let total = ref 0
 
     let dec_ok ()      = v := { !v with ok = !v.ok - 1 }
+    let dec_waiting_for_confirmation () = v := { !v with waiting_for_confirmation = !v.waiting_for_confirmation - 1 }
     let dec_ready ()   = v := { !v with ready = !v.ready - 1 }
     let dec_running () = v := { !v with running = !v.running - 1 }
     let dec_failed ()  = v := { !v with failed = !v.failed - 1 }
@@ -33,6 +35,7 @@ module Make (Metadata : sig type t end) = struct
     let update ~id : _ Dyn.t -> unit = function
       | Ok _                        -> v := { !v with ok = !v.ok + 1 }; Current_incr.on_release dec_ok
       | Error (src, _) when not (Id.equal src id) -> ()
+      | Error (_, `Active `Waiting_for_confirmation) -> v := { !v with waiting_for_confirmation = !v.waiting_for_confirmation + 1 }; Current_incr.on_release dec_waiting_for_confirmation
       | Error (_, `Active `Ready)   -> v := { !v with ready = !v.ready + 1 }; Current_incr.on_release dec_ready
       | Error (_, `Active `Running) -> v := { !v with running = !v.running + 1 }; Current_incr.on_release dec_running
       | Error (_, `Msg _)           -> v := { !v with failed = !v.failed + 1 }; Current_incr.on_release dec_failed

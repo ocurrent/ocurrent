@@ -52,6 +52,7 @@ let run = strip_id
 
 let pp ok f = function
   | Ok x -> ok f x
+  | Error (_, `Active `Waiting_for_confirmation) -> Fmt.string f "(waiting for confirmation)"
   | Error (_, `Active `Ready) -> Fmt.string f "(ready)"
   | Error (_, `Active `Running) -> Fmt.string f "(running)"
   | Error (_, `Msg m) -> Fmt.pf f "FAILED: %s" m
