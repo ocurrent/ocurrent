@@ -4,8 +4,6 @@
    astring
    base64
    cmdliner
-   cohttp
-   cohttp-lwt
    cohttp-lwt-unix
    cstruct
    current

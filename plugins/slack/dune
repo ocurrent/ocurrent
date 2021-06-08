@@ -2,8 +2,6 @@
  (public_name current_slack)
  (name current_slack)
  (libraries
-   cohttp
-   cohttp-lwt
    cohttp-lwt-unix
    current
    current.cache
