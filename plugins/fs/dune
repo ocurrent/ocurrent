@@ -5,8 +5,12 @@
    bos
    current
    current.term
+   current.cache
    current_incr
    fmt
    fpath
    logs
+   irmin-watcher
+   lwt
+   lwt.unix
    result))

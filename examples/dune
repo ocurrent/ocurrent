@@ -7,7 +7,8 @@
                github
                github_app
                rpc_server
-               rpc_client)
+               rpc_client
+               filesync)
  (package current_examples)
  (libraries
    capnp-rpc
