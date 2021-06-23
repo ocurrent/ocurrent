@@ -21,7 +21,7 @@ depends: [
   "duration"
   "ptime"
   "yojson"
-  "cohttp-lwt-unix" {< "3.0.0"}
+  "cohttp-lwt-unix" {>= "4.0.0"}
   "mirage-crypto"
   "mirage-crypto-pk"
   "x509" {>= "0.10.0"}
@@ -30,8 +30,6 @@ depends: [
   "astring" {>= "0.8.5"}
   "base64" {>= "3.4.0"}
   "cmdliner" {>= "1.0.4"}
-  "cohttp" {>= "2.5.4"}
-  "cohttp-lwt" {>= "2.5.4"}
   "cstruct" {>= "5.2.0"}
   "logs" {>= "0.7.0"}
   "ppx_deriving_yojson" {>= "3.6.1"}
