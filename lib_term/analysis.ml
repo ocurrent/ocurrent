@@ -34,8 +34,8 @@ module Make (Meta : sig type t end) = struct
         | Primitive {x; info; meta = _ } -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
-        | List_map { items; output } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux (Current_incr.observe output)
-        | Option_map { item; output } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux (Current_incr.observe output)
+        | List_map { items; output; label = _ } -> Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux (Current_incr.observe output)
+        | Option_map { item; output; label = _ } -> Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux (Current_incr.observe output)
         | State x -> Fmt.pf f "state(@[%a@])" aux x.source
         | Catch x -> Fmt.pf f "catch(@[%a@])" aux x.source
         | Map x -> aux f x
@@ -268,15 +268,15 @@ module Make (Meta : sig type t end) = struct
               | _ ->
                 aux x
             end
-          | List_map { items; output } ->
+          | List_map { items; output; label } ->
             ignore (aux items);
-            Dot.begin_cluster f i;
+            Dot.begin_cluster f ?label i;
             let outputs = aux (Current_incr.observe output) in
             Dot.end_cluster f;
             outputs
-          | Option_map { item; output } ->
+          | Option_map { item; output; label } ->
             ignore (aux item);
-            Dot.begin_cluster f i;
+            Dot.begin_cluster f ?label i;
             Dot.pp_option f ("style", "dotted");
             let outputs = aux (Current_incr.observe output) in
             Dot.end_cluster f;
@@ -400,10 +400,10 @@ module Make (Meta : sig type t end) = struct
               | _ ->
                 aux x
             end
-          | List_map { items; output } ->
+          | List_map { items; output; label = _ } ->
             ignore (aux items);
             aux (Current_incr.observe output)
-          | Option_map { item; output } ->
+          | Option_map { item; output; label = _ } ->
             ignore (aux item);
             aux (Current_incr.observe output)
           | Collapse x ->
