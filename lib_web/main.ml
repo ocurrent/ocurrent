@@ -36,7 +36,7 @@ let r ~engine = object
     let config = Current.Engine.config engine in
     let { Current.Engine.value; jobs = _ } = Current.Engine.state engine in
     let path = "/pipeline.svg?" ^ (Option.value (Uri.verbatim_query uri) ~default:"") in
-    Context.respond_ok ctx [
+    Context.respond_ok ctx ~refresh:60 [
       div [
         object_ ~a:[a_data path] [txt "Pipeline diagram"];
       ];

@@ -67,15 +67,20 @@ let render_nav_link (link_label, path) =
   let open Tyxml.Html in
   li [a ~a:[a_href path] [txt link_label]]
 
-let template t contents =
+let template t ?refresh contents =
   let site = t.site in
   let open Tyxml.Html in
   html_to_string (
     html
-      (head (title (txt site.name)) [
-          link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
-          meta ~a:[a_charset "UTF-8"] ();
-        ]
+      (head (title (txt site.name)) (
+          let tags = [
+            link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
+            meta ~a:[a_charset "UTF-8"] ();
+          ] in
+          match refresh with
+          | Some refresh -> meta ~a:[a_http_equiv "refresh"; a_content (string_of_int refresh)] () :: tags
+          | None -> tags
+          )
       )
       (body [
           nav [
@@ -100,8 +105,8 @@ let template t contents =
       )
   )
 
-let respond_ok t body =
-  let body = template t body in
+let respond_ok t ?refresh body =
+  let body = template t ?refresh body in
   Utils.Server.respond_string ~headers:(headers t) ~status:`OK ~body ()
 
 let respond_redirect t uri =
