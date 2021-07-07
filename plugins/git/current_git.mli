@@ -40,7 +40,8 @@ module Commit : sig
 end
 
 val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commit.t Current.t
-(** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master"). *)
+(** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: make 
+    use of `git ls-remote` to get the remote's default branch). *)
 
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
