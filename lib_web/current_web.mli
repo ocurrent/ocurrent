@@ -69,8 +69,9 @@ module Context : sig
   (** [set_user t user] records a successful login by [user] and redirects the
       user back to the page they came from. *)
 
-  val respond_ok : t -> [< Html_types.div_content_fun ] Tyxml.Html.elt list -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-  (** [respond_ok ctx content] returns a successful page with [content] inserted into the site template. *)
+  val respond_ok : t -> ?refresh:int -> [< Html_types.div_content_fun ] Tyxml.Html.elt list -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+  (** [respond_ok ctx refresh content] returns a successful page with [content] inserted into the site template.
+    If [refresh] is [Some s], the page is refreshed every [s] seconds. *)
 
   val respond_redirect : t -> Uri.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
   (** [respond_redirect ctx uri] redirects the user to [uri]. *)
