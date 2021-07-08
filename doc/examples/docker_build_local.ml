@@ -1,41 +1,23 @@
-let program_name = "build_matrix"
-
-open Current.Syntax
+let program_name = "docker_build_local"
 
 module Git = Current_git
 module Docker = Current_docker.Default
 
+let pull = false    (* Whether to check for updates using "docker build --pull" *)
+
+let timeout = Duration.of_min 50    (* Max build time *)
+
 let () = Prometheus_unix.Logging.init ()
 
-let dockerfile ~base ~ocaml_version =
-  let open Dockerfile in
-  from (Docker.Image.hash base) @@
-  run "opam switch %s" ocaml_version @@
-  workdir "/src" @@
-  add ~src:["*.opam"] ~dst:"/src/" () @@
-  env ["OPAMERRLOGLEN", "0"] @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
-  copy ~src:["."] ~dst:"/src/" () @@
-  run "opam install -tv ."
-
-let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
-
+(* included in doc/example_pipelines.md as code snippet *)
+[@@@part "pipeline"]
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
-  let build ocaml_version =
-    let base = Docker.pull ~schedule:weekly ("ocaml/opam:debian-ocaml-" ^ ocaml_version) in
-    let dockerfile =
-      let+ base = base in
-      `Contents (dockerfile ~base ~ocaml_version)
-    in
-    Docker.build ~label:ocaml_version ~pull:false ~dockerfile (`Git src) |>
-    Docker.tag ~tag:(Fmt.str "example-%s" ocaml_version)
-  in
-  Current.all [
-    build "4.10";
-    build "4.11"
-  ]
+  let image = Docker.build ~pull ~timeout (`Git src) in
+  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
+
+[@@@part "end-pipeline"]
 
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
