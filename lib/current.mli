@@ -374,6 +374,15 @@ module Process : sig
       @param pp_error_command Format the command for an error message.
         The default is to print "Command $cmd". *)
 
+  val exec_with :
+    ?cwd:Fpath.t ->
+    ?pp_error_command:(Format.formatter -> unit) ->
+    cancellable:bool -> job:Job.t -> Lwt_process.command ->
+    (Lwt_process.process_full -> 'a Current_term.S.or_error Lwt.t) ->
+    'a Current_term.S.or_error Lwt.t
+  (** Like [exec], but accepts a function which is responsible for managing the
+      input / output of the running process and producing a result *)
+
   val check_output :
     ?cwd:Fpath.t -> ?stdin:string ->
     ?pp_error_command:(Format.formatter -> unit) ->

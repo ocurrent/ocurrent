@@ -1,0 +1,25 @@
+opam-version: "2.0"
+version: "0.4"
+synopsis: "Nix plugin for OCurrent"
+description: """
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for evaluating and building Nix expressions."""
+maintainer: "tim@gfxmonk.net"
+authors: "tim@gfxmonk.net"
+homepage: "https://github.com/ocurrent/ocurrent"
+bug-reports: "https://github.com/ocurrent/ocurrent/issues"
+dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+doc: "https://ocurrent.github.io/ocurrent/"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+depends: [
+  "current" {= version}
+  "current_git" {= version}
+  "ocaml" {>= "4.08.0"}
+  "fmt"
+  "lwt"
+  "dune" {>= "2.0"}
+]
