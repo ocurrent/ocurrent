@@ -37,6 +37,7 @@ depends: [
   "logs" {>= "0.7.0"}
   "result" {>= "1.5"}
   "prometheus-app" {>= "0.7" & with-test}
+  "conf-libev" {os != "win32"}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]
