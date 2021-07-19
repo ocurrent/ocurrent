@@ -1,7 +1,9 @@
 (** Integration with GitHub. *)
 
-val webhook : Current_web.Resource.t
-(** Our web-hook endpoint. This must be added to {!Current_web.routes} so that we get notified of events. 
+val webhook : engine:Current.Engine.t
+              -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
+              -> Current_web.Resource.t
+(** Our web-hook endpoint. This must be added to {!Current_web.routes} so that we get notified of events.
 
 This webhook handles the events:
  - installation_repositories
@@ -9,6 +11,7 @@ This webhook handles the events:
  - pull_request
  - push
  - create
+ - check_run
  *)
 
 (** Identifier for a repository hosted on GitHub. *)
@@ -47,19 +50,19 @@ module Api : sig
     type t
     (** CheckRun status type. *)
 
-    type action 
+    type action
 
     type conclusion = [`Failure of string | `Success | `Skipped of string]
-    (** Sub-set of conclusions from GitHub. 
+    (** Sub-set of conclusions from GitHub.
         Not supported are action_required, cancelled, neutral, skipped, stale, or timed_out. *)
 
     type state = [`Queued | `InProgress | `Completed of conclusion]
 
     val action: label:string -> description:string -> identifier:string -> action
 
-    val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> state -> t
-    (** Construct a CheckRunStatus.t 
-        A maximum of three actions are accepted by GitHub.
+    val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> ?identifier:string -> state -> t
+    (** [v ?text ?summary ?url ?actions ?identifier] creates a CheckRunStatus with [?text] description, a link to
+        the build details at [?url] and an [?identifier] for triggering a rebuild of a job.
      *)
   end
 

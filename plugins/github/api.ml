@@ -18,6 +18,38 @@ let await_event ~owner_name =
   in
   Lwt_condition.wait cond
 
+type actions = < rebuild : (unit -> string) option; >
+
+let lookup_actions ~engine job_id =
+  let state = Current.Engine.state engine in
+  let jobs = state.Current.Engine.jobs in
+  match Current.Job.Map.find_opt job_id jobs with
+  | Some a -> (a :> actions)
+  | None ->
+     object
+       method rebuild = None
+     end
+
+let rebuild_webhook ~engine ~has_role json =
+  let job_id = Yojson.Safe.Util.(json |> member "check_run" |> member "external_id" |> to_string) in
+  let action = Yojson.Safe.Util.(json |> member "action" |> to_string) in
+  let requester = Yojson.Safe.Util.(json |> member "sender" |> member "login" |> to_string
+                                    |> (fun x -> Current_web.User.create @@ "github:" ^ x)) in
+  Log.info (fun f -> f "rebuild_webhook %s %s triggered by %s" action job_id (Current_web.User.id requester));
+  match (action, has_role (Some requester) `Builder) with
+  | ("rerequested", true) -> begin
+      let actions = lookup_actions ~engine job_id in
+      match actions#rebuild with
+      | None ->
+         Log.info (fun f -> f "not rebuilding");
+         ()
+      | Some rebuild ->
+         let new_job_id = rebuild () in
+         Log.info (fun f -> f "rebuilding new_job_id %s" new_job_id);
+         ()
+    end
+  | _ -> ()
+
 let input_webhook body =
   let owner_name = Yojson.Safe.Util.(body |> member "repository" |> member "full_name" |> to_string) in
   match Hashtbl.find_opt webhook_cond owner_name with
@@ -102,21 +134,20 @@ module CheckRunStatus = struct
       summary: string option;
       text: string option;
       actions: action list;
-      url: Uri.t option
+      url: Uri.t option;
+      identifier: string option;
     }
-
-  let action ~label ~description ~identifier = {label; description; identifier}
 
   let action_to_json {label; description; identifier} =
     `Assoc [ ("label", `String label)
            ; ("description", `String description)
            ; ("identifier", `String identifier)]
 
-  let v ?text ?summary ?url ?(actions=[]) state =
+  let v ?text ?summary ?url ?(actions=[]) ?identifier state =
     (* A maximum of three actions are accepted by GitHub. *)
-    { state; summary; text; actions; url }
+    { state; summary; text; actions; url; identifier }
 
-  let state_json ~title ~summary ~text ~status ?url ?conclusion ?actions () =
+  let state_json ~title ~summary ~text ~status ?url ?conclusion ?actions ?identifier () =
     let output = [ ("title", `String title)
                  ; ("summary", `String summary) ] @
                  (match text with None -> [] | Some x -> ["text", `String x])
@@ -125,9 +156,10 @@ module CheckRunStatus = struct
     ; "output", `Assoc output ] @
     (match url with None -> [] | Some url -> ["details_url", `String (Uri.to_string url)]) @
     (match conclusion with None -> [] | Some conclusion -> ["conclusion", `String conclusion]) @
-    (match actions with None -> [] | Some actions -> ["actions", `List (List.map action_to_json actions)])
+    (match actions with None -> [] | Some actions -> ["actions", `List (List.map action_to_json actions)]) @
+    (match identifier with None -> [] | Some x -> ["external_id", `String x])
 
-  let json_items { state; text; summary; actions; url } =
+  let json_items { state; text; summary; actions; url; identifier } =
     match state with
     | `Queued ->
       state_json ()
@@ -135,6 +167,7 @@ module CheckRunStatus = struct
         ~summary:(Option.value summary ~default:"Queued")
         ~status:"queued"
         ~text
+        ?identifier
         ?url
 
     | `InProgress ->
@@ -143,6 +176,7 @@ module CheckRunStatus = struct
         ~summary:(Option.value summary ~default:"InProgress")
         ~status:"inprogress"
         ~text
+        ?identifier
 
     | `Completed `Success ->
       state_json ()
@@ -151,6 +185,7 @@ module CheckRunStatus = struct
         ~status:"completed"
         ~text
         ~conclusion:"success"
+        ?identifier
 
     | `Completed (`Failure _) ->
        state_json ()
@@ -160,6 +195,7 @@ module CheckRunStatus = struct
          ~text
          ~conclusion:"failure"
          ~actions
+         ?identifier
 
     | `Completed (`Skipped _) ->
       state_json ()
@@ -169,6 +205,8 @@ module CheckRunStatus = struct
         ~text
         ~conclusion:"skipped"
         ~actions
+        ?identifier
+
 
   let digest t = Yojson.Safe.to_string @@ `Assoc (json_items t)
 

@@ -44,12 +44,13 @@ let pipeline ~github ~repo () =
   |> Github.Api.Commit.set_status head "ocurrent"
 
 let main config mode github repo =
+  let has_role = Current_web.Site.allow_all in
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
   let routes =
-    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~has_role) ::
     Current_web.routes engine
   in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
+  let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
   Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;

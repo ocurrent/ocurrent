@@ -9,12 +9,12 @@ end
 
 module CheckRunStatus : sig
   type t
-  type action 
+  type action
   type conclusion = [`Failure of string | `Success | `Skipped of string]
   type state = [`Queued | `InProgress | `Completed of conclusion]
 
   val action: label:string -> description:string -> identifier:string -> action
-  val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> state -> t
+  val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> ?identifier:string -> state -> t
 end
 
 
@@ -29,7 +29,7 @@ module Commit : sig
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
   val uri : t -> Uri.t
-end 
+end
 
 
 module CheckRun : sig
@@ -91,11 +91,16 @@ type token = {
 val get_token : t -> (string, [`Msg of string]) result Lwt.t
 (** [get_token t] returns the cached token for [t], or fetches a new one if it has expired. *)
 
+val rebuild_webhook : engine:Current.Engine.t
+                      -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
+                      -> Yojson.Safe.t -> unit
+(** Call this when we get a "check_run" webhook event. *)
+
 val input_webhook : Yojson.Safe.t -> unit
 (** Call this when we get a "pull_request", "push" or "create" webhook event. *)
 
 val v : get_token:(unit -> token Lwt.t) -> ?app_id:string -> string -> t
-(** [v ~get_token ?app_id] is a configuration that uses [get_token] when it needs to get or 
+(** [v ~get_token ?app_id] is a configuration that uses [get_token] when it needs to get or
     refresh the API token.
     Note: [get_token] can return a failed token, in which case the expiry time says when to try again.
           If [get_token] instead raises an exception, this is turned into an error token with a 1 minute expiry.

@@ -139,7 +139,7 @@ let job ~engine ~job_id = object
       Utils.Server.respond ~status:`OK ~headers ~body ()
 end
 
-let rebuild ~engine ~job_id= object
+let rebuild ~engine ~job_id = object
   inherit Resource.t
 
   val! can_post = `Builder

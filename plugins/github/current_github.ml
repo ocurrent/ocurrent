@@ -17,7 +17,7 @@ module Metrics = struct
     Counter.v_label ~label_name:"event" ~help ~namespace ~subsystem "webhook_events_total"
 end
 
-let webhook = object
+let webhook ~engine ~has_role = object
   inherit Current_web.Resource.t
 
   method! post_raw _site req body =
@@ -31,6 +31,7 @@ let webhook = object
       | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
       | Some "installation" -> App.input_installation_webhook ()
       | Some ("pull_request" | "push" | "create") -> Api.input_webhook body
+      | Some "check_run" -> Api.rebuild_webhook ~engine ~has_role body 
       | Some x -> Log.warn (fun f -> f "Unknown GitHub event type %S" x)
       | None -> Log.warn (fun f -> f "Missing GitHub event type in webhook!")
     end;
