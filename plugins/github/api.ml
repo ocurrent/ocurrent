@@ -158,38 +158,36 @@ module Ref_map = Map.Make(Ref)
 
 module Commit_id = struct
   type t = {
-    owner_name : string;    (* e.g. "owner/name" *)
+    owner: string;
+    repo : string;    
     id : Ref.t;
     hash : string;
     committed_date : string;
   } [@@deriving to_yojson]
 
-  let to_git { owner_name; id; hash; committed_date = _ } =
-    let repo = Fmt.str "https://github.com/%s.git" owner_name in
+  let to_git { owner; repo; id; hash; committed_date = _ } =
+    let repo = Fmt.str "https://github.com/%s/%s.git" owner repo in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
-  let name t =
-    match String.split_on_char '/' t.owner_name with
-    | [owner;repo_name] -> Some (owner, repo_name)
-    | _ -> None
-
+  let owner_name { owner; repo; _} = Fmt.str "%s/%s" owner repo 
+        
   let uri t =
-    Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/commit/%s" t.owner_name t.hash) ()
+    Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/commit/%s/%s" t.owner t.repo t.hash) ()
 
   let pp_id = Ref.pp
 
-  let compare {owner_name; id; hash; committed_date = _} b =
+  let compare {owner; repo; id; hash; committed_date = _} b =
     match compare hash b.hash with
     | 0 ->
       begin match Ref.compare id b.id with
-        | 0 -> compare owner_name b.owner_name
+        | 0 -> compare (owner, repo) (b.owner, b.repo)
         | x -> x
       end
     | x -> x
 
-  let pp f { owner_name; id; hash; committed_date } =
-    Fmt.pf f "%s@ %a@ %s@ %s" owner_name pp_id id (Astring.String.with_range ~len:8 hash) committed_date
+  let pp f { owner; repo; id; hash; committed_date } =
+    Fmt.pf f "%s/%s@ %a@ %s@ %s" owner repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -325,13 +323,12 @@ let get_default_ref t { Repo_id.owner; name } =
       let data = json / "data" in
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
-      let owner_name = repo / "nameWithOwner" |> to_string in
       let def = repo / "defaultBranchRef" in
       let prefix = def / "prefix" |> to_string in
       let name = def / "name" |> to_string in
       let hash = def / "target" / "oid" |> to_string in
       let committed_date = def / "target" / "committedDate" |> to_string in
-      { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
+      { Commit_id.owner; repo = name ; id = `Ref (prefix ^ name); hash; committed_date }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
@@ -425,23 +422,23 @@ let query_branches_and_open_prs = {|
   }
 |}
 
-let parse_ref ~owner_name ~prefix json =
+let parse_ref ~owner ~repo ~prefix json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let name = node / "name" |> to_string in
   let hash = node / "target" / "oid" |> to_string in
   let committed_date = node / "target" / "committedDate" |> to_string in
-  { Commit_id.owner_name; id = `Ref (prefix ^ name); hash; committed_date }
+  { Commit_id.owner; Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date }
 
-let parse_pr ~owner_name json =
+let parse_pr ~owner ~repo json =
   let open Yojson.Safe.Util in
   let node = json / "node" in
   let hash = node / "headRefOid" |> to_string in
   let pr = node / "number" |> to_int in
   let nodes = node / "commits" / "nodes" |> to_list in
-  if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s" owner_name else
+  if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
   let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
-  { Commit_id.owner_name; id = `PR pr; hash; committed_date }
+  { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date }
 
 let get_refs t { Repo_id.owner; name } =
     let variables = [
@@ -454,12 +451,12 @@ let get_refs t { Repo_id.owner; name } =
       let data = json / "data" in
       handle_rate_limit t "default_ref" (data / "rateLimit");
       let repo = data / "repository" in
-      let owner_name = repo / "nameWithOwner" |> to_string in
+      (* let owner_name = repo / "nameWithOwner" |> to_string in *)
       let default_ref = repo / "defaultBranchRef" / "name" |> to_string |> ( ^ ) "refs/heads/" in
       let refs =
-        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner_name ~prefix:"refs/heads/") in
+        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner ~repo:name ~prefix:"refs/heads/") in
       let prs =
-        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner_name) in
+        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner ~repo:name) in
       (* TODO: use cursors to get all results.
          For now, we just take the first 100 and warn if there are more. *)
       let n_branches = repo / "refs" / "totalCount" |> to_int in
@@ -604,11 +601,13 @@ module CheckRun = struct
       | Error (`Msg m) -> Lwt.fail_with m
       | Ok token ->
          let token = Github.Token.of_string token in
-         let (owner, repo) = match Commit_id.name key.Key.commit with
-           | Some s -> s
-           | None -> 
-              let name = Commit_id.digest key.Key.commit in
-              Fmt.failwith "GitHub owner/repo failed: %s" name in
+         let owner = key.Key.commit.owner in
+         let repo = key.Key.commit.repo in
+         (* let (owner, repo) = match Commit_id.name key.Key.commit.owner with
+          *   | Some s -> s
+          *   | None -> 
+          *      let name = Commit_id.digest key.Key.commit in
+          *      Fmt.failwith "GitHub owner/repo failed: %s" name in *)
          let sha = key.Key.commit.hash in
          let app_id = t.app_id in
          let check_name = key.Key.check_name in
@@ -707,7 +706,7 @@ module Commit = struct
       | Ok token ->
         let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
         let uri = status_endpoint
-            ~owner_name:commit.Commit_id.owner_name
+            ~owner_name:(Commit_id.owner_name commit)
             ~commit:commit.Commit_id.hash
         in
         Current.Job.log job "@[<v2>POST %a:@,%a@]"
@@ -747,7 +746,7 @@ module Commit = struct
 
   let compare (_, a) (_, b) = Commit_id.compare a b
 
-  let owner_name (_, id) = id.Commit_id.owner_name
+  let owner_name (_, id) = Commit_id.owner_name id
 
   let repo_id t =
     let full = owner_name t in
@@ -825,8 +824,8 @@ module Anonymous = struct
       Lwt.try_bind
         (fun () -> query_head repo gref)
         (fun hash ->
-           let id = { Commit_id.owner_name; hash; id = gref; committed_date = "" } in
-           Lwt_result.return (Commit_id.to_git id)
+          let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = "" } in
+          Lwt_result.return (Commit_id.to_git id)
         )
         (fun ex ->
            Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);
