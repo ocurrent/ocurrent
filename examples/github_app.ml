@@ -30,10 +30,11 @@ let dockerfile ~base =
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
-let github_status_of_state = function
-  | Ok _              -> Github.Api.Status.v ~url `Success ~description:"Passed"
-  | Error (`Active _) -> Github.Api.Status.v ~url `Pending
-  | Error (`Msg m)    -> Github.Api.Status.v ~url `Failure ~description:m
+(* Map from Current.state to CheckRunStatus *)
+let github_check_run_status_of_state = function
+  | Ok _              -> Github.Api.CheckRunStatus.v ~url (`Completed `Success) ~description:"Passed"
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url (`Completed (`Failure m)) ~description:m
 
 let pipeline ~app () =
   let dockerfile =
@@ -48,8 +49,8 @@ let pipeline ~app () =
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   Docker.build ~pool ~pull:false ~dockerfile (`Git src)
   |> Current.state
-  |> Current.map github_status_of_state
-  |> Github.Api.Commit.set_status head "ocurrent"
+  |> Current.map github_check_run_status_of_state 
+  |> Github.Api.CheckRun.set_status head program_name
 
 let main config mode app =
   Lwt_main.run begin

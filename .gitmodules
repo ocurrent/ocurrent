@@ -1,0 +1,3 @@
+[submodule "ocaml-github"]
+	path = ocaml-github
+	url = https://github.com/mirage/ocaml-github.git
