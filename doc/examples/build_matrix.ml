@@ -18,6 +18,9 @@ let dockerfile ~base ~ocaml_version =
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
+(* included in doc/example_pipelines.ml as code snippet *)
+[@@@part "pipeline"]
+
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
@@ -36,6 +39,8 @@ let pipeline ~repo () =
     build "4.10";
     build "4.11"
   ]
+
+[@@@part "end-pipeline"]
 
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
