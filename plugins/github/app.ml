@@ -133,7 +133,7 @@ let get_installations app =
     )
 
 let installation t ~account iid =
-  let api = Api.v ~get_token:(fun () -> get_token t iid) ("i-" ^ account) in
+  let api = Api.v ~get_token:(fun () -> get_token t iid) ("i-" ^ account) ~app_id:t.app_id in
   Installation.v ~api ~account ~iid
 
 module Int_set = Set.Make(Int)

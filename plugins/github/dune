@@ -11,6 +11,7 @@
    current.term
    current_git
    current_web
+   github-unix
    duration
    ptime
    fmt
