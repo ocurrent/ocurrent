@@ -195,6 +195,9 @@ module App : sig
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub app configuration. *)
 
+  val cmdliner_opt : t option Cmdliner.Term.t
+  (** Like [cmdliner], but the arguments are all optional. *)
+
   val installation : t -> account:string -> int -> Installation.t
   (** [installation t ~account id] gives access to the API for installation [id].
       Note: this generates a fresh value on each call and should not be used inside

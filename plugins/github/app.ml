@@ -174,6 +174,7 @@ let installations t =
 (* Command-line options *)
 
 let make_config app_id private_key_file allowlist =
+  let allowlist = Allowlist.of_list allowlist in
   let data = Api.read_file private_key_file in
   match X509.Private_key.decode_pem (Cstruct.of_string data) with
     | Error (`Msg msg) -> Fmt.failwith "Failed to parse secret key!@ %s" msg
@@ -186,8 +187,15 @@ let make_config app_id private_key_file allowlist =
 
 open Cmdliner
 
+let make_config_opt app_id private_key_file allowlist : t option Term.ret =
+  match app_id, private_key_file, allowlist with
+  | None, None, _ -> `Ok None
+  | Some app_id, Some private_key_file, Some allowlist -> `Ok (Some (make_config app_id private_key_file allowlist))
+  | Some _, Some _, None -> `Error (true, "--github-account-allowlist is required with --github-app-id")
+  | Some _, None, _ -> `Error (true, "--github-private-key-file is required with --github-app-id")
+  | None, Some _, _ -> `Error (true, "--github-app-id is required with --github-private-key-file")
+
 let private_key_file =
-  Arg.required @@
   Arg.opt Arg.(some file) None @@
   Arg.info
     ~doc:"A file containing the GitHub app's RSA private key."
@@ -195,7 +203,6 @@ let private_key_file =
     ["github-private-key-file"]
 
 let app_id =
-  Arg.required @@
   Arg.opt Arg.(some string) None @@
   Arg.info
     ~doc:"The GitHub app's (integer) ID"
@@ -203,8 +210,6 @@ let app_id =
     ["github-app-id"]
 
 let allowlist =
-  Term.app (Term.const Allowlist.of_list) @@
-  Arg.required @@
   Arg.opt Arg.(some (list string)) None @@
   Arg.info
     ~doc:"A comma-separated list of allowed GitHub accounts"
@@ -212,4 +217,7 @@ let allowlist =
     ["github-account-allowlist"]
 
 let cmdliner =
-  Term.(const make_config $ app_id $ private_key_file $ allowlist)
+  Term.(const make_config $ Arg.required app_id $ Arg.required private_key_file $ Arg.required allowlist)
+
+let cmdliner_opt =
+  Term.(ret (const make_config_opt $ Arg.value app_id $ Arg.value private_key_file $ Arg.value allowlist))
