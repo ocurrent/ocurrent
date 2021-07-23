@@ -123,7 +123,7 @@ module CheckRunStatus = struct
   let json_items { state; description; url } =
     state_to_string state @
     (match description with None -> [] | Some x -> ["description", `String x]) @
-    (match url with None -> [] | Some x -> ["target_url", `String (Uri.to_string x)])
+    (match url with None -> [] | Some x -> ["details_url", `String (Uri.to_string x)])
 
   let digest t = Yojson.Safe.to_string @@ `Assoc (json_items t)
 
