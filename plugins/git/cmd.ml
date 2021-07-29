@@ -8,7 +8,7 @@ let dir_exists d =
 let hexchars = "0123456789abcdef"
 
 let pp_hex f d =
-  for x = 0 to Cstruct.len d - 1 do
+  for x = 0 to Cstruct.length d - 1 do
     let byte = Cstruct.get_uint8 d x in
     Fmt.pf f "%02x" byte
   done
