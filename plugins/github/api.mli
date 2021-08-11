@@ -49,15 +49,17 @@ module Ref_map : Map.S with type key = Ref.t
 
 type t
 type refs
-val of_oauth : string -> t
+val of_oauth : token:string -> webhook_secret:string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
 val refs : t -> Repo_id.t -> refs Current.Primitive.t
 val default_ref : refs -> string
+val webhook_secret : t -> string
 val all_refs : refs -> Commit.t Ref_map.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
 val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
+val webhook_secret_file : string Cmdliner.Term.t
 
 module Repo : sig
   type nonrec t = t * Repo_id.t
@@ -99,7 +101,7 @@ val rebuild_webhook : engine:Current.Engine.t
 val input_webhook : Yojson.Safe.t -> unit
 (** Call this when we get a "pull_request", "push" or "create" webhook event. *)
 
-val v : get_token:(unit -> token Lwt.t) -> ?app_id:string -> string -> t
+val v : get_token:(unit -> token Lwt.t) -> ?app_id:string -> account:string -> webhook_secret:string -> unit -> t
 (** [v ~get_token ?app_id] is a configuration that uses [get_token] when it needs to get or
     refresh the API token.
     Note: [get_token] can return a failed token, in which case the expiry time says when to try again.

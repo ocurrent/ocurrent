@@ -34,7 +34,7 @@ let rebuild_webhook ~engine ~has_role json =
   let job_id = Yojson.Safe.Util.(json |> member "check_run" |> member "external_id" |> to_string) in
   let action = Yojson.Safe.Util.(json |> member "action" |> to_string) in
   let requester = Yojson.Safe.Util.(json |> member "sender" |> member "login" |> to_string
-                                    |> (fun x -> Current_web.User.create @@ "github:" ^ x)) in
+                                    |> (fun x -> Current_web.User.v_exn @@ "github:" ^ x)) in
   Log.info (fun f -> f "rebuild_webhook %s %s triggered by %s" action job_id (Current_web.User.id requester));
   match (action, has_role (Some requester) `Builder) with
   | ("rerequested", true) -> begin
@@ -137,6 +137,8 @@ module CheckRunStatus = struct
       url: Uri.t option;
       identifier: string option;
     }
+
+  let action ~label ~description ~identifier = { label; description; identifier }
 
   let action_to_json {label; description; identifier} =
     `Assoc [ ("label", `String label)
@@ -279,6 +281,7 @@ type t = {
   account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
   app_id : string option;
+  webhook_secret : string; (* Shared secret for validating webhooks from GitHub *)
   token_lock : Lwt_mutex.t;
   mutable token : token;
   mutable head_monitors : commit Current.Monitor.t Repo_map.t;
@@ -290,19 +293,21 @@ and refs = {
   all_refs : commit Ref_map.t
 }
 
+let webhook_secret t = t.webhook_secret
+
 let default_ref t = t.default_ref
 
 let all_refs t = t.all_refs
 
-let v ~get_token ?app_id account =
+let v ~get_token ?app_id ~account ~webhook_secret () =
   let head_monitors = Repo_map.empty in
   let refs_monitors = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; account; app_id }
+  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; account; app_id; webhook_secret }
 
-let of_oauth token =
+let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
-  v ~get_token "oauth"
+  v ~get_token ~account:"oauth" ~webhook_secret ()
 
 let get_token t =
   Lwt_mutex.with_lock t.token_lock @@ fun () ->
@@ -945,8 +950,18 @@ let token_file =
     ~docv:"PATH"
     ["github-token-file"]
 
-let make_config token_file =
-  of_oauth (String.trim (read_file token_file))
+let webhook_secret_file =
+  Arg.required @@
+  Arg.opt Arg.(some string) None @@
+  Arg.info
+    ~doc:"A file containing the GitHub Webhook secret."
+    ~docv:"WEBHOOK_SECRET"
+    ["github-webhook-secret-file"]
+
+let make_config token_file webhook_secret_file =
+  let token = String.trim (read_file token_file) in
+  let webhook_secret = String.trim (read_file webhook_secret_file) in
+  of_oauth ~token ~webhook_secret
 
 let cmdliner =
-  Term.(const make_config $ token_file)
+  Term.(const make_config $ token_file $ webhook_secret_file)

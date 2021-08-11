@@ -32,9 +32,9 @@ let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 (* Map from Current.state to CheckRunStatus *)
 let github_check_run_status_of_state ?job_id = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~url ?job_id (`Completed `Success) ~summary:"Passed"
-  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url ?job_id `Queued
-  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url ?job_id (`Completed (`Failure m)) ~summary:m
+  | Ok _              -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed `Success) ~summary:"Passed"
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
 
 let check_run_status x =
   let+ md = Current.Analysis.metadata x
@@ -45,7 +45,7 @@ let check_run_status x =
 
 let pipeline ~app () =
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.12-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
     `Contents (dockerfile ~base)
   in
   Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
@@ -62,8 +62,9 @@ let main config mode app =
   Lwt_main.run begin
     let has_role = Current_web.Site.allow_all in
     let engine = Current.Engine.create ~config (pipeline ~app) in
+    let webhook_secret = Current_github.App.webhook_secret app in
     let routes =
-      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~has_role) ::
+      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~has_role ~webhook_secret) ::
       Current_web.routes engine
     in
     let site = Current_web.Site.(v ~has_role) ~name:program_name routes in

@@ -4,7 +4,7 @@ type t = {
 
 let v id = Ok { id }
 
-let create id = { id }
+let v_exn id = { id }
 
 let id t = t.id
 
