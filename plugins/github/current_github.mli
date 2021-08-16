@@ -47,14 +47,20 @@ module Api : sig
     type t
     (** CheckRun status type. *)
 
-    type conclusion = [`Failure of string | `Success]
+    type action 
+
+    type conclusion = [`Failure of string | `Success | `Skipped of string]
     (** Sub-set of conclusions from GitHub. 
         Not supported are action_required, cancelled, neutral, skipped, stale, or timed_out. *)
 
     type state = [`Queued | `InProgress | `Completed of conclusion]
 
-    val v : ?description:string -> ?url:Uri.t -> state -> t
-    (** Construct a CheckRunStatus.t *)
+    val action: label:string -> description:string -> identifier:string -> action
+
+    val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> state -> t
+    (** Construct a CheckRunStatus.t 
+        A maximum of three actions are accepted by GitHub.
+     *)
   end
 
   module Commit : sig

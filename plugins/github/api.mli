@@ -9,10 +9,12 @@ end
 
 module CheckRunStatus : sig
   type t
-  type conclusion = [`Failure of string | `Success]
+  type action 
+  type conclusion = [`Failure of string | `Success | `Skipped of string]
   type state = [`Queued | `InProgress | `Completed of conclusion]
 
-  val v : ?description:string -> ?url:Uri.t -> state -> t
+  val action: label:string -> description:string -> identifier:string -> action
+  val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> state -> t
 end
 
 

@@ -32,9 +32,9 @@ let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 (* Map from Current.state to CheckRunStatus *)
 let github_check_run_status_of_state = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~url (`Completed `Success) ~description:"Passed"
+  | Ok _              -> Github.Api.CheckRunStatus.v ~url (`Completed `Success) ~summary:"Passed"
   | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url `Queued
-  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url (`Completed (`Failure m)) ~description:m
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url (`Completed (`Failure m)) ~summary:m
 
 let pipeline ~app () =
   let dockerfile =

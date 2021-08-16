@@ -94,36 +94,81 @@ module Status = struct
 end
 
 module CheckRunStatus = struct
-  type conclusion = [`Failure of string | `Success]
+  type conclusion = [`Failure of string | `Success | `Skipped of string]
   type state = [`Queued | `InProgress | `Completed of conclusion]
+  type action = { label:string; description:string; identifier:string }
   type t = {
       state: state;
-      description: string option;
+      summary: string option;
+      text: string option;
+      actions: action list;
       url: Uri.t option
     }
 
-  let v ?description ?url state =
-    let description = Option.map (Astring.String.with_range ~len:140) description in (* Max GitHub allows *)
-    { state; description; url }
+  let action ~label ~description ~identifier = {label; description; identifier}
 
-  let state_to_string = function
-    | `Queued -> 
-       ["status", `String "queued"]
-    | `InProgress -> 
-       ["status", `String "inprogress"]
-    | `Completed `Success -> 
-       ["status", `String "completed"
-       ;"conclusion", `String "success"]
-    | `Completed (`Failure msg) -> 
-       ["status", `String "completed"
-       ;"conclusion", `String "failure"
-       ;"output", `Assoc [("title", `String "Failure")
-                         ;("summary", `String msg)]]
+  let action_to_json {label; description; identifier} =
+    `Assoc [ ("label", `String label)
+           ; ("description", `String description)
+           ; ("identifier", `String identifier)]
 
-  let json_items { state; description; url } =
-    state_to_string state @
-    (match description with None -> [] | Some x -> ["description", `String x]) @
-    (match url with None -> [] | Some x -> ["details_url", `String (Uri.to_string x)])
+  let v ?text ?summary ?url ?(actions=[]) state =
+    (* A maximum of three actions are accepted by GitHub. *)
+    { state; summary; text; actions; url }
+
+  let state_json ~title ~summary ~text ~status ?url ?conclusion ?actions () =
+    let output = [ ("title", `String title)
+                 ; ("summary", `String summary) ] @
+                 (match text with None -> [] | Some x -> ["text", `String x])
+    in
+    [ "status", `String status
+    ; "output", `Assoc output ] @
+    (match url with None -> [] | Some url -> ["details_url", `String (Uri.to_string url)]) @
+    (match conclusion with None -> [] | Some conclusion -> ["conclusion", `String conclusion]) @
+    (match actions with None -> [] | Some actions -> ["actions", `List (List.map action_to_json actions)])
+
+  let json_items { state; text; summary; actions; url } =
+    match state with
+    | `Queued ->
+      state_json ()
+        ~title:"Queued"
+        ~summary:(Option.value summary ~default:"Queued")
+        ~status:"queued"
+        ~text
+        ?url
+
+    | `InProgress ->
+      state_json ()
+        ~title:"InProgress"
+        ~summary:(Option.value summary ~default:"InProgress")
+        ~status:"inprogress"
+        ~text
+
+    | `Completed `Success ->
+      state_json ()
+        ~title:"Completed"
+        ~summary:(Option.value summary ~default:"Completed")
+        ~status:"completed"
+        ~text
+        ~conclusion:"success"
+
+    | `Completed (`Failure _) ->
+       state_json ()
+         ~title:"Failure"
+         ~summary:(Option.value summary ~default:"Failure")
+         ~status:"completed"
+         ~text
+         ~conclusion:"failure"
+         ~actions
+
+    | `Completed (`Skipped _) ->
+      state_json ()
+        ~title:"Skipped"
+        ~summary:(Option.value summary ~default:"Skipped")
+        ~status:"completed"
+        ~text
+        ~conclusion:"skipped"
+        ~actions
 
   let digest t = Yojson.Safe.to_string @@ `Assoc (json_items t)
 
@@ -159,7 +204,7 @@ module Ref_map = Map.Make(Ref)
 module Commit_id = struct
   type t = {
     owner: string;
-    repo : string;    
+    repo : string;
     id : Ref.t;
     hash : string;
     committed_date : string;
@@ -170,8 +215,8 @@ module Commit_id = struct
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
-  let owner_name { owner; repo; _} = Fmt.str "%s/%s" owner repo 
-        
+  let owner_name { owner; repo; _} = Fmt.str "%s/%s" owner repo
+
   let uri t =
     Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/commit/%s/%s" t.owner t.repo t.hash) ()
 
@@ -570,7 +615,7 @@ module CheckRun = struct
     module Key = struct
       type t = {
           commit : Commit_id.t;
-          check_name : string; 
+          check_name : string;
         }
 
       let to_json { commit; check_name } =
@@ -608,7 +653,7 @@ module CheckRun = struct
 
          let create_check () =
            let open Github in
-           let body = `Assoc (("name", `String check_name) 
+           let body = `Assoc (("name", `String check_name)
                               :: ("head_sha", `String key.Key.commit.hash)
                               :: Value.json_items status) |> Yojson.Safe.to_string in
            Log.debug (fun f -> f "create_check: %s" body);
@@ -618,7 +663,7 @@ module CheckRun = struct
            let open Github in
            let open Monad in
            (* Assuming a single check_run per app/sha/check_name hence the `List.nth_opt`. *)
-           Check.list_check_runs_for_ref ~token ~owner ~repo ~sha ?app_id ~check_name () >>~ 
+           Check.list_check_runs_for_ref ~token ~owner ~repo ~sha ?app_id ~check_name () >>~
            fun l -> return @@ List.nth_opt l.check_runs 0 in
 
          let update_check_run (check_run : Github_j.check_run) () =
@@ -630,7 +675,7 @@ module CheckRun = struct
 
          Lwt.try_bind ( fun () ->
              let open Github in
-             let open Monad in                        
+             let open Monad in
              run (
                fetch_check_run () >>= function
                | None -> create_check ()
@@ -654,7 +699,7 @@ module CheckRun = struct
     Current.component "set_check_run_status" |>
     let> (t, commit) = commit
     and> status = status in
-    Set_status_cache.set t {Set_status.Key.commit; check_name} status 
+    Set_status_cache.set t {Set_status.Key.commit; check_name} status
 end
 
 
