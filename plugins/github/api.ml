@@ -357,10 +357,10 @@ let handle_rate_limit t name json =
   Prometheus.Counter.inc (Metrics.used_points_total t.account) (float_of_int cost);
   Prometheus.Gauge.set (Metrics.remaining_points t.account) (float_of_int remaining)
 
-let get_default_ref t { Repo_id.owner; name } =
+let get_default_ref t { Repo_id.owner = repo_owner; name = repo_name } =
     let variables = [
-      "owner", `String owner;
-      "name", `String name;
+      "owner", `String repo_owner;
+      "name", `String repo_name;
     ] in
     exec_graphql t ~variables query_default >|= fun json ->
     try
@@ -370,10 +370,10 @@ let get_default_ref t { Repo_id.owner; name } =
       let repo = data / "repository" in
       let def = repo / "defaultBranchRef" in
       let prefix = def / "prefix" |> to_string in
-      let name = def / "name" |> to_string in
+      let branch_name = def / "name" |> to_string in
       let hash = def / "target" / "oid" |> to_string in
       let committed_date = def / "target" / "committedDate" |> to_string in
-      { Commit_id.owner; repo = name ; id = `Ref (prefix ^ name); hash; committed_date }
+      { Commit_id.owner = repo_owner; repo = repo_name; id = `Ref (prefix ^ branch_name); hash; committed_date }
     with ex ->
       let pp f j = Yojson.Safe.pretty_print f j in
       Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
