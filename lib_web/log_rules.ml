@@ -101,30 +101,37 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
     | Some p -> test_pattern p
   end >>= fun test_results ->
   let csrf = Context.csrf ctx in
-  Context.respond_ok ctx (message @ [
-      form ~a:[a_action "/log-rules"; a_method `Post] [
-        table ~a:[a_class ["table"; "log-rules"]]
-          ~thead:(thead [
-              tr [
-                th [txt "Pattern (PCRE)"];
-                th [txt "Report"];
-                th [txt "Score"];
-              ]
-            ])
-          (List.map render_row rules @
-           [
-             tr [
-               td [ input ~a:[a_input_type `Text; a_name "pattern"; a_value pattern] () ];
-               td [ input ~a:[a_input_type `Text; a_name "report"; a_value report] () ];
-               td ~a:[a_class ["score"]] [ input ~a:[a_input_type `Text; a_name "score"; a_value score] () ];
-             ]
-           ]
-          );
+  let input_buttons = match ctx.user with
+    | Some _user -> [
         input ~a:[a_input_type `Submit; a_name "test"; a_value "Test pattern"] ();
         input ~a:[a_input_type `Submit; a_name "add"; a_value "Add rule"] ();
         input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
         input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
       ]
+    | None -> [] in
+  let input_fields = match ctx.user with
+    | Some _user ->
+      [
+        tr [
+          td [ input ~a:[a_input_type `Text; a_name "pattern"; a_value pattern] () ];
+          td [ input ~a:[a_input_type `Text; a_name "report"; a_value report] () ];
+          td ~a:[a_class ["score"]] [ input ~a:[a_input_type `Text; a_name "score"; a_value score] () ];
+        ]
+      ]
+    | None -> [] in
+  Context.respond_ok ctx (message @ [
+      form ~a:[a_action "/log-rules"; a_method `Post] ([
+        table ~a:[a_class ["table"; "log-rules"]]
+        ~thead:(thead [
+            tr [
+              th [txt "Pattern (PCRE)"];
+              th [txt "Report"];
+              th [txt "Score"];
+            ]
+          ])
+        (List.map render_row rules @ input_fields
+        )
+      ] @ input_buttons)
     ] @ [pattern_hints] @ test_results)
 
 let handle_post ctx data =
