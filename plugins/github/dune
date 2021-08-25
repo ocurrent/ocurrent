@@ -20,6 +20,7 @@
    lwt.unix
    mirage-crypto
    mirage-crypto-pk
+   hex
    prometheus
    result
    rresult

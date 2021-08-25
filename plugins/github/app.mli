@@ -5,6 +5,7 @@ val input_installation_webhook : unit -> unit
 
 type t
 
+val webhook_secret : t -> string
 val cmdliner : t Cmdliner.Term.t
 val cmdliner_opt : t option Cmdliner.Term.t
 val installation : t -> account:string -> int -> Installation.t

@@ -4,6 +4,8 @@ type t = {
 
 let v id = Ok { id }
 
+let v_exn id = { id }
+
 let id t = t.id
 
 let marshal t =

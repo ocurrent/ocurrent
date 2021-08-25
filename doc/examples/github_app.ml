@@ -31,14 +31,21 @@ let dockerfile ~base =
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
 (* Map from Current.state to CheckRunStatus *)
-let github_check_run_status_of_state = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~url (`Completed `Success) ~summary:"Passed"
-  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url `Queued
-  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url (`Completed (`Failure m)) ~summary:m
+let github_check_run_status_of_state ?job_id = function
+  | Ok _              -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed `Success) ~summary:"Passed"
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
+
+let check_run_status x =
+  let+ md = Current.Analysis.metadata x
+  and+ state = Current.state x in
+  match md with
+  | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ?job_id state
+  | None -> github_check_run_status_of_state state
 
 let pipeline ~app () =
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.12-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
     `Contents (dockerfile ~base)
   in
   Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
@@ -48,18 +55,19 @@ let pipeline ~app () =
   |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   Docker.build ~pool ~pull:false ~dockerfile (`Git src)
-  |> Current.state
-  |> Current.map github_check_run_status_of_state 
+  |> check_run_status
   |> Github.Api.CheckRun.set_status head program_name
 
 let main config mode app =
   Lwt_main.run begin
+    let has_role = Current_web.Site.allow_all in
     let engine = Current.Engine.create ~config (pipeline ~app) in
+    let webhook_secret = Current_github.App.webhook_secret app in
     let routes =
-      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~has_role ~webhook_secret) ::
       Current_web.routes engine
     in
-    let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
+    let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;

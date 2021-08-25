@@ -35,7 +35,7 @@ let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.12-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
     `Contents (dockerfile ~base)
   in
   Docker.build ~pull:false ~dockerfile (`Git src)
@@ -44,12 +44,13 @@ let pipeline ~github ~repo () =
   |> Github.Api.Commit.set_status head "ocurrent"
 
 let main config mode github repo =
+  let has_role = Current_web.Site.allow_all in
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
   let routes =
-    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~webhook_secret:(Github.Api.webhook_secret github) ~has_role) ::
     Current_web.routes engine
   in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
+  let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
   Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
