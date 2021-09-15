@@ -28,7 +28,7 @@ Larger uses of OCurrent include the
 
 The [OCurrent docs](doc/index.md) contains user documentation and examples.
 In particular, you might like to start by reading about the
-[example pipelines](doc/example_pipelines.md) or how to [write your own plugins](doc/writing-plugins.md).
+[example pipelines](doc/example_pipelines.md) or how to [write your own plugins](doc/writing_plugins.md).
 
 For technical docs, see the [API Documentation](https://ocurrent.github.io/ocurrent/index.html).
 
