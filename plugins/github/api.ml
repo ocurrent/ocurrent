@@ -704,9 +704,9 @@ module CheckRun = struct
            Check.list_check_runs_for_ref ~token ~owner ~repo ~sha ?app_id ~check_name () >>~
            fun l -> return @@ List.nth_opt l.check_runs 0 in
 
-         let update_check_run (check_run : Github_j.check_run) () =
+         let update_check_run check_run () =
            let open Github in
-           let check_run_id = Int64.to_string check_run.check_run_id in
+           let check_run_id = Int64.to_string check_run.Github_j.check_run_id in
            let body = `Assoc (Value.json_items status) |> Yojson.Safe.to_string in
            Log.debug (fun f -> f "update_check: %s" body);
            Check.update_check_run ~token ~owner ~repo ~check_run_id ~body () in
