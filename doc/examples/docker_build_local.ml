@@ -15,7 +15,7 @@ let () = Prometheus_unix.Logging.init ()
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
   let image = Docker.build ~pull ~timeout (`Git src) in
-  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
+  Docker.run image ~args:["dune"; "exec"; "--"; "docker_build_local"; "--help"]
 
 [@@@part "end-pipeline"]
 
