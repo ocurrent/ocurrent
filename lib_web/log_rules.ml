@@ -36,7 +36,7 @@ let test_pattern pattern =
         begin
           if !i = 0 then (
             i := 100;
-            Lwt_main.yield ()
+            Lwt.pause ()
           ) else (
             decr i;
             Lwt.return_unit
