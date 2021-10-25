@@ -71,6 +71,17 @@ module Repo : sig
   val compare : t -> t -> int
 end
 
+module type GRAPHQL_QUERY = sig
+  type result
+  val name : string
+  val query : string
+  val of_yojson : t -> Repo_id.t -> Yojson.Safe.t -> result
+end
+
+module Monitor (Query : GRAPHQL_QUERY) : sig
+  val get : t -> Repo_id.t -> Query.result Current.Primitive.t
+end
+
 module Anonymous : sig
   val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
 end

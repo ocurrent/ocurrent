@@ -277,6 +277,22 @@ module Commit_id = struct
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
 
+module Repo_key = struct
+  type key = ..
+  type elt = ..
+
+  type t = key * Repo_id.t
+
+  let compare (a_key, a_id) (b_key, b_id) =
+    match Stdlib.compare a_key b_key with
+    | 0 -> Repo_id.compare a_id b_id
+    | cmp -> cmp
+end
+
+module Monitors = Map.Make(Repo_key)
+
+type monitors = Repo_key.elt Monitors.t
+
 type t = {
   account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
@@ -286,6 +302,7 @@ type t = {
   mutable token : token;
   mutable head_monitors : commit Current.Monitor.t Repo_map.t;
   mutable refs_monitors : refs Current.Monitor.t Repo_map.t;
+  mutable monitors: monitors;
 }
 and commit = t * Commit_id.t
 and refs = {
@@ -302,8 +319,9 @@ let all_refs t = t.all_refs
 let v ~get_token ?app_id ~account ~webhook_secret () =
   let head_monitors = Repo_map.empty in
   let refs_monitors = Repo_map.empty in
+  let monitors = Monitors.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; account; app_id; webhook_secret }
+  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; monitors; account; app_id; webhook_secret }
 
 let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
@@ -399,6 +417,82 @@ let handle_rate_limit t name json =
   Log.info (fun f -> f "GraphQL(%s): cost:%d remaining:%d resetAt:%s" name cost remaining reset_at);
   Prometheus.Counter.inc (Metrics.used_points_total t.account) (float_of_int cost);
   Prometheus.Gauge.set (Metrics.remaining_points t.account) (float_of_int remaining)
+
+module type GRAPHQL_QUERY = sig
+  type result
+  val name : string
+  val query : string
+  val of_yojson : t -> Repo_id.t -> Yojson.Safe.t -> result
+end
+
+module Monitor (Query : GRAPHQL_QUERY) = struct
+
+  type Repo_key.key += Key
+  type Repo_key.elt += Value of Query.result Current.Monitor.t
+
+  let query =
+    "query($owner: String!, $name: String!) { "
+    ^ "rateLimit { cost remaining resetAt } "
+    ^ Query.query
+    ^ " }"
+
+  let exec t ({ Repo_id.owner = repo_owner; name = repo_name } as repo) =
+    let variables = [
+      "owner", `String repo_owner;
+      "name", `String repo_name;
+    ] in
+    exec_graphql t ~variables query >|= fun json ->
+    try
+      let data = json / "data" in
+      handle_rate_limit t "default_ref" (data / "rateLimit");
+      Query.of_yojson t repo data
+    with ex ->
+      let pp f j = Yojson.Safe.pretty_print f j in
+      Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
+      raise ex
+
+  let make_monitor t repo =
+    let read () =
+      Lwt.catch
+        (fun () -> exec t repo >|= fun c -> Ok c)
+        (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query %s for %a failed: %a" Query.name Repo_id.pp repo Fmt.exn ex))
+    in
+    let watch refresh =
+      let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
+      let rec aux x =
+        x >>= fun () ->
+        let x = await_event ~owner_name in
+        refresh ();
+        Lwt_unix.sleep 10.0 >>= fun () ->   (* Limit updates to 1 per 10 seconds *)
+        aux x
+      in
+      let x = await_event ~owner_name in
+      let thread =
+        Lwt.catch
+          (fun () -> aux x)
+          (function
+            | Lwt.Canceled -> Lwt.return_unit
+            | ex -> Log.err (fun f -> f "%s thread failed: %a" Query.name Fmt.exn ex); Lwt.return_unit
+          )
+      in
+      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+    in
+    let pp f = Fmt.pf f "Watch %a %s" Repo_id.pp repo Query.name in
+    Current.Monitor.create ~read ~watch ~pp
+
+  let get t repo =
+    let monitor =
+      let key = (Key, repo) in
+      match Monitors.find_opt key t.monitors with
+      | Some (Value i) -> i
+      | _ ->
+        let i = make_monitor t repo in
+        t.monitors <- Monitors.add key (Value i) t.monitors;
+        i
+    in
+    Current.Monitor.get monitor
+end
+
 
 let get_default_ref t { Repo_id.owner = repo_owner; name = repo_name } =
     let variables = [

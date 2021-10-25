@@ -167,6 +167,42 @@ module Api : sig
   val all_refs : refs -> Commit.t Ref_map.t
   (** [all_refs refs] will return a map of all the repository's refs *)
 
+
+  (** A GraphQL query to be monitored for changes *)
+  module type GRAPHQL_QUERY = sig
+    type result
+    (** The result type produced by the query *)
+
+    val name : string
+    (** A short name describing the query (for logging) *)
+
+    val query : string
+    (** The GraphQL query that will be monitored. The variable [$owner] and [$name]
+        are available and bound to the repository's owner and name.
+
+        Furthermore, this [query] will be wrapped inside a template to also
+        report the rate limitations:
+
+          {[
+            query($owner: String!, $name: String!) {
+              rateLimit { ... }
+              <<query>>
+            }
+          ]}
+    *)
+
+    val of_yojson : t -> Repo_id.t -> Yojson.Safe.t -> result
+    (** [of_yojson t repo json] parses the [json] into a [result]. *)
+  end
+
+  (** Monitor a GraphQL query for changes on webhooks. *)
+  module Monitor (Query : GRAPHQL_QUERY) : sig
+    val get : t -> Repo_id.t -> Query.result Current.Primitive.t
+    (** [get t repo] is the primitive for observing the result of the GraphQL {!Query.query}.
+        The result is cached (so calling it twice will return the same primitive),
+        with the same lifetime as [t]. *)
+  end
+
   (** Perform Anonymous request to GitHub. *)
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
