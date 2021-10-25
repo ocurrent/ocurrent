@@ -300,8 +300,6 @@ type t = {
   webhook_secret : string; (* Shared secret for validating webhooks from GitHub *)
   token_lock : Lwt_mutex.t;
   mutable token : token;
-  mutable head_monitors : commit Current.Monitor.t Repo_map.t;
-  mutable refs_monitors : refs Current.Monitor.t Repo_map.t;
   mutable monitors: monitors;
 }
 and commit = t * Commit_id.t
@@ -317,11 +315,9 @@ let default_ref t = t.default_ref
 let all_refs t = t.all_refs
 
 let v ~get_token ?app_id ~account ~webhook_secret () =
-  let head_monitors = Repo_map.empty in
-  let refs_monitors = Repo_map.empty in
   let monitors = Monitors.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; monitors; account; app_id; webhook_secret }
+  { get_token; token_lock; token = no_token; monitors; account; app_id; webhook_secret }
 
 let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
@@ -386,28 +382,6 @@ let exec_graphql ?variables t query =
                    (Cohttp.Code.string_of_status err)
                    body);
       Fmt.failwith "Error performing GraphQL query on GitHub: %s" (Cohttp.Code.string_of_status err)
-
-let query_default =
-  "query($owner: String!, $name: String!) { \
-   rateLimit { \
-     cost \
-     remaining \
-     resetAt \
-   } \
-   repository(owner: $owner, name: $name) { \
-     nameWithOwner \n
-     defaultBranchRef { \
-       prefix \
-       name \
-       target { \
-         ...on Commit { \
-           oid \
-           committedDate \
-         } \
-       } \
-     } \
-   } \
- }"
 
 let handle_rate_limit t name json =
   let open Yojson.Safe.Util in
@@ -493,78 +467,51 @@ module Monitor (Query : GRAPHQL_QUERY) = struct
     Current.Monitor.get monitor
 end
 
+module Head_ref = Monitor(struct
+  type result = commit
 
-let get_default_ref t { Repo_id.owner = repo_owner; name = repo_name } =
-    let variables = [
-      "owner", `String repo_owner;
-      "name", `String repo_name;
-    ] in
-    exec_graphql t ~variables query_default >|= fun json ->
-    try
-      let open Yojson.Safe.Util in
-      let data = json / "data" in
-      handle_rate_limit t "default_ref" (data / "rateLimit");
-      let repo = data / "repository" in
-      let def = repo / "defaultBranchRef" in
-      let prefix = def / "prefix" |> to_string in
-      let branch_name = def / "name" |> to_string in
-      let hash = def / "target" / "oid" |> to_string in
-      let committed_date = def / "target" / "committedDate" |> to_string in
-      { Commit_id.owner = repo_owner; repo = repo_name; id = `Ref (prefix ^ branch_name); hash; committed_date }
-    with ex ->
-      let pp f j = Yojson.Safe.pretty_print f j in
-      Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
-      raise ex
+  let name = "head ref"
 
-let make_head_commit_monitor t repo =
-  let read () =
-    Lwt.catch
-      (fun () -> get_default_ref t repo >|= fun c -> Ok (t, c))
-      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
-  in
-  let watch refresh =
-    let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
-    let rec aux x =
-      x >>= fun () ->
-      let x = await_event ~owner_name in
-      refresh ();
-      Lwt_unix.sleep 10.0 >>= fun () ->   (* Limit updates to 1 per 10 seconds *)
-      aux x
+  let query =
+    "repository(owner: $owner, name: $name) { \
+       nameWithOwner \n
+       defaultBranchRef { \
+         prefix \
+         name \
+         target { \
+           ...on Commit { \
+             oid \
+             committedDate \
+           } \
+         } \
+       } \
+     }"
+
+  let of_yojson t { Repo_id.owner ; name } data =
+    let open Yojson.Safe.Util in
+    let repo = data / "repository" in
+    let def = repo / "defaultBranchRef" in
+    let prefix = def / "prefix" |> to_string in
+    let branch_name = def / "name" |> to_string in
+    let hash = def / "target" / "oid" |> to_string in
+    let committed_date = def / "target" / "committedDate" |> to_string in
+    let commit_id =
+      { Commit_id.owner; repo = name; id = `Ref (prefix ^ branch_name); hash; committed_date }
     in
-    let x = await_event ~owner_name in
-    let thread =
-      Lwt.catch
-        (fun () -> aux x)
-        (function
-          | Lwt.Canceled -> Lwt.return_unit
-          | ex -> Log.err (fun f -> f "head_commit thread failed: %a" Fmt.exn ex); Lwt.return_unit
-        )
-    in
-    Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
-  in
-  let pp f = Fmt.pf f "Watch %a default ref head" Repo_id.pp repo in
-  Current.Monitor.create ~read ~watch ~pp
+    t, commit_id
+end)
 
 let head_commit t repo =
   Current.component "%a head" Repo_id.pp repo |>
   let> () = Current.return () in
-  let monitor =
-    match Repo_map.find_opt repo t.head_monitors with
-    | Some i -> i
-    | None ->
-      let i = make_head_commit_monitor t repo in
-      t.head_monitors <- Repo_map.add repo i t.head_monitors;
-      i
-  in
-  Current.Monitor.get monitor
+  Head_ref.get t repo
 
-let query_branches_and_open_prs = {|
-  query($owner: String!, $name: String!) {
-    rateLimit {
-      cost
-      remaining
-      resetAt
-    }
+module Refs = Monitor(struct
+  type result = refs
+
+  let name = "refs"
+
+  let query = {|
     repository(owner: $owner, name: $name) {
       nameWithOwner
       defaultBranchRef {
@@ -601,101 +548,52 @@ let query_branches_and_open_prs = {|
         }
       }
     }
-  }
-|}
+  |}
 
-let parse_ref ~owner ~repo ~prefix json =
-  let open Yojson.Safe.Util in
-  let node = json / "node" in
-  let name = node / "name" |> to_string in
-  let hash = node / "target" / "oid" |> to_string in
-  let committed_date = node / "target" / "committedDate" |> to_string in
-  { Commit_id.owner; Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date }
+  let parse_ref ~owner ~repo ~prefix json =
+    let open Yojson.Safe.Util in
+    let node = json / "node" in
+    let name = node / "name" |> to_string in
+    let hash = node / "target" / "oid" |> to_string in
+    let committed_date = node / "target" / "committedDate" |> to_string in
+    { Commit_id.owner; Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date }
 
-let parse_pr ~owner ~repo json =
-  let open Yojson.Safe.Util in
-  let node = json / "node" in
-  let hash = node / "headRefOid" |> to_string in
-  let pr = node / "number" |> to_int in
-  let nodes = node / "commits" / "nodes" |> to_list in
-  if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
-  let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
-  { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date }
+  let parse_pr ~owner ~repo json =
+    let open Yojson.Safe.Util in
+    let node = json / "node" in
+    let hash = node / "headRefOid" |> to_string in
+    let pr = node / "number" |> to_int in
+    let nodes = node / "commits" / "nodes" |> to_list in
+    if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
+    let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
+    { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date }
 
-let get_refs t { Repo_id.owner; name } =
-    let variables = [
-      "owner", `String owner;
-      "name", `String name;
-    ] in
-    exec_graphql t ~variables query_branches_and_open_prs >|= fun json ->
-    try
-      let open Yojson.Safe.Util in
-      let data = json / "data" in
-      handle_rate_limit t "default_ref" (data / "rateLimit");
-      let repo = data / "repository" in
-      let default_ref = repo / "defaultBranchRef" / "name" |> to_string |> ( ^ ) "refs/heads/" in
-      let refs =
-        repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner ~repo:name ~prefix:"refs/heads/") in
-      let prs =
-        repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner ~repo:name) in
-      (* TODO: use cursors to get all results.
-         For now, we just take the first 100 and warn if there are more. *)
-      let n_branches = repo / "refs" / "totalCount" |> to_int in
-      let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
-      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
-      Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.prs_total [owner; name]) (float_of_int n_prs);
-      if List.length refs < n_branches then
-        Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
-      if List.length prs < n_prs then
-        Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
-      let add xs map = List.fold_left (fun acc x -> Ref_map.add x.Commit_id.id (t, x) acc) map xs in
-      Ref_map.empty
-      |> add refs
-      |> add prs
-      |> fun all_refs -> { default_ref; all_refs }
-    with ex ->
-      let pp f j = Yojson.Safe.pretty_print f j in
-      Log.err (fun f -> f "@[<v2>Invalid JSON: %a@,%a@]" Fmt.exn ex pp json);
-      raise ex
+  let of_yojson t { Repo_id.owner; name } data =
+    let open Yojson.Safe.Util in
+    let repo = data / "repository" in
+    let default_ref = repo / "defaultBranchRef" / "name" |> to_string |> ( ^ ) "refs/heads/" in
+    let refs =
+      repo / "refs" / "edges" |> to_list |> List.map (parse_ref ~owner ~repo:name ~prefix:"refs/heads/") in
+    let prs =
+      repo / "pullRequests" / "edges" |> to_list |> List.map (parse_pr ~owner ~repo:name) in
+    (* TODO: use cursors to get all results.
+       For now, we just take the first 100 and warn if there are more. *)
+    let n_branches = repo / "refs" / "totalCount" |> to_int in
+    let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
+    Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
+    Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.prs_total [owner; name]) (float_of_int n_prs);
+    if List.length refs < n_branches then
+      Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
+    if List.length prs < n_prs then
+      Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
+    let add xs map = List.fold_left (fun acc x -> Ref_map.add x.Commit_id.id (t, x) acc) map xs in
+    Ref_map.empty
+    |> add refs
+    |> add prs
+    |> fun all_refs -> { default_ref; all_refs }
+end)
 
-let make_refs_monitor t repo =
-  let read () =
-    Lwt.catch
-      (fun () -> get_refs t repo >|= Stdlib.Result.ok)
-      (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query for %a failed: %a" Repo_id.pp repo Fmt.exn ex))
-  in
-  let watch refresh =
-    let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
-    let rec aux x =
-      x >>= fun () ->
-      let x = await_event ~owner_name in
-      refresh ();
-      Lwt_unix.sleep 10.0 >>= fun () ->   (* Limit updates to 1 per 10 seconds *)
-      aux x
-    in
-    let x = await_event ~owner_name in
-    let thread =
-      Lwt.catch
-        (fun () -> aux x)
-        (function
-          | Lwt.Canceled -> Lwt.return_unit  (* (could clear metrics here) *)
-          | ex -> Log.err (fun f -> f "refs thread failed: %a" Fmt.exn ex); Lwt.return_unit
-        )
-    in
-    Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
-  in
-  let pp f = Fmt.pf f "Watch %a CI refs" Repo_id.pp repo in
-  Current.Monitor.create ~read ~watch ~pp
-
-let refs t repo =
-  Current.Monitor.get (
-    match Repo_map.find_opt repo t.refs_monitors with
-    | Some i -> i
-    | None ->
-      let i = make_refs_monitor t repo in
-      t.refs_monitors <- Repo_map.add repo i t.refs_monitors;
-      i
-  )
+let refs t repo = Refs.get t repo
 
 let to_ptime str =
   Ptime.of_rfc3339 str |> function
@@ -953,14 +851,7 @@ module Repo = struct
   let head_commit t =
     Current.component "head" |>
     let> (api, repo) = t in
-    Current.Monitor.get (
-      match Repo_map.find_opt repo api.head_monitors with
-      | Some i -> i
-      | None ->
-        let i = make_head_commit_monitor api repo in
-        api.head_monitors <- Repo_map.add repo i api.head_monitors;
-        i
-    )
+    Head_ref.get api repo
 
   let ci_refs ?staleness t =
     let+ refs =
