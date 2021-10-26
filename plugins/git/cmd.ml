@@ -40,7 +40,7 @@ let git_fetch ~cancellable ~job ~src ~dst gref =
   git ~cancellable ~job ~cwd:dst ["fetch"; "-f"; src; gref]
 
 let git_reset_hard ~job ~repo hash =
-  git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; hash]
+  git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
 
 let git_remote_set_url ~job ~repo ~remote url =
   git ~cancellable:false ~job ~cwd:repo ["remote"; "set-url"; remote; url]
