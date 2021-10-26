@@ -147,6 +147,8 @@ module CheckRunStatus = struct
 
   let v ?text ?summary ?url ?(actions=[]) ?identifier state =
     (* A maximum of three actions are accepted by GitHub. *)
+    let text = Option.map (Astring.String.with_range ~len:65535) text in (* Max GitHub allows *)
+    let summary = Option.map (Astring.String.with_range ~len:65535) summary in (* Max GitHub allows *)
     { state; summary; text; actions; url; identifier }
 
   let state_json ~title ~summary ~text ~status ?url ?conclusion ?actions ?identifier () =

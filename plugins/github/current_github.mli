@@ -69,6 +69,9 @@ module Api : sig
     val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> ?identifier:string -> state -> t
     (** [v ?text ?summary ?url ?actions ?identifier state] creates a CheckRunStatus with [?text] description, a link to
         the build details at [?url] and an [?identifier] for triggering a rebuild of a job.
+
+        Both [text] and [summary] are limited to 65535 by GitHub. This field will be truncated to this length.
+        [actions] is limited to three actions by GitHub.
      *)
   end
 
