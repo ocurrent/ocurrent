@@ -474,20 +474,21 @@ module Head_ref = Monitor(struct
 
   let name = "head ref"
 
-  let query =
-    "repository(owner: $owner, name: $name) { \
-       nameWithOwner \n
-       defaultBranchRef { \
-         prefix \
-         name \
-         target { \
-           ...on Commit { \
-             oid \
-             committedDate \
-           } \
-         } \
-       } \
-     }"
+  let query = {|
+    repository(owner: $owner, name: $name) {
+        nameWithOwner
+        defaultBranchRef {
+          prefix
+          name
+          target {
+            ...on Commit {
+              oid
+              committedDate
+            }
+          }
+        }
+      }
+  |}
 
   let of_yojson t { Repo_id.owner ; name } data =
     let open Yojson.Safe.Util in

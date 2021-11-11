@@ -17,11 +17,19 @@ module Metrics = struct
     Counter.v_label ~label_name:"event" ~help ~namespace ~subsystem "webhook_events_total"
 end
 
-let validate_webhook_payload webhook_secret body headers =
+let validate_webhook_payload webhook_secret body headers event =
   let request_signature = Option.value ~default:"<empty>" (Cohttp.Header.get headers "X-Hub-Signature-256") in
   let signature = "sha256=" ^ Hex.show @@ Hex.of_cstruct @@
     Mirage_crypto.Hash.SHA256.(hmac ~key:(Cstruct.of_string webhook_secret) (Cstruct.of_string body)) in
-  Eqaf.equal signature request_signature
+  if Eqaf.equal signature request_signature then
+    Ok ()
+  else
+    let s = Printf.sprintf {|
+Invalid X-Hub-Signature-256 received for %s, expecting %s == %s.
+Please check the Webhook secrets are setup appropriately.
+See https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks |}
+        event signature request_signature in
+    Error s
 
 let webhook ~engine ~webhook_secret ~has_role = object
   inherit Current_web.Resource.t
@@ -30,15 +38,16 @@ let webhook ~engine ~webhook_secret ~has_role = object
     Log.info (fun f -> f "input_webhook: %a" Cohttp_lwt.Request.pp_hum req);
     let headers = Cohttp.Request.headers req in
     let event = Cohttp.Header.get headers "X-GitHub-Event" in
-    Log.info (fun f -> f "Got GitHub event %a" Fmt.(option ~none:(any "NONE") (quote string)) event);
-    Prometheus.Counter.inc_one (Metrics.webhook_events_total (Option.value event ~default:"NONE"));
+    let event_str  = Option.value ~default:"NONE" event in
+    Log.info (fun f -> f "Got GitHub event %S" event_str);
+    Prometheus.Counter.inc_one (Metrics.webhook_events_total event_str);
     Cohttp_lwt.Body.to_string body >>= fun body ->
-    match validate_webhook_payload webhook_secret body headers with
-    | false ->
-      Log.warn (fun f -> f "Invalid X-Hub-Signature-256 received!");
+    let json_body = Yojson.Safe.from_string body in
+    match validate_webhook_payload webhook_secret body headers event_str with
+    | Error msg ->
+      Log.warn (fun f -> f "%s" msg);
       Cohttp_lwt_unix.Server.respond_string ~status:`Unauthorized ~body:"Invalid X-Hub-Signature-256" ()
-    | true ->
-      let json_body = Yojson.Safe.from_string body in
+    | Ok () ->
       begin match event with
         | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
         | Some "installation" -> App.input_installation_webhook ()
