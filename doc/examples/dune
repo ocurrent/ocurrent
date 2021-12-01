@@ -4,6 +4,7 @@
                docker_custom
                build_matrix
                auth
+               gitlab
                github
                github_app
                rpc_server
@@ -22,6 +23,7 @@
    current_docker
    current_git
    current_github
+   current_gitlab
    current_rpc
    current_web
    dockerfile

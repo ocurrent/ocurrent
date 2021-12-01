@@ -8,3 +8,4 @@ pipeline.dot
 pipeline.svg
 *.cap
 secret-key.pem
+/_opam

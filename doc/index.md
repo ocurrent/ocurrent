@@ -13,6 +13,7 @@ Welcome to the OCurrent documentation!
 * [Current_fs](https://ocurrent.github.io/ocurrent/current/Current_fs/index.html)
 * [Current_git](https://ocurrent.github.io/ocurrent/current_git/index.html)
 * [Current_github](https://ocurrent.github.io/ocurrent/current_github/index.html)
+* [Current_gitlab](https://ocurrent.github.io/ocurrent/current_gitlab/index.html)
 * [Current_slack](https://ocurrent.github.io/ocurrent/current_slack/index.html)
 * [Current_rpc](https://ocurrent.github.io/ocurrent/current_rpc/index.html) - control OCurrent remotely via Cap'n Proto
 
