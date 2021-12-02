@@ -8,7 +8,7 @@
    e.g.
 
    $ docker service create --name my-service -p 9000:80 nginx
-   $ dune exec -- ./examples/docker_service.exe --service=my-service /src/service
+   $ dune exec -- ./doc/examples/docker_service.exe --service=my-service /src/service
 *)
 
 let program_name = "docker_service"

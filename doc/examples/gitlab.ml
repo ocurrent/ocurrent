@@ -1,5 +1,11 @@
-(* This pipeline monitors a GitLab repository and uses Docker to build the
-   latest version of the default branch. *)
+(* Usage: gitlab.exe GITLAB_USER/REPO/PROJECT_ID --gitlab-token-file GITLAB-TOKEN-FILE \
+            --gitlab-webhook-secret-file GITLAB-WEBHOOK-SECRET
+
+   This pipeline monitors a GitLab repository and uses Docker to build the
+   the latest version on all branches and Merge Requests. Updates to the GitLab
+   repository are delivered as webhooks to `/webhooks/gitlab`, some suitable configuration
+   and forwarding of these events is required. eg smee.io
+*)
 
 let program_name = "gitlab"
 
@@ -9,8 +15,8 @@ module Git = Current_git
 module Gitlab = Current_gitlab
 module Docker = Current_docker.Default
 
-(* Limit to one (or two) build at a time. *)
-let pool = Current.Pool.create ~label:"docker" 2
+(* Limit to one build at a time. *)
+let pool = Current.Pool.create ~label:"docker" 1
 
 let () = Prometheus_unix.Logging.init ()
 
@@ -21,9 +27,11 @@ let url = Uri.of_string "http://localhost:8080"
 let dockerfile ~base =
   let open Dockerfile in
   from (Docker.Image.hash base) @@
+  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
+  run "opam init --reinit -n" @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
@@ -36,7 +44,7 @@ let gitlab_status_of_state = function
 
 let pipeline ~gitlab ~repo_id () =
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
   Gitlab.Api.ci_refs gitlab ~staleness:(Duration.of_day 90) repo_id

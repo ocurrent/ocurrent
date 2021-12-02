@@ -1,6 +1,16 @@
-(* This pipeline is GitHub app.
-   It monitors all GitHub repositories the app is asked to handle, and uses
-   Docker to build the latest version on all branches and PRs. *)
+(* Usage: github_app.exe --github-app-id APP_ID \
+            --github-private-key-file=secret-key.pem \
+            --github-account-allowlist ACCOUNTS \
+            --github-webhook-secret-file=github-app-secret-file
+
+   This pipeline is a GitHub app (APP_ID).
+   It monitors all GitHub repositories the app is asked to handle that are
+   owned by ACCOUNTS, and uses Docker to build the latest version on all
+   branches and PRs. Updates to the repository list and git repositories
+   are delivered as webhook events from GitHub, a suitable forwarding of
+   these events to github_app.ex is required eg smee.io
+
+*)
 
 let program_name = "github_app"
 
@@ -22,9 +32,11 @@ let url = Uri.of_string "http://localhost:8080"
 let dockerfile ~base =
   let open Dockerfile in
   from (Docker.Image.hash base) @@
+  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
+  run "opam init --reinit -n" @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
@@ -45,7 +57,7 @@ let check_run_status x =
 
 let pipeline ~app () =
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
   Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
