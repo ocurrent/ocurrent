@@ -4,6 +4,7 @@
                docker_custom
                build_matrix
                auth
+               gitlab_auth
                gitlab
                github
                github_app

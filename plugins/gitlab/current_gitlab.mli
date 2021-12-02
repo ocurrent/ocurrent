@@ -146,3 +146,25 @@ module Api : sig
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitLab configuration. *)
 end
+
+
+(** Use GitLab to authenticate users. *)
+module Auth : sig
+  type t
+  (** Configuration for GitLab OAuth single-sign-on. *)
+
+  val v : ?scopes:string list -> client_id:string -> client_secret:string -> redirect_uri:string -> unit -> t
+  (** Create a configuration using the details provided by GitLab. *)
+
+  val make_login_uri : t -> csrf:string -> Uri.t
+  (** Use this as your [~authn] in {!Current_web.Site.v}. *)
+
+  val login : t option -> Current_web.Resource.t
+  (** The callback page for logins. Add a route to this from the URL you
+      configured when you set up your GitLab OAuth app.
+      If [t = None] then the page will tell you how to configure it. *)
+
+  val cmdliner : t option Cmdliner.Term.t
+  (** Get the configuration from the command-line. *)
+
+end

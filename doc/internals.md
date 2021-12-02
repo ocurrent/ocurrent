@@ -23,14 +23,14 @@ utop
 ```
 
 ```ocaml
-# #require "current"
-# open Current_incr
+# #require "current";;
+# open Current_incr;;
 
-# let x = Current_incr.var 3
+# let x = Current_incr.var 3;;
 ...
-# let y = Current_incr.map (fun x -> x * 2) (Current_incr.of_var x)
+# let y = Current_incr.map (fun x -> x * 2) (Current_incr.of_var x);;
 ...
-# Current_incr.map (Printf.printf "y is now %d\n") y
+# Current_incr.map (Printf.printf "y is now %d\n") y;;
 y is now 6
 ...
 ```
@@ -38,11 +38,11 @@ y is now 6
 This is the incremental equivalent of:
 
 ```ocaml
-# let x' = 3
+# let x' = 3;;
 ...
-# let y' = x' * 2
+# let y' = x' * 2;;
 ...
-# Printf.printf "y' is now %d\n" y'
+# Printf.printf "y' is now %d\n" y';;
 y' is now 6
 ...
 ```
@@ -50,9 +50,9 @@ y' is now 6
 However, we can change `x` and recompute everything that depends on it:
 
 ```ocaml
-# Current_incr.change x 21
+# Current_incr.change x 21;;
 ...
-# Current_incr.propagate ()
+# Current_incr.propagate ();;
 y is now 42
 ...
 ```
@@ -68,8 +68,8 @@ It adds static analysis (which we'll look at in the next section) and error hand
 Normally it is wrapped in turn by the main OCurrent library, but we can use it directly like this:
 
 ```ocaml
-# #require "current.term"
-# module Term = Current_term.Make(Unit)
+# #require "current.term";;
+# module Term = Current_term.Make(Unit);;
 ...
 ```
 
@@ -81,15 +81,15 @@ Here are some examples showing how errors are handled:
          x
    |> Term.map (fun x -> x * 2)
    |> Term.Executor.run
-   |> Current_incr.observe
+   |> Current_incr.observe;;
 ...
-# test (Term.return 21)
+# test (Term.return 21);;
 - : int Current_term__.Output.t = Ok 42
 
-# test (Term.fail "Crashed")
+# test (Term.fail "Crashed");;
 - : int Current_term__.Output.t = Error (`Msg "Crashed")
 
-# test (Term.active `Running)
+# test (Term.active `Running);;
 - : int Current_term__.Output.t = Error (`Active `Running)
 ```
 
@@ -106,7 +106,7 @@ You can use `Term.catch` to turn a failed value back into a usable result:
           | Ok _ -> "good"
           | Error _ -> "bad")
        |> Term.Executor.run
-       |> Current_incr.observe
+       |> Current_incr.observe;;
 - : string Current_term__.Output.t = Ok "bad"
 ```
 
@@ -119,11 +119,11 @@ To make any real use of `Term`, you'll need to provide some "primitive" operatio
 For example:
 
 ```ocaml
-# module Term = Current_term.Make(Unit)
+# module Term = Current_term.Make(Unit);;
 ...
-# open Term.Syntax
+# open Term.Syntax;;
 
-# let approved = Current_incr.var false
+# let approved = Current_incr.var false;;
 ...
 # let await_approval x =
   Term.component "approve" |>
@@ -132,7 +132,7 @@ For example:
     Current_incr.read (Current_incr.of_var approved) @@ function
     | true -> Current_incr.write (Ok x, None)
     | false -> Current_incr.write (Error (`Active (`Ready)), None)
-  end
+  end;;
 ...
 ```
 
@@ -141,15 +141,15 @@ For example:
 You can use it like this:
 
 ```ocaml
-# let result = Term.return ~label:"build result" "image1" |> await_approval
+# let result = Term.return ~label:"build result" "image1" |> await_approval;;
 ...
-# Term.Executor.run result |> Current_incr.observe
+# Term.Executor.run result |> Current_incr.observe;;
 - : string Current_term__.Output.t = Error (`Active `Ready)
-# Current_incr.change approved true
+# Current_incr.change approved true;;
 - : unit = ()
-# Current_incr.propagate ()
+# Current_incr.propagate ();;
 - : unit = ()
-# Term.Executor.run result |> Current_incr.observe
+# Term.Executor.run result |> Current_incr.observe;;
 - : string Current_term__.Output.t = Ok "image1"
 ```
 
