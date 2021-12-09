@@ -1,5 +1,11 @@
-(* This pipeline monitors a GitHub repository and uses Docker to build the
-   latest version on the default branch. *)
+(* Usage: github.exe SOURCE --github-token-file GITHUB-TOKEN-FILE --github-webhook-secret-file GITHUB-APP-SECRET
+
+   Given a Github repository SOURCE, build the latest version on the default branch
+   using Docker and OCaml 4.13. Updates to the GitHub repository will trigger webhooks on
+   "webhooks/github", so some suitable forwarding of webhooks from GitHub to localhost needs
+   to be setup eg smee.io, along with a suitable token and webhook secret.
+
+*)
 
 let program_name = "github"
 
@@ -18,9 +24,12 @@ let url = Uri.of_string "http://localhost:8080"
 let dockerfile ~base =
   let open Dockerfile in
   from (Docker.Image.hash base) @@
+  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
+  run "opam init --reinit -n" @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  env ["OPAMERRLOGLEN", "0"] @@
+  run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
@@ -35,7 +44,7 @@ let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
   Docker.build ~pull:false ~dockerfile (`Git src)

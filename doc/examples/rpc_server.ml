@@ -3,7 +3,7 @@
 
    Run this as e.g.
 
-   dune exec -- ./examples/rpc_server.exe \
+   dune exec -- ./doc/examples/rpc_server.exe \
       --capnp-secret-key-file=secret-key.pem \
       --capnp-listen-address=unix:/tmp/ocurrent.sock
 
