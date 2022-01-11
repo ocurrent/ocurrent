@@ -7,10 +7,10 @@ This handles all the details of starting builds, recording the results, managing
 A minimal example looks something like this:
 
 ```ocaml
-# #require "lwt,current,current.cache"
+# #require "lwt,current,current.cache";;
 
-# open Lwt.Infix
-# open Current.Syntax
+# open Lwt.Infix;;
+# open Current.Syntax;;
 
 # module Frob = struct
     type t = No_context
@@ -29,14 +29,14 @@ A minimal example looks something like this:
     let pp f key = Fmt.pf f "frob %a" Key.pp key
 
     let auto_cancel = false
-  end
+  end;;
 ...
-# module FC = Current_cache.Make(Frob)
+# module FC = Current_cache.Make(Frob);;
 ...
 # let frob key =
   Current.component "Frob" |>
   let> key = key in
-  FC.get Frob.No_context key
+  FC.get Frob.No_context key;;
 ...
 ```
 

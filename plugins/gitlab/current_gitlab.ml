@@ -2,6 +2,7 @@ open Lwt.Infix
 
 module Repo_id = Repo_id
 module Api = Api
+module Auth = Auth
 
 module Metrics = struct
   open Prometheus
