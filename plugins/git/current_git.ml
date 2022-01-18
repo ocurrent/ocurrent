@@ -33,7 +33,7 @@ module Fetch = struct
       if Cmd.dir_exists local_repo then Lwt.return (Ok ())
       else Cmd.git_clone ~cancellable:true ~job ~src:remote_repo local_repo
     end >>!= fun () ->
-    let commit = { Commit.repo = local_repo; id = key } in
+            let commit = { Commit.repo = local_repo; id = key; bare = false } in
     (* Fetch the commit (if missing). *)
     begin
       Commit.check_cached ~cancellable:false ~job commit >>= function
@@ -63,12 +63,16 @@ let clone ~schedule ?(gref="master") repo =
   let> () = Current.return () in
   Clone_cache.get ~schedule Clone.No_context { Clone.Key.repo; gref }
 
+let git_folder bare repo =
+  if bare then repo else Fpath.(repo / ".git")
+
 let with_checkout ?pool ~job commit fn =
-  let { Commit.repo; id } = commit in
+  let { Commit.repo; id; bare; } = commit in
   let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
   Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,%a@]"
     short_hash Commit_id.pp_user_clone id;
   let switch = Current.Switch.create ~label:"clone" () in
+  let dotgit = git_folder bare repo in
   Lwt.finalize
     (fun () ->
        begin
@@ -77,8 +81,12 @@ let with_checkout ?pool ~job commit fn =
          | None -> Lwt.return_unit
        end >>= fun () ->
        Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
-       Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
-       Cmd.git_submodule_update ~init:false ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
+       begin
+         if bare
+         then Cmd.git_checkout_with_worktree ~cancellable:true ~job ~src:dotgit ~dst:tmpdir
+         else Cmd.cp_r ~cancellable:true ~job ~src:dotgit ~dst:tmpdir >>!= fun () ->
+              Cmd.git_submodule_update ~init:false ~cancellable:true ~job ~repo:tmpdir
+       end >>!= fun () ->
        Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
        | Ok () ->
          Cmd.git_submodule_sync ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
@@ -106,11 +114,12 @@ module Local = struct
 
   type t = {
     repo : Fpath.t;
+    bare : bool;
     head : [`Ref of string | `Commit of Commit_id.t] Current.Monitor.t;
     mutable heads : Commit.t Current.Monitor.t Ref_map.t;
   }
 
-  let pp_repo f t = Fpath.pp f t.repo
+  let pp_repo f t = Fpath.pp f t.repo ; if t.bare then Fmt.pf f " (bare)"
 
   let read_reference t gref =
     let cmd = [| "git"; "-C"; Fpath.to_string t.repo; "rev-parse"; "--revs-only"; gref |] in
@@ -119,10 +128,10 @@ module Local = struct
     | "" -> Error (`Msg (Fmt.str "Unknown ref %S" gref))
     | hash ->
       let id = { Commit_id.repo = Fpath.to_string t.repo; gref; hash } in
-      Ok { Commit.repo = t.repo; id }
+      Ok { Commit.repo = t.repo; id; bare = t.bare }
 
   let make_monitor t gref =
-    let dot_git = Fpath.(t.repo / ".git") in
+    let dot_git = git_folder t.bare t.repo in
     if not (Astring.String.is_prefix ~affix:"refs/" gref) then
       Fmt.failwith "Reference %S should start \"refs/\"" gref;
     let read () = read_reference t gref in
@@ -169,7 +178,7 @@ module Local = struct
     Current.component "head commit" |>
     let> h = head t in
     match h with
-    | `Commit id -> Current.Primitive.const { Commit.repo = t.repo; id }
+    | `Commit id -> Current.Primitive.const { Commit.repo = t.repo; id; bare = t.bare }
     | `Ref gref -> Current.Monitor.get @@ commit_of_ref t gref
 
   let commit_of_ref t gref =
@@ -177,8 +186,8 @@ module Local = struct
     let> () = Current.return () in
     Current.Monitor.get @@ commit_of_ref t gref
 
-  let read_head repo =
-    let path = Fpath.(repo / ".git" / "HEAD") in
+  let read_head ~bare repo =
+    let path = Fpath.(git_folder bare repo / "HEAD") in
     match Bos.OS.File.read path with
     | Error _ as e -> e
     | Ok contents ->
@@ -188,9 +197,9 @@ module Local = struct
       | [_;r]  -> Ok (`Ref r)
       | _      -> Error (`Msg (Fmt.str "Can't parse HEAD %S" contents))
 
-  let make_head repo =
-    let dot_git = Fpath.(repo / ".git") in
-    let read () = Lwt.return (read_head repo) in
+  let make_head ~bare repo =
+    let dot_git = git_folder bare repo in
+    let read () = Lwt.return (read_head ~bare repo) in
     let watch refresh =
       let watch_dir = dot_git in
       Log.debug (fun f -> f "Installing watch for %a" Fpath.pp watch_dir);
@@ -214,9 +223,9 @@ module Local = struct
     in
     Current.Monitor.create ~read ~watch ~pp
 
-  let v repo =
+  let v ?(bare= false) repo =
     let repo = Fpath.normalize @@ Fpath.append (Fpath.v (Sys.getcwd ())) repo in
-    let head = make_head repo in
+    let head = make_head ~bare repo in
     let heads = Ref_map.empty in
-    { repo; head; heads }
+    { repo; head; heads; bare }
 end

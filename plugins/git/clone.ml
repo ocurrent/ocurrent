@@ -43,7 +43,7 @@ let build No_context job { Key.repo; gref } =
   end >>!= fun () ->
   Cmd.git_rev_parse ~cancellable:true ~job ~repo:local_repo ("origin/" ^ gref) >>!= fun hash ->
   let id = { Commit_id.repo; gref; hash } in
-  Lwt.return @@ Ok { Commit.repo = local_repo; id }
+  Lwt.return @@ Ok { Commit.repo = local_repo; id; bare = false }
 
 let pp f key = Fmt.pf f "git clone %a" Key.pp key
 

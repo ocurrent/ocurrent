@@ -58,3 +58,7 @@ let git_submodule_sync ~cancellable ~job ~repo =
 
 let git_submodule_update ~cancellable ~job ~repo ~init =
   git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: (if init then ["--init"] else []))
+
+let git_checkout_with_worktree ~cancellable ~job ~src ~dst =
+  let cmd = [| "git"; "--git-dir"; Fpath.to_string src; "--work-tree"; Fpath.to_string dst; "checkout"; "HEAD" |] in
+  Current.Process.exec ~cancellable ~job ("", cmd)
