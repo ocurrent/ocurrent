@@ -19,14 +19,14 @@ module Raw = struct
 
   module BC = Current_cache.Make(Build)
 
-  let build ~docker_context ?schedule ?timeout ?(squash=false) ?dockerfile ?pool ?(build_args=[]) ~pull commit =
+  let build ~docker_context ?level ?schedule ?timeout ?(squash=false) ?dockerfile ?pool ?(build_args=[]) ~pull commit =
     let dockerfile =
       match dockerfile with
       | None -> `File (Fpath.v "Dockerfile")
       | Some (`File _ as f) -> f
       | Some (`Contents c) -> `Contents (Dockerfile.string_of_t c)
     in
-    BC.get ?schedule { Build.pull; pool; timeout }
+    BC.get ?schedule { Build.pull; pool; timeout; level }
       { Build.Key.commit; dockerfile; docker_context; squash; build_args }
 
   module RC = Current_cache.Make(Run)
@@ -139,11 +139,11 @@ module Make (Host : S.HOST) = struct
     | `No_context -> Current.return `No_context
     | `Git commit -> Current.map (fun x -> `Git x) commit
 
-  let build ?schedule ?timeout ?squash ?label ?dockerfile ?pool ?build_args ~pull src =
+  let build ?level ?schedule ?timeout ?squash ?label ?dockerfile ?pool ?build_args ~pull src =
     Current.component "build%a" pp_sp_label label |>
     let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
-    Raw.build ~docker_context ?schedule ?timeout ?squash ?dockerfile ?pool ?build_args ~pull commit
+    Raw.build ~docker_context ?level ?schedule ?timeout ?squash ?dockerfile ?pool ?build_args ~pull commit
 
   let run ?label ?pool ?run_args image ~args  =
     Current.component "run%a" pp_sp_label label |>

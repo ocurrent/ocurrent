@@ -38,6 +38,7 @@ module type DOCKER = sig
                       has no [valid_for] limit then we will only ever check once. *)
 
   val build :
+    ?level:Current.Level.t ->
     ?schedule:Current_cache.Schedule.t ->
     ?timeout:Duration.t ->
     ?squash:bool ->
