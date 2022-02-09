@@ -1,4 +1,5 @@
-let css = {|
+let css =
+  {|
   body {
     margin: 0;
     padding: 0;
@@ -149,15 +150,35 @@ let css = {|
     margin-left: 0.5em;
     margin-right: 2em;
   }
-|} ^ Current_ansi.css
 
-let r = object
-  inherit Resource.t
+  #line-numbers {
+    color:black;
+    display:block;
+  }
 
-  val! can_get = `Viewer
+  #line-numbers {
+    float:left;
+    margin:0 1em 0 -1em;
+    border-right:1px solid;
+    text-align:right;
+  }
 
-  method! private get _ctx =
-    let headers = Cohttp.Header.init_with "Content-Type" "text/css" in
-    Utils.Server.respond_string ~status:`OK ~headers ~body:css ()
+  #line-numbers span {
+    display:block;
+    padding:0 .5em 0 1em;
+  }
+
+|}
+  ^ Current_ansi.css
+
+let r =
+  object
+    inherit Resource.t
+
+    val! can_get = `Viewer
+
+    method! private get _ctx =
+      let headers = Cohttp.Header.init_with "Content-Type" "text/css" in
+      Utils.Server.respond_string ~status:`OK ~headers ~body:css ()
     (*   Server.respond_file ~fname:"style.css" () *)
-end
+  end
