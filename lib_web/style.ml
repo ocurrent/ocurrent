@@ -168,6 +168,10 @@ let css =
     padding:0 .5em 0 1em;
   }
 
+  #line-numbers .highlight {
+    background: lightgrey;
+  }
+
 |}
   ^ Current_ansi.css
 
