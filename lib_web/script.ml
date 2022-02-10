@@ -1,20 +1,27 @@
 let js = {|
 
-const highlightLines = (renderedLines, noScroll=false) => {
+const hashToLines = (renderedLines, noScroll = false) => {
   const mLines = location.hash.match(/L(\d+)(-L(\d+))*/)
-  // Ignore non line-range hashes
-  if (!mLines) {
+  let start, end
+  if (mLines) {
+    [_, start, __, end] = mLines
+    start = Number(start)
+    end = end ? Number(end) : start
+    // Return early if chosen lines are not rendered still
+    if (renderedLines && start > renderedLines) {
+      return
+    }
+  } else if (location.hash === "#end") {
+    start = end = document.getElementById('line-numbers').getElementsByTagName('span').length
+    // Always scroll to the last line
+    noScroll = false
+  } else {
     return
   }
+  highlightLines(start, end, !noScroll)
+}
 
-  let [_, start, __, end] = mLines
-  start = Number(start)
-  end = end ? Number(end) : start
-  // Return early if chosen lines are not rendered still
-  if (renderedLines && start > renderedLines) {
-    return
-  }
-
+const highlightLines = (start, end, scroll) => {
   // Remove previous highlights if any
   document.querySelectorAll('.highlight').forEach(
     (node) => node.classList.remove('highlight')
@@ -26,9 +33,8 @@ const highlightLines = (renderedLines, noScroll=false) => {
       break
     }
     lineSpan.classList.add('highlight')
-
-    // Scroll to the first selected line, if not triggered by mutations
-    if (i === start && !noScroll) {
+    // Scroll to the first selected line
+    if (i === start && scroll) {
       lineSpan.scrollIntoView()
     }
   }
@@ -57,17 +63,17 @@ const showLineNumbers = () => {
 const addMutationObserver = () => {
 
   let debounceTimer
-  const mutationCallback = function(mutationsList) {
-    for(const mutation of mutationsList) {
+  const mutationCallback = function (mutationsList) {
+    for (const mutation of mutationsList) {
       if (mutation.type === 'characterData') {
         clearTimeout(debounceTimer)
         debounceTimer = setTimeout(() => {
           const lineCount = showLineNumbers()
-          highlightLines(lineCount, noScroll=true)
+          highlightLines(lineCount, noScroll = true)
         }, 200)
       }
     }
-  }
+  };
 
   // Create an observer instance and watch changes on the pre tag
   const observer = new MutationObserver(mutationCallback)
@@ -77,14 +83,14 @@ const addMutationObserver = () => {
 }
 
 // Wait for pre tag to load before attaching the mutation observer
-const timer = setTimeout(addMutationObserver, 100)
+const timer = setTimeout(addMutationObserver, 0.1)
 
 document.addEventListener('DOMContentLoaded', (event) => {
   clearTimeout(timer) // If the page has loaded completely, don't add mutation observer
   showLineNumbers()
-  highlightLines()
+  hashToLines()
 })
-window.addEventListener('hashchange', () => {highlightLines()})
+window.addEventListener('hashchange', () => { hashToLines() })
 
 |}
 
