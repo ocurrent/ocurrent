@@ -23,7 +23,7 @@ depends: [
   "fmt" {>= "0.8.9"}
   "bos"
   "lwt"
-  "cmdliner"
+  "cmdliner" {< "1.1.0"}
   "prometheus" {>= "0.7"}
   "prometheus-app"
   "cohttp-lwt-unix" {>= "4.0.0"}
