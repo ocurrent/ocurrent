@@ -23,7 +23,7 @@ depends: [
   "bos"
   "ppx_deriving"
   "lwt" {>= "4.3.0"}
-  "cmdliner" {< "1.1.0"}
+  "cmdliner" {>= "1.1.0"}
   "sqlite3"
   "duration"
   "prometheus"

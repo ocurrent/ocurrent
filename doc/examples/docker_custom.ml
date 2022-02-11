@@ -101,7 +101,7 @@ open Cmdliner
 
 let cmd =
   let doc = "Check that the nginx container can serve a web page" in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

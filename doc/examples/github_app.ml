@@ -92,7 +92,7 @@ open Cmdliner
 
 let cmd =
   let doc = "Monitor a GitHub app's repositories." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd
