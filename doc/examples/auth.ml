@@ -56,7 +56,7 @@ let repo =
 
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo $ Current_github.Auth.cmdliner)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo $ Current_github.Auth.cmdliner))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

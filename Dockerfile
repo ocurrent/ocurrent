@@ -1,6 +1,6 @@
-FROM ocaml/opam:debian-10-ocaml-4.08
+FROM ocaml/opam:debian-11-ocaml-4.13
 RUN sudo apt-get update && sudo apt-get install libev-dev libffi-dev capnproto graphviz m4 pkg-config libsqlite3-dev libgmp-dev -y --no-install-recommends
-RUN cd ~/opam-repository && git pull origin master && git reset --hard 795aedcd015f0259996e0e728a2f0ef4b0ea2ea6 && opam update
+RUN cd ~/opam-repository && git pull origin master && git reset --hard ae6aff50030492f9b7eed0cf952fdca40f4cf125 && opam update
 ADD --chown=opam *.opam /src/
 WORKDIR /src
 RUN opam pin add -yn current_web.dev "./" && \

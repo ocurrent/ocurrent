@@ -77,7 +77,7 @@ open Cmdliner
 
 let cmd =
   let doc = "Monitor a GitLab repository." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_gitlab.Api.cmdliner $ Current_gitlab.Repo_id.cmdliner)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_gitlab.Api.cmdliner $ Current_gitlab.Repo_id.cmdliner))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd
