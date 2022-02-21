@@ -24,7 +24,7 @@ type t = {
   priority : Pool.priority;
   set_start_time : float Lwt.u;
   start_time : float Lwt.t;
-  mutable ch : out_channel option;
+  mutable path : Fpath.t option;
   log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
   explicit_confirm : unit Lwt.t;
   set_explicit_confirm : unit Lwt.u; (* Resolve this to override the global confirmation threshold. *)
@@ -34,16 +34,19 @@ type t = {
 
 let jobs = ref Map.empty
 
-let open_temp_file ~dir ~prefix ~suffix =
-  let path, ch = Filename.open_temp_file ~temp_dir:(Fpath.to_string dir) prefix suffix in
-  Fpath.v path, ch
+let temp_file ~dir ~prefix ~suffix =
+  let path = Filename.temp_file ~temp_dir:(Fpath.to_string dir) prefix suffix in
+  Fpath.v path
 
 let write t msg =
-  match t.ch with
+  match t.path with
   | None -> Log.err (fun f -> f "Job.write(%s, %S) called on closed job" t.id msg)
-  | Some ch ->
-    output_string ch msg;
-    flush ch;
+  | Some path ->
+    let ch = open_out_gen [Open_wronly; Open_append] 0o600 (Fpath.to_string path) in
+    Fun.protect ~finally:(fun () -> close_out ch) (fun () ->
+      output_string ch msg;
+      flush ch;
+    );
     Lwt_condition.broadcast t.log_cond ()
 
 let log t fmt =
@@ -121,14 +124,14 @@ let create ?(priority=`Low) ~switch ~label ~config () =
       let { Unix.tm_hour; tm_min; tm_sec; _ } = time in
       Fmt.str "%02d%02d%02d-%s-" tm_hour tm_min tm_sec label
     in
-    let path, ch = open_temp_file ~dir:date_dir ~prefix ~suffix:".log" in
+    let path = temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
     let id = id_of_path path in
     let start_time, set_start_time = Lwt.wait () in
     let log_cond = Lwt_condition.create () in
     let explicit_confirm, set_explicit_confirm = Lwt.wait () in
     let cancel_hooks = `Hooks (Lwt_dllist.create ()) in
-    let t = { switch; id; ch = Some ch; start_time; set_start_time; config; log_cond; cancel_hooks;
+    let t = { switch; id; path = Some path; start_time; set_start_time; config; log_cond; cancel_hooks;
               explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false; priority } in
     jobs := Map.add id t !jobs;
     Prometheus.Gauge.inc_one Metrics.active_jobs;
@@ -140,8 +143,7 @@ let create ?(priority=`Low) ~switch ~label ~config () =
             run_cancel_hooks ~reason hooks
           | `Cancelled _ -> Lwt.return_unit
         end >>= fun () ->
-        close_out ch;
-        t.ch <- None;
+        t.path <- None;
         jobs := Map.remove id !jobs;
         Prometheus.Gauge.dec_one Metrics.active_jobs;
         Lwt_condition.broadcast t.log_cond ();
