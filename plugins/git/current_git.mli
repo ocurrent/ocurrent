@@ -45,6 +45,7 @@ val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commi
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
+  ?clone:[ `Protocol | `Worktree ] ->
   ?pool:unit Current.Pool.t ->
   job:Current.Job.t ->
   Commit.t ->

@@ -33,7 +33,7 @@ module Fetch = struct
       if Cmd.dir_exists local_repo then Lwt.return (Ok ())
       else Cmd.git_clone ~cancellable:true ~job ~src:remote_repo local_repo
     end >>!= fun () ->
-            let commit = { Commit.repo = local_repo; id = key; bare = false } in
+    let commit = { Commit.repo = local_repo; id = key; bare = false } in
     (* Fetch the commit (if missing). *)
     begin
       Commit.check_cached ~cancellable:false ~job commit >>= function
@@ -66,7 +66,7 @@ let clone ~schedule ?(gref="master") repo =
 let git_folder bare repo =
   if bare then repo else Fpath.(repo / ".git")
 
-let with_checkout ?pool ~job commit fn =
+let with_checkout ?(clone= `Protocol) ?pool ~job commit fn =
   let { Commit.repo; id; bare; } = commit in
   let short_hash = Astring.String.with_range ~len:8 id.Commit_id.hash in
   Current.Job.log job "@[<v2>Checking out commit %s. To reproduce:@,%a@]"
@@ -83,7 +83,11 @@ let with_checkout ?pool ~job commit fn =
        Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
        begin
          if bare
-         then Cmd.git_checkout_with_worktree ~cancellable:true ~job ~src:dotgit ~dst:tmpdir
+         then ( match clone with
+              | `Worktree -> Cmd.git_checkout_with_worktree ~cancellable:true ~job
+                ~src:dotgit ~dst:tmpdir
+              | `Protocol -> Cmd.git_clone ~cancellable:true ~job
+                ~src:(Fpath.to_string dotgit) tmpdir )
          else Cmd.cp_r ~cancellable:true ~job ~src:dotgit ~dst:tmpdir >>!= fun () ->
               Cmd.git_submodule_update ~init:false ~cancellable:true ~job ~repo:tmpdir
        end >>!= fun () ->
