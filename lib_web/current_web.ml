@@ -41,6 +41,7 @@ let routes engine =
     empty @--> Main.r ~engine;
     s "index.html" /? nil @--> Main.r ~engine;
     s "css" / s "style.css" /? nil @--> Style.r;
+    s "js" / s "line-numbers.js" /? nil @--> Script.line_numbers;
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
     s "query" /? nil @--> Query.r ~engine;
     s "log-rules" /? nil @--> Log_rules.r;
