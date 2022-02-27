@@ -114,10 +114,12 @@ module type TERM = sig
       and collects all the results into a single list.
       @param T Used to display labels for each item, and to avoid recreating pipelines
                unnecessarily.
-      @param collapse_key If given, each element is wrapped with [collapse]. *)
+      @param collapse_key If given, each element is wrapped with [collapse]. 
+      @param label Label the list in the diagrams. *)
 
   val list_iter : (module ORDERED with type t = 'a) -> ?collapse_key:string -> ?label:string -> ('a t -> unit t) -> 'a list t -> unit t
-  (** Like [list_map] but for the simpler case when the result is unit. *)
+  (** Like [list_map] but for the simpler case when the result is unit. 
+      @param label Label the list in the diagrams.*)
 
   val list_seq : 'a t list -> 'a list t
   (** [list_seq x] evaluates to a list containing the results of evaluating
@@ -125,7 +127,8 @@ module type TERM = sig
 
   val option_map : ?label:string -> ('a t -> 'b t) -> 'a option t -> 'b option t
   (** [option_map f x] is a term that evaluates to [Some (f y)] if [x]
-      evaluates to [Some y], or to [None] otherwise. *)
+      evaluates to [Some y], or to [None] otherwise. 
+      @param label Label the optional in the diagrams. *)
 
   val option_seq : 'a t option -> 'a option t
   (** [option_seq None] is [Current.return None] and
