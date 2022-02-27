@@ -1,32 +1,19 @@
 (library
- (public_name current_github)
+ (public_name current_gitlab)
  (libraries
-   astring
-   base64
    cmdliner
-   cohttp-lwt-unix
-   cstruct
    current
    current.cache
    current.term
    current_git
    current_web
-   github-unix
-   duration
-   ptime
+   gitlab-unix
    fmt
    logs
    lwt
    lwt.unix
-   mirage-crypto
-   mirage-crypto-pk
-   hex
    prometheus
    result
    rresult
-   uri
-   x509
-   tyxml
-   tyxml.functor
    yojson)
  (preprocess (pps ppx_deriving_yojson)))

@@ -8,7 +8,7 @@
    e.g.
 
    $ docker service create --name my-service -p 9000:80 nginx
-   $ dune exec -- ./examples/docker_service.exe --service=my-service /src/service
+   $ dune exec -- ./doc/examples/docker_service.exe --service=my-service /src/service
 *)
 
 let program_name = "docker_service"
@@ -60,7 +60,7 @@ let repo =
 
 let cmd =
   let doc = "Keep a Docker SwarmKit service up-to-date." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ service $ repo)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ service $ repo))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

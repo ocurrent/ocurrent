@@ -21,26 +21,19 @@ it records the inputs used (e.g. the current set of open PRs and the head of eac
 one), monitors them, and automatically recalculates when an input changes.
 
 Larger uses of OCurrent include the
-[OCaml Docker base image builder][docker-base-images] and
-[ocaml-ci][], which is the CI that tests this repository itself.
+[OCaml Docker base image builder](https://github.com/ocurrent/docker-base-images) and
+[ocaml-ci](https://github.com/ocurrent/ocaml-ci/), which is the CI that tests this repository itself.
 
 ## Documentation
 
-The [OCurrent wiki][] contains user documentation and examples.
+The [OCurrent docs](doc/index.md) contains user documentation and examples.
 In particular, you might like to start by reading about the
-[example pipelines][] or how to [write your own plugins][writing-plugins].
+[example pipelines](doc/example_pipelines.md) or how to [write your own plugins](doc/writing_plugins.md).
 
-For technical docs, see the [API Documentation][].
+For technical docs, see the [API Documentation](https://ocurrent.github.io/ocurrent/index.html).
 
 ## Licensing
 
 OCurrent is licensed under the Apache License, Version 2.0.
-See [LICENSE][] for the full license text.
+See [LICENSE](LICENSE) for the full license text.
 
-[docker-base-images]: https://github.com/ocurrent/docker-base-images
-[ocaml-ci]: https://github.com/ocurrent/ocaml-ci/
-[writing-plugins]: https://github.com/ocurrent/ocurrent/wiki/Writing-plugins
-[example pipelines]: https://github.com/ocurrent/ocurrent/wiki/Example-pipelines
-[OCurrent wiki]: https://github.com/ocurrent/ocurrent/wiki
-[API Documentation]: https://ocurrent.github.io/ocurrent/index.html
-[LICENSE]: ./LICENSE

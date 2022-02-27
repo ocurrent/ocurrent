@@ -33,6 +33,7 @@ module Raw : sig
 
   val build :
     docker_context:string option ->
+    ?level:Current.Level.t ->
     ?schedule:Current_cache.Schedule.t ->
     ?timeout:Duration.t ->
     ?squash:bool ->

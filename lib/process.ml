@@ -42,13 +42,41 @@ let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   in
   mktmp 10
 
+let win32_unlink fn =
+  Lwt.catch
+    (fun () -> Lwt_unix.unlink fn)
+    (function
+     | Unix.Unix_error (Unix.EACCES, _, _) as exn ->
+        (* Try removing the read-only attribute before retrying unlink. We catch
+          any exception here and ignore it in favour of the original [exn]. *)
+        Lwt.catch
+          (fun () ->
+            Lwt_unix.lstat fn >>= fun {st_perm; _} ->
+            Lwt_unix.chmod fn 0o666 >>= fun () ->
+            Lwt.catch
+              (fun () -> Lwt_unix.unlink fn)
+              (function _ ->
+                 (* If everything succeeded but the final removal still failed,
+                   restore original permissions *)
+                 Lwt_unix.chmod fn st_perm >>= fun () ->
+                 Lwt.fail exn)
+          )
+          (fun _ -> Lwt.fail exn)
+     | exn -> Lwt.fail exn)
+
+let unlink =
+  if Sys.win32 then
+    win32_unlink
+  else
+    Lwt_unix.unlink
+
 let rm_f_tree root =
   let rec rmtree path =
     Lwt_unix.lstat path >>= fun info ->
     match info.Unix.st_kind with
     | Unix.S_REG | Unix.S_LNK | Unix.S_BLK | Unix.S_CHR | Unix.S_SOCK
     | Unix.S_FIFO ->
-      Lwt_unix.unlink path
+      unlink path
     | Unix.S_DIR ->
       Lwt_unix.chmod path 0o700 >>= fun () ->
       Lwt_unix.files_of_directory path

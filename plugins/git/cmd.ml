@@ -8,7 +8,7 @@ let dir_exists d =
 let hexchars = "0123456789abcdef"
 
 let pp_hex f d =
-  for x = 0 to Cstruct.len d - 1 do
+  for x = 0 to Cstruct.length d - 1 do
     let byte = Cstruct.get_uint8 d x in
     Fmt.pf f "%02x" byte
   done
@@ -40,7 +40,7 @@ let git_fetch ~cancellable ~job ~src ~dst gref =
   git ~cancellable ~job ~cwd:dst ["fetch"; "-f"; src; gref]
 
 let git_reset_hard ~job ~repo hash =
-  git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; hash]
+  git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
 
 let git_remote_set_url ~job ~repo ~remote url =
   git ~cancellable:false ~job ~cwd:repo ["remote"; "set-url"; remote; url]

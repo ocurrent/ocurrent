@@ -1,3 +1,55 @@
+### v0.5
+
+Web UI:
+
+- Space and color rows in query page (@MisterDA #265).
+
+- Duplicate the Rebuild selected button on top (@MisterDA #265).
+
+- Add a 'select-all' checkbox to the query page (@MisterDA #265).
+
+- Better printing of job duration (@MisterDA #252, @ewanmellor #259).
+
+- Speed up rendering of the Query page (@talex5 #262).
+
+Windows support:
+
+- Remove RO bit on Windows file when deleting tmpdir (@MisterDA #270).
+
+- Use `open_in_bin` instead of `open_in` to open log files (@MisterDA #246).
+
+- Support Windows file separators (@MisterDA #246).
+
+API:
+
+- GitHub: add `staleness` argument to allow ignoring inactive branches (@patricoferris #231).
+
+- GitHub: add `default_ref` to get the default branch name (@patricoferris #231).
+
+- Git: expose `Current_git.Local.repo` (@ewanmellor #257).
+  This means that callers can use this for debugging or labelling.
+
+Other:
+
+- Log a message when cancelling a job finishes (@talex5 #261).
+  This avoids the confusing situation where the job finishes as you cancel, and you see the success message from the build as the last thing in the log, even though the job actually failed.
+
+- Move ANSI parser to its own repository (@talex5 #267, @MisterDA #268).
+  It's now at https://github.com/ocurrent/ansi
+
+- `current_git` depends on `conf-git` (@MisterDA #253).
+
+- Update Dockerfile to latest opam-repository (@ewanmellor #251).
+
+- Fix typo in doc-strings (@tatchi #250).
+
+- Replace deprecated `Fmt` functions (@MisterDA #245).
+
+- Update to latest x509 API changes (@talex5 #264).
+
+- Use mirage-crypto for id-of-repo digests (@talex5 #243).
+
+
 ### v0.4
 
 Core:

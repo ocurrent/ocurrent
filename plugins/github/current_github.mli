@@ -1,11 +1,24 @@
 (** Integration with GitHub. *)
 
-val webhook : Current_web.Resource.t
-(** Our web-hook endpoint. This must be added to {!Current_web.routes} so that we get notified of events. *)
+val webhook : engine:Current.Engine.t
+              -> webhook_secret:string
+              -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
+              -> Current_web.Resource.t
+(** GitHub webhook endpoint. This MUST be added to {!Current_web.routes} so that we get notified of events. This webhook handles the events:
+ - installation_repositories
+ - installation
+ - pull_request
+ - push
+ - create
+ - check_run
 
+Webhook payloads are validated against [webhook_secret].
+
+See {{:https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks}}
+ *)
+
+(** Identifier for a repository hosted on GitHub. *)
 module Repo_id : sig
-  (** Identifies a repository hosted on GitHub. *)
-
   type t = {
     owner : string;
     name : string;
@@ -18,9 +31,13 @@ module Repo_id : sig
   val cmdliner : t Cmdliner.Arg.conv
 end
 
+(** Access to the GitHub API. *)
 module Api : sig
   type t
   (** Configuration for accessing GitHub. *)
+
+  val webhook_secret : t -> string
+  (** Webhook secret to validate payloads from GitHub *)
 
   type refs
   (** Reference information for the repository *)
@@ -32,6 +49,30 @@ module Api : sig
     type state = [`Error | `Failure | `Pending | `Success ]
 
     val v : ?description:string -> ?url:Uri.t -> state -> t
+    (** Construct a Status.t *)
+  end
+
+  module CheckRunStatus : sig
+    type t
+    (** CheckRun status type. *)
+
+    type action
+
+    type conclusion = [`Failure of string | `Success | `Skipped of string]
+    (** Sub-set of conclusions from GitHub.
+        Not supported are action_required, cancelled, neutral, stale, or timed_out. *)
+
+    type state = [`Queued | `InProgress | `Completed of conclusion]
+
+    val action: label:string -> description:string -> identifier:string -> action
+
+    val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> ?identifier:string -> state -> t
+    (** [v ?text ?summary ?url ?actions ?identifier state] creates a CheckRunStatus with [?text] description, a link to
+        the build details at [?url] and an [?identifier] for triggering a rebuild of a job.
+
+        Both [text] and [summary] are limited to 65535 by GitHub. This field will be truncated to this length.
+        [actions] is limited to three actions by GitHub.
+     *)
   end
 
   module Commit : sig
@@ -60,6 +101,13 @@ module Api : sig
 
     val uri : t -> Uri.t
     (** [uri t] is a URI for the GitHub web page showing [t]. *)
+  end
+
+  module CheckRun : sig
+    type t
+
+    val set_status : Commit.t Current.t -> string -> CheckRunStatus.t Current.t -> unit Current.t
+    (** [set_status commit check_name status] sets the status of check_run for [commit]/[context] to [status]. *)
   end
 
   module Repo : sig
@@ -91,8 +139,8 @@ module Api : sig
 
   module Ref_map : Map.S with type key = Ref.t
 
-  val of_oauth : string -> t
-  (** [of_oauth token] is a configuration that authenticates to GitHub using [token]. *)
+  val of_oauth : token:string -> webhook_secret:string -> t
+  (** [of_oauth ~token ~webhook_secret] is a configuration that authenticates to GitHub using [token]. *)
 
   val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
   (** [exec_graphql t query] executes [query] on GitHub. *)
@@ -122,6 +170,43 @@ module Api : sig
   val all_refs : refs -> Commit.t Ref_map.t
   (** [all_refs refs] will return a map of all the repository's refs *)
 
+
+  (** A GraphQL query to be monitored for changes *)
+  module type GRAPHQL_QUERY = sig
+    type result
+    (** The result type produced by the query *)
+
+    val name : string
+    (** A short name describing the query (for logging) *)
+
+    val query : string
+    (** The GraphQL query that will be monitored. The variable [$owner] and [$name]
+        are available and bound to the repository's owner and name.
+
+        Furthermore, this [query] will be wrapped inside a template to also
+        report the rate limitations:
+
+          {[
+            query($owner: String!, $name: String!) {
+              rateLimit { ... }
+              <<query>>
+            }
+          ]}
+    *)
+
+    val of_yojson : t -> Repo_id.t -> Yojson.Safe.t -> result
+    (** [of_yojson t repo json] parses the [json] into a [result]. *)
+  end
+
+  (** Monitor a GraphQL query for changes on webhooks. *)
+  module Monitor (Query : GRAPHQL_QUERY) : sig
+    val get : t -> Repo_id.t -> Query.result Current.Primitive.t
+    (** [get t repo] is the primitive for observing the result of the GraphQL {!Query.query}.
+        The result is cached (so calling it twice will return the same primitive),
+        with the same lifetime as [t]. *)
+  end
+
+  (** Perform Anonymous request to GitHub. *)
   module Anonymous : sig
     val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
     (** [head_of repo ref] is the head commit of [repo]/[ref]. No API token is used to access this,
@@ -133,6 +218,7 @@ module Api : sig
   (** Command-line options to generate a GitHub configuration. *)
 end
 
+(** Installation of a GitHub application. *)
 module Installation : sig
   type t
   (** Details about a specific installation of a GitHub app. *)
@@ -155,12 +241,19 @@ module Installation : sig
   (** Order by installation ID. *)
 end
 
+(** A GitHub Application. *)
 module App : sig
   type t
   (** Configuration for a GitHub application. *)
 
+  val webhook_secret : t -> string
+  (** Webhook secret to validate payloads from GitHub. *)
+
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub app configuration. *)
+
+  val cmdliner_opt : t option Cmdliner.Term.t
+  (** Like [cmdliner], but the arguments are all optional. *)
 
   val installation : t -> account:string -> int -> Installation.t
   (** [installation t ~account id] gives access to the API for installation [id].

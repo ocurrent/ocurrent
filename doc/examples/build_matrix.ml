@@ -1,3 +1,11 @@
+(* Usage: build_matrix.exe DIR
+
+   Given a local Git repository DIR, build the OCaml project with OCaml 4.10 and 4.11 on Debian.
+
+   e.g. Build the checked out ocurrent repository.
+   $ dune exec -- ./doc/examples/build_matrix.exe .
+*)
+
 let program_name = "build_matrix"
 
 open Current.Syntax
@@ -10,13 +18,18 @@ let () = Prometheus_unix.Logging.init ()
 let dockerfile ~base ~ocaml_version =
   let open Dockerfile in
   from (Docker.Image.hash base) @@
+  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
+  run "opam init --reinit -n" @@
   run "opam switch %s" ocaml_version @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@
   env ["OPAMERRLOGLEN", "0"] @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
+
+(* included in doc/example_pipelines.md as code snippet *)
+[@@@part "pipeline"]
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 
@@ -36,6 +49,8 @@ let pipeline ~repo () =
     build "4.10";
     build "4.11"
   ]
+
+[@@@part "end-pipeline"]
 
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
@@ -62,7 +77,7 @@ let repo =
 
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

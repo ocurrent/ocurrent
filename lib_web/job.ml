@@ -72,8 +72,11 @@ let render ctx ~actions ~job_id ~log:path =
           ol items]
       ]
   in
+  let line_numbers_js = [script ~a:[a_src (Xml.uri_of_string "/js/line-numbers.js")] (txt "");] 
+  in
   let tmpl =
     Context.template ctx (
+      line_numbers_js @
       history @
       rebuild_button @
       cancel_button @
@@ -139,7 +142,7 @@ let job ~engine ~job_id = object
       Utils.Server.respond ~status:`OK ~headers ~body ()
 end
 
-let rebuild ~engine ~job_id= object
+let rebuild ~engine ~job_id = object
   inherit Resource.t
 
   val! can_post = `Builder

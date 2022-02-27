@@ -3,7 +3,7 @@
 
    Run this as e.g.
 
-   dune exec -- ./examples/rpc_server.exe \
+   dune exec -- ./doc/examples/rpc_server.exe \
       --capnp-secret-key-file=secret-key.pem \
       --capnp-listen-address=unix:/tmp/ocurrent.sock
 
@@ -73,7 +73,7 @@ let man = [
 
 let cmd =
   let doc = "A build server that can be controlled via Cap'n Proto RPC" in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Capnp_rpc_unix.Vat_config.cmd $ repo)),
-  Term.info program_name ~doc ~man
+  let info = Cmd.info program_name ~doc ~man in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Capnp_rpc_unix.Vat_config.cmd $ repo))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

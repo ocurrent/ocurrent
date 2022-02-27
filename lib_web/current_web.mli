@@ -5,6 +5,9 @@ module User : sig
   val v : string -> (t, [> `Msg of string]) result
   (** [v id] is a user with ID [id]. *)
 
+  val v_exn : string -> t
+  (** [v_exn id] is a user with ID [id]. *)
+
   val id : t -> string
   (** [id t] is the user ID (e.g. "github:alice") *)
 end

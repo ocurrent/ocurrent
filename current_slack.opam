@@ -12,13 +12,11 @@ bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "current" {= version}
   "ocaml" {>= "4.08.0"}
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "yojson"
   "lwt"
   "tls" {>= "0.12.0"}
-  "cohttp" {>= "2.2.0" & < "3.0.0"}
-  "cohttp-lwt" {>= "2.2.0" & < "3.0.0"}
-  "cohttp-lwt-unix" {>= "2.2.0" & < "3.0.0"}
+  "cohttp-lwt-unix" {>= "4.0.0"}
   "dune" {>= "2.0"}
   "logs" {>= "0.7.0"}
   "uri" {>= "4.0.0"}
@@ -28,3 +26,4 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+license: "Apache-2.0"

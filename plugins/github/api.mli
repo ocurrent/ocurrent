@@ -7,6 +7,17 @@ module Status : sig
   val v : ?description:string -> ?url:Uri.t -> state -> t
 end
 
+module CheckRunStatus : sig
+  type t
+  type action
+  type conclusion = [`Failure of string | `Success | `Skipped of string]
+  type state = [`Queued | `InProgress | `Completed of conclusion]
+
+  val action: label:string -> description:string -> identifier:string -> action
+  val v : ?text:string -> ?summary:string -> ?url:Uri.t -> ?actions:action list -> ?identifier:string -> state -> t
+end
+
+
 module Commit : sig
   type t
   val id : t -> Current_git.Commit_id.t
@@ -20,6 +31,13 @@ module Commit : sig
   val uri : t -> Uri.t
 end
 
+
+module CheckRun : sig
+  type t
+
+  val set_status : Commit.t Current.t -> string -> CheckRunStatus.t Current.t -> unit Current.t
+end
+
 module Ref : sig
   type t = [ `Ref of string | `PR of int ]
   val compare : t -> t -> int
@@ -31,15 +49,17 @@ module Ref_map : Map.S with type key = Ref.t
 
 type t
 type refs
-val of_oauth : string -> t
+val of_oauth : token:string -> webhook_secret:string -> t
 val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
 val head_commit : t -> Repo_id.t -> Commit.t Current.t
 val refs : t -> Repo_id.t -> refs Current.Primitive.t
 val default_ref : refs -> string
+val webhook_secret : t -> string
 val all_refs : refs -> Commit.t Ref_map.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
 val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
+val webhook_secret_file : string Cmdliner.Term.t
 
 module Repo : sig
   type nonrec t = t * Repo_id.t
@@ -49,6 +69,17 @@ module Repo : sig
   val head_commit : t Current.t -> Commit.t Current.t
   val pp : t Fmt.t
   val compare : t -> t -> int
+end
+
+module type GRAPHQL_QUERY = sig
+  type result
+  val name : string
+  val query : string
+  val of_yojson : t -> Repo_id.t -> Yojson.Safe.t -> result
+end
+
+module Monitor (Query : GRAPHQL_QUERY) : sig
+  val get : t -> Repo_id.t -> Query.result Current.Primitive.t
 end
 
 module Anonymous : sig
@@ -73,11 +104,17 @@ type token = {
 val get_token : t -> (string, [`Msg of string]) result Lwt.t
 (** [get_token t] returns the cached token for [t], or fetches a new one if it has expired. *)
 
+val rebuild_webhook : engine:Current.Engine.t
+                      -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
+                      -> Yojson.Safe.t -> unit
+(** Call this when we get a "check_run" webhook event. *)
+
 val input_webhook : Yojson.Safe.t -> unit
 (** Call this when we get a "pull_request", "push" or "create" webhook event. *)
 
-val v : get_token:(unit -> token Lwt.t) -> string -> t
-(** [v ~get_token account] is a configuration that uses [get_token] when it needs to get or refresh the API token.
+val v : get_token:(unit -> token Lwt.t) -> ?app_id:string -> account:string -> webhook_secret:string -> unit -> t
+(** [v ~get_token ?app_id] is a configuration that uses [get_token] when it needs to get or
+    refresh the API token.
     Note: [get_token] can return a failed token, in which case the expiry time says when to try again.
           If [get_token] instead raises an exception, this is turned into an error token with a 1 minute expiry.
     @param account This is a string used to label point counters in Prometheus. *)

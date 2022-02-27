@@ -4,6 +4,7 @@ type t = {
   pull : bool;
   pool : unit Current.Pool.t option;
   timeout : Duration.t option;
+  level : Current.Level.t option;
 }
 
 let id = "docker-build"
@@ -60,14 +61,15 @@ let with_context ~job context fn =
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
-let build { pull; pool; timeout } job key =
+let build { pull; pool; timeout; level } job key =
   let { Key.commit; docker_context; dockerfile; squash; build_args } = key in
   begin match dockerfile with
     | `Contents contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
     | `File _ -> ()
   end;
-  Current.Job.start ?timeout ?pool job ~level:Current.Level.Average >>= fun () ->
+  let level = Option.value level ~default:Current.Level.Average in
+  Current.Job.start ?timeout ?pool job ~level >>= fun () ->
   with_context ~job commit @@ fun dir ->
   let file =
     match dockerfile with

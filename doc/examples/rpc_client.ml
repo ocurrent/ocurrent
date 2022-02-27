@@ -148,7 +148,7 @@ let cmd =
     | Error `Capnp ex -> Fmt.error_msg "%a" Capnp_rpc.Error.pp ex
     | Ok () | Error `Msg _ as x -> x
   in
-  Term.(term_result (const main $ cap $ job $ job_op)),
-  Term.info "rpc_client" ~doc
+  let info = Cmd.info "rpc_client" ~doc in
+  Cmd.v info Term.(term_result (const main $ cap $ job $ job_op))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

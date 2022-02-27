@@ -1,4 +1,5 @@
-(lang dune 2.0)
+(lang dune 2.9)
 (name current)
-(implicit_transitive_deps false)
 (formatting disabled)
+
+(using mdx 0.1)

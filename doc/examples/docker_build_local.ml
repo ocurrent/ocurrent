@@ -9,11 +9,15 @@ let timeout = Duration.of_min 50    (* Max build time *)
 
 let () = Prometheus_unix.Logging.init ()
 
+(* included in doc/example_pipelines.md as code snippet *)
+[@@@part "pipeline"]
 (* Run "docker build" on the latest commit in Git repository [repo]. *)
 let pipeline ~repo () =
   let src = Git.Local.head_commit repo in
   let image = Docker.build ~pull ~timeout (`Git src) in
-  Docker.run image ~args:["dune"; "exec"; "--"; "examples/docker_build_local.exe"; "--help"]
+  Docker.run image ~args:["dune"; "exec"; "--"; "docker_build_local"; "--help"]
+
+[@@@part "end-pipeline"]
 
 let main config mode repo =
   let repo = Git.Local.v (Fpath.v repo) in
@@ -40,7 +44,7 @@ let repo =
 
 let cmd =
   let doc = "Build the head commit of a local Git repository using Docker." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ repo))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd

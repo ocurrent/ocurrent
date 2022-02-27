@@ -20,16 +20,14 @@ depends: [
   "session-cohttp-lwt"
   "mirage-crypto" {>= "0.8.7"}
   "mirage-crypto-rng"
-  "fmt"
+  "fmt" {>= "0.8.9"}
   "bos"
   "lwt"
-  "cmdliner"
+  "cmdliner" {>= "1.1.0"}
   "prometheus" {>= "0.7"}
   "prometheus-app"
-  "cohttp" {>= "2.2.0" & < "3.0.0"}
-  "cohttp-lwt" {>= "2.2.0" & < "3.0.0"}
-  "cohttp-lwt-unix" {>= "2.2.0" & < "3.0.0"}
-  "tyxml"
+  "cohttp-lwt-unix" {>= "4.0.0"}
+  "tyxml" {>= "4.4.0"}
   "routes" {>= "0.8.0"}
   "dune" {>= "2.0"}
   "conf-graphviz"
@@ -52,3 +50,4 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+license: "Apache-2.0"

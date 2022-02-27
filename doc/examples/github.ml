@@ -1,5 +1,11 @@
-(* This pipeline monitors a GitHub repository and uses Docker to build the
-   latest version on the default branch. *)
+(* Usage: github.exe SOURCE --github-token-file GITHUB-TOKEN-FILE --github-webhook-secret-file GITHUB-APP-SECRET
+
+   Given a Github repository SOURCE, build the latest version on the default branch
+   using Docker and OCaml 4.13. Updates to the GitHub repository will trigger webhooks on
+   "webhooks/github", so some suitable forwarding of webhooks from GitHub to localhost needs
+   to be setup eg smee.io, along with a suitable token and webhook secret.
+
+*)
 
 let program_name = "github"
 
@@ -18,9 +24,12 @@ let url = Uri.of_string "http://localhost:8080"
 let dockerfile ~base =
   let open Dockerfile in
   from (Docker.Image.hash base) @@
+  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
+  run "opam init --reinit -n" @@
   workdir "/src" @@
   add ~src:["*.opam"] ~dst:"/src/" () @@
-  run "opam install . --show-actions --deps-only -t | awk '/- install/{print $3}' | xargs opam depext -iy" @@
+  env ["OPAMERRLOGLEN", "0"] @@
+  run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
 
@@ -35,7 +44,7 @@ let pipeline ~github ~repo () =
   let head = Github.Api.head_commit github repo in
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.12-ocaml-4.08" in
+    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
   Docker.build ~pull:false ~dockerfile (`Git src)
@@ -44,12 +53,13 @@ let pipeline ~github ~repo () =
   |> Github.Api.Commit.set_status head "ocurrent"
 
 let main config mode github repo =
+  let has_role = Current_web.Site.allow_all in
   let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
   let routes =
-    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook) ::
+    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~webhook_secret:(Github.Api.webhook_secret github) ~has_role) ::
     Current_web.routes engine
   in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name routes in
+  let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
   Lwt_main.run begin
     Lwt.choose [
       Current.Engine.thread engine;
@@ -71,7 +81,7 @@ let repo =
 
 let cmd =
   let doc = "Monitor a GitHub repository." in
-  Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo)),
-  Term.info program_name ~doc
+  let info = Cmd.info program_name ~doc in
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.Api.cmdliner $ repo))
 
-let () = Term.(exit @@ eval cmd)
+let () = exit @@ Cmd.eval cmd
