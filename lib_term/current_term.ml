@@ -244,6 +244,10 @@ module Make (Metadata : sig type t end) = struct
       and+ ys = list_seq xs in
       y :: ys
 
+  let collapse_list ~key ~value ~input t =
+    let all_of_them = list_seq t in
+    let collapse_node = node (Collapse { key; value; input = Term input; output = Term all_of_them }) all_of_them.v in
+    List.map (fun t -> node (Map (Term collapse_node)) t.v) t, collapse_node |> map (fun _ -> ())
 
   let list_map (type a) (module M : S.ORDERED with type t = a) ?collapse_key ?label (f : a t -> 'b t) (input : a list t) =
     let module Map = Map.Make(M) in

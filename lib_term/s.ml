@@ -168,6 +168,10 @@ module type TERM = sig
       [collapse ~key:"repo" ~value:"mirage/mirage-www" ~input:repo (process repo)]
       Note: [list_map ~collapse_key] provides an easy way to use this. *)
 
+  val collapse_list : key:string -> value:string -> input:_ t -> 'a t list -> 'a t list * unit t
+  (** [collapse_list ~key ~value ~input t] is a term that behaves just like [t] list, but
+      when shown in a diagram it can be expanded or collapsed. *)
+
   val with_context : _ t -> (unit -> 'a t) -> 'a t
   (** [with_context ctx f] is the term [f ()], where [f] is evaluated in
       context [ctx]. This means that [ctx] will be treated as an input to all
