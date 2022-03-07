@@ -7,7 +7,6 @@
    current.cache
    current.term
    current_git
-   dockerfile
    duration
    fmt
    fpath

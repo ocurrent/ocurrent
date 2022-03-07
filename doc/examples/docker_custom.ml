@@ -81,6 +81,7 @@ let pipeline () =
     `Contents Dockerfile.(
         from (Docker.Image.hash base) @@
         run "apt-get update && apt-get install -y curl --no-install-recommends"
+        |> string_of_t
       )
   in
   test (Docker.build ~pull:false ~dockerfile `No_context)

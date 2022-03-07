@@ -18,7 +18,6 @@ depends: [
   "fmt" {>= "0.8.9"}
   "ppx_deriving"
   "lwt"
-  "dockerfile"
   "ppx_deriving_yojson" {>= "3.5.1"}
   "yojson"
   "dune" {>= "2.0"}
