@@ -24,13 +24,18 @@ let slow_start_thread t duration =
        )
     )
 
-let v ?auto_release ?confirm () =
+let v ?auto_release ?confirm ?state_dir () =
   let level_cond = Lwt_condition.create () in
   let t = { confirm; level_cond } in
   Option.iter (slow_start_thread t) auto_release;
+  let state_dir =
+    match state_dir with
+    | None -> Disk_store.state_dir_root ()
+    | Some default -> Disk_store.state_dir_root ~default () in
+  Log.info (fun f -> f "State dir set to %a." Fpath.pp state_dir);
   t
 
-let default = v ()
+let (default : t) = v ()
 
 let active_config : t option Current_incr.var = Current_incr.var None
 
@@ -65,8 +70,17 @@ let auto_release =
     ~docv:"SEC"
     ["confirm-auto-release"]
 
+let state_dir =
+  Arg.value @@
+  Arg.(opt string) (Disk_store.state_dir_root () |> Fpath.to_string) @@
+  Arg.info
+    ~doc:"Set the state directory for the current pipeline."
+    ~docv:"DIR"
+    ["current-state-dir"]
+
 let cmdliner =
-  let make auto_release confirm =
+  let make auto_release confirm state_dir =
     let auto_release = Option.map Duration.of_sec auto_release in
-    v ?auto_release ?confirm () in
-  Term.(const make $ auto_release $ Arg.value cmdliner_confirm)
+    let state_dir = Fpath.v state_dir in
+    v ?auto_release ?confirm ~state_dir () in
+  Term.(const make $ auto_release $ Arg.value cmdliner_confirm $ state_dir)

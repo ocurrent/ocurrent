@@ -6,6 +6,7 @@
    cmdliner
    current_term
    current_incr
+   directories
    duration
    fmt
    fpath

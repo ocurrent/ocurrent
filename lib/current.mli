@@ -5,10 +5,11 @@ module Level = Level
 module Config : sig
   type t
 
-  val v : ?auto_release:Duration.t -> ?confirm:Level.t -> unit -> t
+  val v : ?auto_release:Duration.t -> ?confirm:Level.t -> ?state_dir:Fpath.t -> unit -> t
   (** A new configuration.
       @param auto_release Remove confirmation requirement this period (unless changed manually first).
-      @param confirm Confirm before performing operations at or above this level. *)
+      @param confirm Confirm before performing operations at or above this level.
+      @param state_dir State directory for the current pipeline. *)
 
   val set_confirm : t -> Level.t option -> unit
   (** Change the [confirm] setting. Existing jobs waiting for confirmation
