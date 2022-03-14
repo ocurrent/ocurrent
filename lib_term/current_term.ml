@@ -80,18 +80,27 @@ module Make (Metadata : sig type t end) = struct
     let id = Id.mint () in
     node ~id (Constant None) @@ Current_incr.const (Dyn.fail ~id msg)
 
+  let incr_map ?eq fn v =
+    let open Current_incr in
+    of_cc begin
+      read v @@ fun x ->
+      write ~eq:(Dyn.equal ?eq) (fn x)
+    end
+
   let state ?(hidden=false) t =
-    node (State { source = Term t; hidden }) @@ Current_incr.map Dyn.state t.v
+    let eq = Output.equal (==) in
+    node (State { source = Term t; hidden }) @@ incr_map ~eq Dyn.state t.v
 
   let catch ?(hidden=false) t =
-    node (Catch { source = Term t; hidden }) @@ Current_incr.map Dyn.catch t.v
+    let eq = Result.equal ~ok:(==) ~error:(==) in
+    node (Catch { source = Term t; hidden }) @@ incr_map ~eq Dyn.catch t.v
 
   let component fmt = Fmt.str ("@[<v>" ^^ fmt ^^ "@]")
 
-  let join x =
+  let join ?eq x =
     Current_incr.of_cc begin
       Current_incr.read x @@ fun y ->
-      Current_incr.read y.v Current_incr.write
+      Current_incr.read y.v @@ Current_incr.write ~eq:(Dyn.equal ?eq)
     end
 
   let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
@@ -110,11 +119,11 @@ module Make (Metadata : sig type t end) = struct
 
   let map f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ Current_incr.map (Dyn.map ~id f) x.v
+    node ~id (Map (Term x)) @@ incr_map (Dyn.map ~id f) x.v
 
   let map_error f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ Current_incr.map (Dyn.map_error ~id f) x.v
+    node ~id (Map (Term x)) @@ incr_map (Dyn.map_error ~id f) x.v
 
   let ignore_value x = map ignore x
 
@@ -140,7 +149,7 @@ module Make (Metadata : sig type t end) = struct
           Current_incr.write (v, job)
       end
     in
-    let v = Current_incr.map fst v_meta in
+    let v = incr_map fst v_meta in
     let meta = Current_incr.map snd v_meta in
     node ~id (Primitive { x = Term x; info; meta }) v
 
@@ -292,10 +301,11 @@ module Make (Metadata : sig type t end) = struct
     | Some x -> let+ y = x in Some y
 
   let gate ~on t =
+    let eq = Dyn.equal ~eq:(==) in
     node (Gate_on { ctrl = Term on; value = Term t }) @@ Current_incr.of_cc begin
       Current_incr.read t.v @@ fun t ->
       Current_incr.read on.v @@ fun on ->
-      Current_incr.write @@ Dyn.bind on (fun () -> t)
+      Current_incr.write ~eq @@ Dyn.bind on (fun () -> t)
     end
 
   let of_output x =
