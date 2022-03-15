@@ -34,6 +34,7 @@ let dockerfile ~base =
   run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
+  |> string_of_t
 
 let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) ()
 

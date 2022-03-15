@@ -27,6 +27,7 @@ let dockerfile ~base ~ocaml_version =
   run "opam install . --show-actions --deps-only -t" @@
   copy ~src:["."] ~dst:"/src/" () @@
   run "opam install -tv ."
+  |> string_of_t
 
 (* included in doc/example_pipelines.md as code snippet *)
 [@@@part "pipeline"]

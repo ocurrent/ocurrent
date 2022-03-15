@@ -1,3 +1,8 @@
+### unreleased
+
+- Stop using `Dockerfile.t` completely and use strings instead.
+  (@MisterDA, #301, #316)
+
 ### v0.5
 
 Web UI:

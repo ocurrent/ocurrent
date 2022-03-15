@@ -37,7 +37,7 @@ module Raw : sig
     ?schedule:Current_cache.Schedule.t ->
     ?timeout:Duration.t ->
     ?squash:bool ->
-    ?dockerfile:[`File of Fpath.t | `Contents of Dockerfile.t] ->
+    ?dockerfile:[`File of Fpath.t | `Contents of string] ->
     ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
