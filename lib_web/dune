@@ -33,6 +33,7 @@
    tyxml
    tyxml.functor
    ppx_deriving_yojson.runtime
+   unix
    yojson
    uri)
  (preprocess (pps ppx_deriving.std ppx_deriving_yojson)))
