@@ -13,4 +13,5 @@
    prometheus
    re
    result
+   unix
    sqlite3))

@@ -27,6 +27,7 @@
    uri
    x509
    tyxml
+   unix
    tyxml.functor
    yojson)
  (preprocess (pps ppx_deriving_yojson)))
