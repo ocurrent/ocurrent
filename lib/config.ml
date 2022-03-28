@@ -61,7 +61,7 @@ let auto_release =
   Arg.value @@
   Arg.(opt (some int)) None @@
   Arg.info
-    ~doc:"Remove confirm threshold after this many seconds from start-up"
+    ~doc:"Remove confirm threshold after this many seconds from start-up."
     ~docv:"SEC"
     ["confirm-auto-release"]
 

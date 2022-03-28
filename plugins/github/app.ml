@@ -209,14 +209,14 @@ let private_key_file =
 let app_id =
   Arg.opt Arg.(some string) None @@
   Arg.info
-    ~doc:"The GitHub app's (integer) ID"
+    ~doc:"The GitHub app's (integer) ID."
     ~docv:"ID"
     ["github-app-id"]
 
 let allowlist =
   Arg.opt Arg.(some (list string)) None @@
   Arg.info
-    ~doc:"A comma-separated list of allowed GitHub accounts"
+    ~doc:"A comma-separated list of allowed GitHub accounts."
     ~docv:"ACCOUNTS"
     ["github-account-allowlist"]
 
