@@ -53,5 +53,8 @@ let cp_r ~cancellable ~job ~src ~dst =
   let cmd = [| "cp"; "-a"; "--"; Fpath.to_string src; Fpath.to_string dst |] in
   Current.Process.exec ~cancellable ~job ("", cmd)
 
+let git_submodule_sync ~cancellable ~job ~repo =
+  git ~cancellable ~job ~cwd:repo ["submodule"; "sync"]
+
 let git_submodule_update ~cancellable ~job ~repo =
   git ~cancellable ~job ~cwd:repo ["submodule"; "update"; "--init"; "--recursive"]

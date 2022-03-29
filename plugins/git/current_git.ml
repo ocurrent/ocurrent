@@ -80,6 +80,7 @@ let with_checkout ?pool ~job commit fn =
        Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
        Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
        | Ok () ->
+         Cmd.git_submodule_sync ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
          Cmd.git_submodule_update ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
          Current.Switch.turn_off switch >>= fun () ->
          fn tmpdir
