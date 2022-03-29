@@ -56,5 +56,5 @@ let cp_r ~cancellable ~job ~src ~dst =
 let git_submodule_sync ~cancellable ~job ~repo =
   git ~cancellable ~job ~cwd:repo ["submodule"; "sync"]
 
-let git_submodule_update ~cancellable ~job ~repo =
-  git ~cancellable ~job ~cwd:repo ["submodule"; "update"; "--init"; "--recursive"]
+let git_submodule_update ~cancellable ~job ~repo ~init =
+  git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: (if init then ["--init"] else []))
