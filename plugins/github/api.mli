@@ -48,6 +48,7 @@ module Ref : sig
     bodyHTML: string;
   }
   type t = [ `Ref of string | `PR of pr_info ]
+  type id = [ `Ref of string | `PR of int ]
   val compare : t -> t -> int
   val pp : t Fmt.t
   val to_git : t -> string
@@ -64,7 +65,7 @@ val refs : t -> Repo_id.t -> refs Current.Primitive.t
 val default_ref : refs -> string
 val webhook_secret : t -> string
 val all_refs : refs -> Commit.t Ref_map.t
-val head_of : t -> Repo_id.t -> Ref.t -> Commit.t Current.t
+val head_of : t -> Repo_id.t -> Ref.id -> Commit.t Current.t
 val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
 val cmdliner_opt : t option Cmdliner.Term.t

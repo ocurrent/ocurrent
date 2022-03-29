@@ -144,6 +144,8 @@ module Api : sig
     
     type t = [ `Ref of string | `PR of pr_info ]
 
+    type id = [ `Ref of string | `PR of int ]
+
     val pp : t Fmt.t
 
     val compare : t -> t -> int
@@ -163,7 +165,7 @@ module Api : sig
   val head_commit : t -> Repo_id.t -> Commit.t Current.t
   (** [head_commit t repo] evaluates to the commit at the head of the default branch in [repo]. *)
 
-  val head_of : t -> Repo_id.t -> Ref.t -> Commit.t Current.t
+  val head_of : t -> Repo_id.t -> Ref.id -> Commit.t Current.t
   (** [head_of t repo id] evaluates to the commit at the head of [id] in [repo].
       e.g. [head_of t repo (`Ref "refs/heads/master")] *)
 
