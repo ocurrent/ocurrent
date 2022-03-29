@@ -238,11 +238,17 @@ module Ref = struct
 
   type t = [ `Ref of string | `PR of pr_info ] [@@deriving to_yojson]
 
+  type id = [ `Ref of string | `PR of int ]
+
   let compare = Stdlib.compare
 
   let pp f = function
     | `Ref r -> Fmt.string f r
     | `PR {id; base; title; _} -> Fmt.pf f "PR #%d on %s:@ %s" id base title
+
+  let pp_id f = function
+    | `Ref r -> Fmt.string f r
+    | `PR id -> Fmt.pf f "PR #%d" id
 
   let to_git = function
     | `Ref head -> head
@@ -657,16 +663,21 @@ let ci_refs ?staleness t repo =
   in
   to_ci_refs ?staleness refs
 
-let head_of t repo id =
-  Current.component "%a@,%a" Repo_id.pp repo Ref.pp id |>
+let head_of t repo (id: Ref.id) =
+  Current.component "%a@,%a" Repo_id.pp repo Ref.pp_id id |>
   let> () = Current.return () in
   refs t repo
   |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    match Ref_map.find_opt id refs.all_refs with
+    Ref_map.fold (fun ref value acc -> 
+      match id, ref with 
+      | `Ref a, `Ref b when String.equal a b -> Some value
+      | `PR (id_a: int), `PR {Ref.id} when id_a = id -> Some value 
+      | _ -> acc) refs.all_refs None
+    |> function
     | Some x -> Ok x
-    | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp id))
+    | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp_id id))
 
 module CheckRun = struct
   module Set_status = struct
