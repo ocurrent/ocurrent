@@ -19,7 +19,7 @@ let read ~start path =
   really_input_string ch (Int64.to_int len), start + len
 
 let render ctx ~actions ~job_id ~log:path =
-  let ansi = Current_ansi.create () in
+  let ansi = Ansi.create () in
   let action op = a_action (Fmt.str "/job/%s/%s" job_id op) in
   let csrf = Context.csrf ctx in
   let rebuild_button =
@@ -72,7 +72,7 @@ let render ctx ~actions ~job_id ~log:path =
           ol items]
       ]
   in
-  let line_numbers_js = [script ~a:[a_src (Xml.uri_of_string "/js/line-numbers.js")] (txt "");] 
+  let line_numbers_js = [script ~a:[a_src (Xml.uri_of_string "/js/line-numbers.js")] (txt "");]
   in
   let tmpl =
     Context.template ctx (
@@ -102,7 +102,7 @@ let render ctx ~actions ~job_id ~log:path =
                   end
                 | (data, next) ->
                   i := `Log next;
-                  Lwt.return_some (Current_ansi.process ansi data)
+                  Lwt.return_some (Ansi.process ansi data)
               end
             in aux ()
           | `Done -> Lwt.return_none

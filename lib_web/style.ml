@@ -173,7 +173,7 @@ let css =
   }
 
 |}
-  ^ Current_ansi.css
+  ^ Ansi.css
 
 let r =
   object
