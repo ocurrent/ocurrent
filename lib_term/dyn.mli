@@ -14,6 +14,8 @@ val map : id:Id.t -> ('a -> 'b) -> 'a t -> 'b t
 val map_error : id:Id.t -> (string -> string) -> 'a t -> 'a t
 val bind : 'a t -> ('a -> 'b t) -> 'b t
 val pair : 'a t -> 'b t -> ('a * 'b) t
+
+val equal : ?eq:('a -> 'a -> bool) -> 'a t -> 'a t -> bool
 val pp : 'a Fmt.t -> 'a t Fmt.t
 
 val run : 'a t -> 'a Output.t

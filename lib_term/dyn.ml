@@ -55,3 +55,13 @@ let pp ok f = function
   | Error (_, `Active `Ready) -> Fmt.string f "(ready)"
   | Error (_, `Active `Running) -> Fmt.string f "(running)"
   | Error (_, `Msg m) -> Fmt.pf f "FAILED: %s" m
+
+let equal_progress x y = match x, y with
+  | `Msg x, `Msg y -> String.equal x y
+  | `Active x, `Active y -> Output.equal_active x y
+  | _ -> false
+
+let equal ?(eq = (==)) x y = match x, y with
+  | Ok x, Ok y -> eq x y
+  | Error (id_x, x), Error (id_y, y) -> Id.equal id_x id_y && equal_progress x y
+  | _ -> false
