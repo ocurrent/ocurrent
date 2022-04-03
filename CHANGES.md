@@ -1,7 +1,61 @@
 ### unreleased
 
+Core:
+
+- Implement labelling of clusters on the Graphviz diagram
+  (@ewanmellor #255)
+
+- Abort propagation on constant/equal changes (@art-w #318)
+
+API:
+
+- GitHub: Record build status using CheckRun (@tmcgilchrist #279)
+
+- GitHub: Add details_url to check_run. (@tmcgilchrist #282)
+
+- GitHub: Add Current_github.Api.cmdliner_opt to allow writing
+  pipelines which can optionally be run as GitHub apps. (@talex5 #281)
+
+- GitHub: Provide markdown details for CheckRun. (@tmcgilchrist #288)
+
+- GitHub: Fix wrong name used for repository (@tmcgilchrist #289 #290)
+
+- GitHub: Support Github rebuild via webooks. (@tmcgilchrist #283)
+
+- GitHub: monitor GraphQL queries (@art-w #298)
+
+- GitHub: Limit CheckRunStatus summary and text fields to 65535.
+  (@tmcgilchrist #300)
+
+- GitHub: Log extra context for Webhook validation failure.
+  (@tmcgilchrist #302)
+
+- GitLab: Initial GitLab plugin work. (@tmcgilchrist #299)
+
+- Git: Make git reset less verbose (@kit-ty-kate #293)
+
+Web UI:
+
+- Use Lwt.pause instead of Lwt_unix.yield (@MisterDA #297)
+
+- Use `ansi` instead of `current_ansi` (@samoht #321)
+
+- Show line numbers and allow jumping to specific lines in job
+  logs (@punchagan #309)
+
+Docker:
+
+- Explicitly set confirmation levels to allow for
+  manually triggered jobs. (@tmcgilchrist #304)
+
 - Stop using `Dockerfile.t` completely and use strings instead.
-  (@MisterDA, #301, #316)
+  (@MisterDA #301 #316)
+
+Other:
+
+- Update to cohttp 4.0.0 (#274, @talex5)
+
+- Move `Current_incr` to its own repository (#284, @talex5)
 
 ### v0.5
 
@@ -65,11 +119,11 @@ Core:
 
 - Remove in-memory cache entries when no longer needed (@talex5 #235).
 
-- Provide `Analysis.quick_stat` for faster stats (@talex5 #239).  
+- Provide `Analysis.quick_stat` for faster stats (@talex5 #239).
   With large pipelines (above 20,000 boxes or so) collecting the Prometheus stats
   for pipeline states was getting slow.
 
-- Improve error message if a cancel hook raises (@talex5 #214).  
+- Improve error message if a cancel hook raises (@talex5 #214).
   Say which job raised the error.
 
 Web UI:
@@ -81,24 +135,24 @@ Docker plugin:
 - Add an architecture flag in the Docker builder to enable
   multiarch builds (including 32-bit) (@avsm #213).
 
-- Add `Current_docker.Raw.peek` (@talex5 #226).  
+- Add `Current_docker.Raw.peek` (@talex5 #226).
   This can be used to check the latest version of an image without pulling it.
 
 - Add Docker Compose support to the Docker plugin (@avsm #228).
 
-- Log in before creating manifests (@talex5 #232).  
+- Log in before creating manifests (@talex5 #232).
   Otherwise, we may hit the anonymous use limit.
 
 Git plugin:
 
-- Use `--init` with `git submodule update --init --recursive` (@talex5 #224).  
+- Use `--init` with `git submodule update --init --recursive` (@talex5 #224).
   Otherwise, it's not really recursive.
 
 GitHub plugin:
 
 - Use the term `allowlist` for permitted usernames and make it case-insensitive (@avsm #210, @Julow #211).
 
-- Handle larger numbers of app installations (@talex5 #219).  
+- Handle larger numbers of app installations (@talex5 #219).
   GitHub sends them in batches, and we previously only used the first batch.
 
 Examples:
@@ -113,7 +167,7 @@ Build fixes and cleanup:
 
 - Remove unused `Option.map` (@talex5 #216)
 
-- Switch from "capnpc" to "capnp compile" (@MisterDA  #233).  
+- Switch from "capnpc" to "capnp compile" (@MisterDA  #233).
   `capnpc` is the old name, and isn't present on Windows.
 
 - Switch to `ocaml/opam` as the base image for the Dockerfile (@avsm #230).
