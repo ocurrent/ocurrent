@@ -119,15 +119,17 @@ let template t ?refresh contents =
   )
 
 let respond_ok t ?refresh body =
+  let headers = Cohttp.Header.add (headers t) "Content-Type" "text/html; charset=utf-8" in
   let body = template t ?refresh body in
-  Utils.Server.respond_string ~headers:(headers t) ~status:`OK ~body ()
+  Utils.Server.respond_string ~headers ~status:`OK ~body ()
 
 let respond_redirect t uri =
   Utils.Server.respond_redirect ~headers:(headers t) ~uri ()
 
 let respond_error t status msg =
+  let headers = Cohttp.Header.add (headers t) "Content-Type" "text/html; charset=utf-8" in
   let body = template t [Tyxml.Html.txt msg] in
-  Utils.Server.respond_string ~headers:(headers t) ~status ~body ()
+  Utils.Server.respond_string ~headers ~status ~body ()
 
 let set_user t user =
   Site.Sess.generate t.site.session_backend (User.marshal user) >>= fun session ->
