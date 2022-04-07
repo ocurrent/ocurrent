@@ -81,6 +81,14 @@ let test_pattern pattern =
         )
     ]
 
+let import csrf =
+  let open Tyxml.Html in
+  form ~a:[a_action "/log-rules"; a_method `Post; a_enctype "multipart/form-data"] [
+    input ~a:[a_input_type `File; a_id "import"; a_name "import"; a_value "Import rules"; a_accept ["text/csv"]] ();
+    input ~a:[a_input_type `Submit; a_value "Import rule set"] ();
+    input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
+  ]
+
 let export csrf =
   let open Tyxml.Html in
   form ~a:[a_action "/log-rules/rules.csv"; a_method `Get] [
@@ -96,6 +104,11 @@ let pattern_hints =
     code [txt "?+*"]; txt " to match zero-or-one times, one-or-more times, or zero-or-more times, and ";
     code [txt "[\\n]"]; txt " to match newlines."
   ]
+
+let csv_hints =
+  let open Tyxml.Html in
+  [p [ txt "CSV files use the header "; code [txt "pattern,report,score"]; txt "."];
+   p [ txt "New rules with existing "; code [txt "pattern"]; txt " override previous definition."]]
 
 let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
   let rules = LM.list_rules () in
@@ -132,8 +145,25 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
         input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
         input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
       ]
-    ] @ (match ctx.user with None -> [] | Some _ -> [export csrf])
-      @ [pattern_hints] @ test_results)
+    ] @ (match ctx.user with None -> [] | Some _ -> [import csrf; export csrf])
+      @ pattern_hints :: csv_hints @ test_results)
+
+let validate_rule pattern report score =
+  match pattern, report, score with
+  | [""], _, _ -> Error "Pattern can't be empty"
+  | _, [""], _ -> Error "Report can't be empty"
+  | _, _, [""] -> Error "Score can't be empty"
+  | [pattern], [report], [score] ->
+    begin match Re.Pcre.re pattern with
+      | exception _ -> Error "Invalid PCRE-format pattern"
+      | _ ->
+        begin match Astring.String.to_int score with
+          | Some score -> Ok { LM.pattern; report; score }
+          | None -> Error "Score must be an integer"
+        end
+     end
+ | _ ->
+   Error "Bad form submission"
 
 let handle_post ctx data =
   let pattern = List.assoc_opt "pattern" data |> Option.value ~default:[] in
@@ -150,21 +180,9 @@ let handle_post ctx data =
     | _ ->
       Server.respond_error ~body:"Bad form submission" ()
   ) else if List.mem_assoc "add" data then (
-    match pattern, report, score with
-    | [""], _, _ -> Server.respond_error ~body:"Pattern can't be empty" ()
-    | _, [""], _ -> Server.respond_error ~body:"Report can't be empty" ()
-    | _, _, [""] -> Server.respond_error ~body:"Score can't be empty" ()
-    | [pattern], [report], [score] ->
-      begin match Re.Pcre.re pattern with
-        | exception _ -> Server.respond_error ~body:"Invalid PCRE-format pattern" ()
-        | _ ->
-          begin match Astring.String.to_int score with
-            | Some score -> LM.add_rule { LM.pattern; report; score }; render ctx ~msg:"Rule added"
-            | None -> Server.respond_error ~body:"Score must be an integer" ()
-          end
-      end
-    | _ ->
-      Server.respond_error ~body:"Bad form submission" ()
+    match validate_rule pattern report score with
+    | Ok rule -> LM.add_rule rule; render ctx ~msg:"Rule added"
+    | Error body -> Server.respond_error ~body ()
   ) else if List.mem_assoc "test" data then (
     match pattern, report, score with
     | [""], _, _ -> Server.respond_error ~body:"Pattern can't be empty" ()
@@ -178,6 +196,39 @@ let handle_post ctx data =
     Context.respond_error ctx `Bad_request "Bad form submission"
   )
 
+let handle_post_multipart ctx elts =
+  let import = List.find_all (fun {Multipart_form.header; _} ->
+                   match Multipart_form.Header.content_disposition header with
+                   | Some header -> Multipart_form.Content_disposition.name header = Some "import"
+                   | _ -> false) elts in
+  match import with
+  | [import] ->
+    begin match Multipart_form.Header.content_type import.header with
+      | {ty = `Text; subty = `Iana_token "csv"; _} ->
+        let ch = Csv.of_string ~header:["pattern"; "report"; "score"] import.body in
+        ignore (Csv.next ch); (* ignore header *)
+        let validate =
+          Csv.fold_left ch ~init:(2, [], []) ~f:(fun (i, rules, errors) -> function
+              | [pattern; report; score] ->
+                begin match validate_rule [pattern] [report] [score] with
+                  | Ok rule -> i + 1, rule :: rules, errors
+                  | Error e -> i + 1, rules, (Fmt.str "Rule %s at line %d: %s" pattern i e) :: errors end
+              | _ -> i + 1, rules, (Fmt.str "Rule at line %d: Bad CSV entry" i) :: errors)
+        in
+        begin match validate with
+          | exception End_of_file -> Server.respond_error ~body:"Premature end of CSV file" ()
+          | exception Csv.Failure (nrecord, nfield, msg) ->
+            Server.respond_error ~body:(Fmt.str "Rule at line %d, field %d: %s" nrecord nfield msg) ()
+          | _, rules, [] ->
+            List.iter LM.add_rule rules;
+            render ctx ~msg:"Rules added"
+          | _, _, errors ->
+            Server.respond_error ~body:(String.concat "\n" (List.rev errors)) ()
+        end
+      | _ -> Context.respond_error ctx `Bad_request "Bad form submission"
+    end
+  | _ -> Context.respond_error ctx `Bad_request "Bad form submission"
+
 let r = object
   inherit Resource.t
 
@@ -188,6 +239,9 @@ let r = object
   method! private post ctx body =
     let data = Uri.query_of_encoded body in
     handle_post ctx data
+
+  method! private post_multipart ctx elts =
+    handle_post_multipart ctx elts
 
   method! nav_link = Some "Log analysis"
 end

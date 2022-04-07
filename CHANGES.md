@@ -1,3 +1,9 @@
+### Unreleased
+
+Web UI:
+
+- Allow to import and export using CSV the log rules. (@MisterDA, #327)
+
 ### v0.6
 
 Core:

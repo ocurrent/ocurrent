@@ -23,6 +23,7 @@ depends: [
   "fmt" {>= "0.8.9"}
   "bos"
   "lwt"
+  "multipart_form-lwt" {>= "0.4.0"}
   "cmdliner" {>= "1.1.0"}
   "prometheus" {>= "0.7"}
   "prometheus-app"
