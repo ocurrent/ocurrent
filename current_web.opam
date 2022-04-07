@@ -28,6 +28,7 @@ depends: [
   "prometheus-app"
   "cohttp-lwt-unix" {>= "4.0.0"}
   "tyxml" {>= "4.4.0"}
+  "csv" {>= "2.4"}
   "routes" {>= "0.8.0"}
   "dune" {>= "2.0"}
   "conf-graphviz"
