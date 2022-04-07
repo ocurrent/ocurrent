@@ -1,4 +1,4 @@
-### unreleased
+### v0.6
 
 Core:
 
