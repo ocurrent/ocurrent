@@ -45,6 +45,7 @@ let routes engine =
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
     s "query" /? nil @--> Query.r ~engine;
     s "log-rules" /? nil @--> Log_rules.r;
+    s "log-rules" / s "rules.csv" /? nil @--> Log_rules.rules_csv;
     s "metrics" /? nil @--> metrics ~engine;
     s "set" / s "confirm" /? nil @--> set_confirm ~engine;
     s "jobs" /? nil @--> Jobs.r;

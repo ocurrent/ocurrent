@@ -81,6 +81,13 @@ let test_pattern pattern =
         )
     ]
 
+let export csrf =
+  let open Tyxml.Html in
+  form ~a:[a_action "/log-rules/rules.csv"; a_method `Get] [
+    input ~a:[a_input_type `Submit; a_name "export"; a_value "Export rules"] ();
+    input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
+  ]
+
 let pattern_hints =
   let open Tyxml.Html in
   p [
@@ -91,7 +98,7 @@ let pattern_hints =
   ]
 
 let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
-  let rules = Current.Log_matcher.list_rules () in
+  let rules = LM.list_rules () in
   let message = match msg with
     | None -> []
     | Some msg -> [p [txt msg]]
@@ -125,7 +132,8 @@ let render ?msg ?test ?(pattern="") ?(report="") ?(score="") ctx =
         input ~a:[a_input_type `Submit; a_name "remove"; a_value "Remove rule"] ();
         input ~a:[a_name "csrf"; a_input_type `Hidden; a_value csrf] ();
       ]
-    ] @ [pattern_hints] @ test_results)
+    ] @ (match ctx.user with None -> [] | Some _ -> [export csrf])
+      @ [pattern_hints] @ test_results)
 
 let handle_post ctx data =
   let pattern = List.assoc_opt "pattern" data |> Option.value ~default:[] in
@@ -182,4 +190,24 @@ let r = object
     handle_post ctx data
 
   method! nav_link = Some "Log analysis"
+end
+
+let rules_csv = object
+  inherit Resource.t
+
+  val! can_get = `Admin
+
+  method! private get _ctx =
+    let headers = Cohttp.Header.init_with "Content-Type" "text/csv; encoding=utf-8" in
+    let rules = LM.list_rules () in
+    let csv =
+      ["pattern"; "report"; "score"]
+      :: List.map (fun { LM.pattern; report; score } ->
+             [pattern; report; string_of_int score]) rules
+    in
+    let buf = Buffer.create 4096 in
+    let ch = Csv.to_buffer buf in
+    Fun.protect (fun () -> Csv.output_all ch csv) ~finally:(fun () -> Csv.close_out ch);
+    let body = Buffer.contents buf in
+    Utils.Server.respond_string ~status:`OK ~headers ~body ()
 end
