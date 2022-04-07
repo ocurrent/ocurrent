@@ -11,6 +11,7 @@ end
 
 type t = {
   repo : Fpath.t;
+  bare : bool;
   id : Commit_id.t;
 } [@@deriving yojson]
 

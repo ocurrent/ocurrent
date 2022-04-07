@@ -45,6 +45,7 @@ val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commi
 val fetch : Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
+  ?clone:[ `Protocol | `Worktree ] ->
   ?pool:unit Current.Pool.t ->
   job:Current.Job.t ->
   Commit.t ->
@@ -58,7 +59,7 @@ module Local : sig
   type t
   (** A local Git repository. *)
 
-  val v : Fpath.t -> t
+  val v : ?bare:bool -> Fpath.t -> t
   (** [v path] is the local Git repository at [path]. *)
 
   val head : t -> [`Commit of Commit_id.t | `Ref of string ] Current.t
