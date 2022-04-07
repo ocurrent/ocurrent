@@ -24,6 +24,9 @@ class virtual t = object (self : #Site.raw_resource)
   method private post ctx (_ : string) =
     Context.respond_error ctx `Bad_request "Bad method"
 
+  method private post_multipart ctx (_ : string Multipart_form.elt list) =
+    Context.respond_error ctx `Bad_request "Bad method"
+
   method get_raw site request =
     Context.of_request ~site request >>= fun ctx ->
     if Context.has_role ctx can_get then self#get ctx
@@ -32,12 +35,35 @@ class virtual t = object (self : #Site.raw_resource)
   method post_raw site request body =
     Context.of_request ~site request >>= fun ctx ->
     if Context.has_role ctx can_post then (
-      Cohttp_lwt.Body.to_string body >>= fun body ->
-      let data = Uri.query_of_encoded body in
-      match List.assoc_opt "csrf" data |> Option.value ~default:[] with
-      | [got] when got = Context.csrf ctx ->
-        self#post ctx body
-      | _ -> Context.respond_error ctx `Bad_request "Bad CSRF token"
+      match Cohttp.(Header.get (Request.headers request)) "Content-Type" with
+      | None -> Context.respond_error ctx `Bad_request "Unset Content-Type on POST request"
+      | Some content_type ->
+        match Multipart_form.Content_type.of_string (content_type ^ "\r\n") with
+        | Error (`Msg e) -> Context.respond_error ctx `Bad_request e
+        | Ok ({ty = `Multipart; subty = `Iana_token "form-data"; _} as content_type) ->
+          let body = Cohttp_lwt.Body.to_stream body in
+          Multipart_form_lwt.of_stream_to_tree body content_type >>= fun tree ->
+          begin match tree with
+            | Error (`Msg e) -> Context.respond_error ctx `Bad_request e
+            | Ok multipart ->
+              let multipart = Multipart_form.flatten multipart in
+              let csrf, others = List.partition (fun {Multipart_form.header; _} ->
+                                     match Multipart_form.Header.content_disposition header with
+                                     | Some header -> Multipart_form.Content_disposition.name header = Some "csrf"
+                                     | _ -> false) multipart in
+              begin match csrf with
+                | [got] when got.Multipart_form.body = Context.csrf ctx ->
+                  self#post_multipart ctx others
+                | _ -> Context.respond_error ctx `Bad_request "Bad CSRF token"
+              end
+          end
+        | Ok _ ->
+          Cohttp_lwt.Body.to_string body >>= fun body ->
+          let data = Uri.query_of_encoded body in
+          match List.assoc_opt "csrf" data |> Option.value ~default:[] with
+          | [got] when got = Context.csrf ctx ->
+            self#post ctx body
+          | _ -> Context.respond_error ctx `Bad_request "Bad CSRF token"
     ) else (
       forbidden ctx
     )

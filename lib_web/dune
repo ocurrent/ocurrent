@@ -21,6 +21,7 @@
    mirage-crypto
    mirage-crypto-rng
    mirage-crypto-rng.unix
+   multipart_form-lwt
    ppx_sexp_conv.runtime-lib
    prometheus
    prometheus-app
