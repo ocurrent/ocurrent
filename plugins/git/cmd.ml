@@ -39,6 +39,9 @@ let git_clone ~cancellable ~job ~src dst =
 let git_fetch ~cancellable ~job ~src ~dst gref =
   git ~cancellable ~job ~cwd:dst ["fetch"; "-f"; src; gref]
 
+let git_checkout_force ~job ~repo treeish =
+  git ~cancellable:false ~job ~cwd:repo ["-c"; "advice.detachedHead=false"; "checkout"; "-f"; treeish]
+
 let git_reset_hard ~job ~repo hash =
   git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
 
