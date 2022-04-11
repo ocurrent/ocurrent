@@ -229,7 +229,7 @@ let get_default_ref _t (repo_id : Repo_id.t) =
   Lwt.return { Commit_id.repo = repo_id
              ; id = `Ref (prefix ^ branch_name)
              ; hash = c.commit_id
-             ; committed_date = c.commit_created_at }
+             ; committed_date = Gitlab_json.DateTime.unwrap c.commit_created_at }
 
 let make_head_commit_monitor t repo =
   let read () =
@@ -391,7 +391,8 @@ let parse_ref ~repo ~prefix (branch : Gitlab_t.branch_full) : Commit_id.t =
   let hash = branch.branch_full_commit.commit_id in
   let committed_date = branch.branch_full_commit.commit_committed_date in
   let name = branch.branch_full_name in
-  { Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date}
+  { Commit_id.repo; id = `Ref (prefix ^ name); hash;
+    committed_date = Gitlab_json.DateTime.unwrap committed_date}
 
 let parse_merge_request ~repo (mr : Gitlab_t.merge_request) : Commit_id.t =
   let hash = mr.merge_request_sha in
@@ -400,7 +401,8 @@ let parse_merge_request ~repo (mr : Gitlab_t.merge_request) : Commit_id.t =
   (* TODO merge_request_updated_at as a proxy for most recent git activity.
      This isn't totally accurate but we would need extra calls to retrieve that.
   *)
-  { Commit_id.repo; id = `PR pr; hash; committed_date }
+  { Commit_id.repo; id = `PR pr; hash;
+    committed_date = Gitlab_json.DateTime.unwrap committed_date }
 
 let get_refs t (repo : Repo_id.t) =
   get_token t >>= function
