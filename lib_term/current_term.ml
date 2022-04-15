@@ -128,6 +128,11 @@ module Make (Metadata : sig type t end) = struct
     let id = Id.mint () in
     node ~id (Map (Term x)) @@ incr_map (Dyn.map_error ~id f) x.v
 
+  let cutoff ~eq x =
+    let id = Id.mint () in
+    let eq = Dyn.equal ~eq in
+    node ~id (Map (Term x)) Current_incr.(of_cc @@ read x.v @@ write ~eq)
+
   let ignore_value x = map ignore x
 
   let pair a b =

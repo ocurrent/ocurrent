@@ -160,6 +160,13 @@ module type TERM = sig
       ]}
   *)
 
+  val cutoff : eq:('a -> 'a -> bool) -> 'a t -> 'a t
+  (** [cutoff ~eq x] is the same as [x], but changes to [x] that are equal
+      according to [eq] do not propagate further down. It should be used
+      when values of type ['a] have a precise definition of equality
+      to avoid triggering redundant work.
+  *)
+
   (** {2 Diagram control} *)
 
   val collapse : key:string -> value:string -> input:_ t -> 'a t -> 'a t
