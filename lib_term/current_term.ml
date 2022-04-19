@@ -106,7 +106,7 @@ module Make (Metadata : sig type t end) = struct
       Current_incr.read y.v @@ Current_incr.write ~eq:(Dyn.equal ?eq)
     end
 
-  let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
+  let bind ?(info="") ?eq (f:'a -> 'b t) (x:'a t) =
     Quick_stats.update_total ();
     let bind_in = node (Bind_in (Term x, info)) x.v in
     let t =
@@ -118,20 +118,17 @@ module Make (Metadata : sig type t end) = struct
       | Ok y -> f y
     in
     let nested = Current_incr.map (fun t -> Term t) t in
-    node (Bind_out nested) (join t)
+    node (Bind_out nested) (join ?eq t)
 
-  let map f x =
+  let map ?eq f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ incr_map (Dyn.map ~id f) x.v
+    node ~id (Map (Term x)) @@ incr_map ?eq (Dyn.map ~id f) x.v
+
+  let cutoff ~eq x = map ~eq (fun x -> x) x
 
   let map_error f x =
     let id = Id.mint () in
     node ~id (Map (Term x)) @@ incr_map (Dyn.map_error ~id f) x.v
-
-  let cutoff ~eq x =
-    let id = Id.mint () in
-    let eq = Dyn.equal ~eq in
-    node ~id (Map (Term x)) Current_incr.(of_cc @@ read x.v @@ write ~eq)
 
   let ignore_value x = map ignore x
 

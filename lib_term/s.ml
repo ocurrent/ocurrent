@@ -100,8 +100,14 @@ module type TERM = sig
 
   (** {2 Applicative operations} *)
 
-  val map : ('a -> 'b) -> 'a t -> 'b t
-  (** [map f x] is a term that runs [x] and then transforms the result using [f]. *)
+  val map : ?eq:('b -> 'b -> bool) -> ('a -> 'b) -> 'a t -> 'b t
+  (** [map f x] is a term that runs [x] and then transforms the result using [f].
+
+      The optional equality function [?eq] defaults to physical equality.  When
+      [f] produces an updated result following a change in [x], the equality
+      function will be called with the previous and the new value [eq b_old b_new]:
+      returning [true] indicates that the change can be ignored and should
+      not propagate further down the pipeline.  *)
 
   val map_error : (string -> string) -> 'a t -> 'a t
   (** [map_error f x] is a term that runs [x] and then transforms the error string (if any) using [f]. *)
@@ -194,7 +200,7 @@ module type TERM = sig
   (** {b N.B.} these operations create terms that cannot be statically
       analysed until after they are executed. *)
 
-  val bind : ?info:description -> ('a -> 'b t) -> 'a t -> 'b t
+  val bind : ?info:description -> ?eq:('b -> 'b -> bool) -> ('a -> 'b t) -> 'a t -> 'b t
   (** [bind f x] is a term that first runs [x] to get [y] and then behaves as
       the term [f y]. Static analysis cannot look inside the [f] function until
       [x] is ready, so using [bind] makes static analysis less useful. You can
