@@ -83,12 +83,7 @@ module Make (Metadata : sig type t end) = struct
     let id = Id.mint () in
     node ~id (Constant None) @@ Current_incr.const (Dyn.fail ~id msg)
 
-  let incr_map ?eq fn v =
-    let open Current_incr in
-    of_cc begin
-      read v @@ fun x ->
-      write ~eq:(Dyn.equal ?eq) (fn x)
-    end
+  let incr_map ?eq fn v = Current_incr.map ~eq:(Dyn.equal ?eq) fn v
 
   let state ?(hidden=false) t =
     let eq = Output.equal (==) in
