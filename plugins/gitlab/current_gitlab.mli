@@ -129,7 +129,7 @@ module Api : sig
       [default_ref] and [all_refs] will expose useful information for you.
       The result is cached (so calling it twice will return the same primitive). *)
 
-  val default_ref : refs -> string
+  val default_ref : refs -> Ref.t
   (** [default_ref refs] will return the full name of the repository's default branch ref *)
 
   val all_refs : refs -> Commit.t Ref_map.t

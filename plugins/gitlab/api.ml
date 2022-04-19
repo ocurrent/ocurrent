@@ -8,7 +8,6 @@ let pool = Current.Pool.create ~label:"gitlab" 1
 let webhook_cond = Hashtbl.create 10
 
 exception Project_not_found of int
-exception Commit_not_found
 
 type webhooks_accepted =
   [ `MergeRequest of Gitlab_t.merge_request_webhook
@@ -118,7 +117,7 @@ module Commit_id = struct
   } [@@deriving to_yojson]
 
   let to_git { repo; id; hash; committed_date = _ } =
-    (* TODO Optional argument to support different GitLab instances*)
+    (* TODO Optional argument to support different GitLab instances *)
     let repo = Fmt.str "https://gitlab.com/%a.git" Repo_id.to_git repo in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
@@ -156,7 +155,7 @@ type t = {
 }
 and commit = t * Commit_id.t
 and refs = {
-  default_ref : string;
+  default_ref : Ref.t;
   all_refs : commit Ref_map.t
 }
 
@@ -213,13 +212,8 @@ let get_commit project_id =
   | None ->
     fail (Project_not_found project_id)
   | Some (project : Gitlab_t.project_short) ->
-    Project.Commit.commits ~project_id:project.project_short_id ~ref_name:project.project_short_default_branch ()
-    |> Stream.next
-    >|= fun x ->
-    Option.map (fun (x,_) -> (x, project.project_short_default_branch)) x
-    |> function
-    | None -> raise Commit_not_found
-    | Some x -> x
+    Project.Branch.branch ~project_id:project.project_short_id ~branch:project.project_short_default_branch () >|~ fun x -> 
+    (x.Gitlab_t.branch_full_commit, project.project_short_default_branch)
 
 (* Get latest Git ref for the default branch in GitLab? *)
 let get_default_ref _t (repo_id : Repo_id.t) =
@@ -411,7 +405,7 @@ let get_refs t (repo : Repo_id.t) =
     let prefix = "refs/heads/" in
     let refs = List.map (parse_ref ~repo ~prefix) branches in
     let prs = List.map (parse_merge_request ~repo) prs in
-    let default_ref = default_branch.Gitlab_t.branch_full_name in
+    let default_ref = `Ref (prefix ^ default_branch.Gitlab_t.branch_full_name) in
 
     (* Record metrics for monitoring. *)
     let n_branches = List.length branches in
@@ -474,17 +468,24 @@ let remove_stale ?staleness ~default_ref refs =
   match staleness with
   | None -> refs
   | Some staleness ->
+     Log.info (fun f -> f "GitLab default_ref %a" Ref.pp default_ref);
      let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
      let active x =
        let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
        committed > cutoff
      in
      let is_default = function
-       | { Commit_id.id = `Ref t; _ } -> String.equal default_ref t
+       | { Commit_id.id = `Ref t; _ } -> Ref.compare default_ref (`Ref t) == 0
        | _ -> false
      in
-     List.filter (fun (_, x) -> is_default x || active x) refs
-
+     List.filter_map (fun (y, x) -> 
+         if is_default x || active x then 
+           Some (y, x)
+         else (
+           Log.info (fun f -> f "GitLab remove_stale: Discarding stale ref %a" Commit_id.pp x);
+           None
+         )
+       ) refs
 
 let to_ci_refs ?staleness refs =
   refs.all_refs
