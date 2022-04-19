@@ -20,7 +20,7 @@ module Dao = struct
                      report   TEXT NOT NULL, \
                      score    INTEGER NOT NULL, \
                      PRIMARY KEY (re))" |> Db.or_fail ~cmd:"create log_regexp";
-    let load = Sqlite3.prepare db "SELECT re, report, score FROM log_regexp ORDER BY re" in
+    let load = Sqlite3.prepare db "SELECT re, report, score FROM log_regexp ORDER BY score DESC, re" in
     let add = Sqlite3.prepare db "INSERT OR REPLACE INTO log_regexp (re, report, score) VALUES (?, ?, ?)" in
     let remove = Sqlite3.prepare db "DELETE FROM log_regexp WHERE re = ?" in
     let delete_all = Sqlite3.prepare db "DELETE FROM log_regexp" in
