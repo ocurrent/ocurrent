@@ -25,6 +25,7 @@ module Commit : sig
   val owner_name : t -> string
   val hash : t -> string
   val committed_date : t -> string
+  val message : t -> string
   val pp : t Fmt.t
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t

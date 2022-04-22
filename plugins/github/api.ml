@@ -250,9 +250,10 @@ module Commit_id = struct
     id : Ref.t;
     hash : string;
     committed_date : string;
+    message : string;
   } [@@deriving to_yojson]
 
-  let to_git { owner; repo; id; hash; committed_date = _ } =
+  let to_git { owner; repo; id; hash; committed_date = _; message = _ } =
     let repo = Fmt.str "https://github.com/%s/%s.git" owner repo in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
@@ -264,7 +265,7 @@ module Commit_id = struct
 
   let pp_id = Ref.pp
 
-  let compare {owner; repo; id; hash; committed_date = _} b =
+  let compare {owner; repo; id; hash; committed_date = _; message = _} b =
     match compare hash b.hash with
     | 0 ->
       begin match Ref.compare id b.id with
@@ -273,8 +274,8 @@ module Commit_id = struct
       end
     | x -> x
 
-  let pp f { owner; repo; id; hash; committed_date } =
-    Fmt.pf f "%s/%s@ %a@ %s@ %s" owner repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date
+  let pp f { owner; repo; id; hash; committed_date; message } =
+    Fmt.pf f "%s/%s@ %a@ %s@ %s (%s)" owner repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date message
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -484,6 +485,7 @@ module Head_ref = Monitor(struct
             ...on Commit {
               oid
               committedDate
+              message
             }
           }
         }
@@ -498,8 +500,9 @@ module Head_ref = Monitor(struct
     let branch_name = def / "name" |> to_string in
     let hash = def / "target" / "oid" |> to_string in
     let committed_date = def / "target" / "committedDate" |> to_string in
+    let message = def / "target" / "message" |> to_string in
     let commit_id =
-      { Commit_id.owner; repo = name; id = `Ref (prefix ^ branch_name); hash; committed_date }
+      { Commit_id.owner; repo = name; id = `Ref (prefix ^ branch_name); hash; committed_date; message }
     in
     t, commit_id
 end)
@@ -529,6 +532,7 @@ module Refs = Monitor(struct
               ...on Commit {
                 oid
                 committedDate
+                message
               }
             }
           }
@@ -544,6 +548,7 @@ module Refs = Monitor(struct
               nodes {
                 commit {
                   committedDate
+                  message
                 }
               }
             }
@@ -559,7 +564,8 @@ module Refs = Monitor(struct
     let name = node / "name" |> to_string in
     let hash = node / "target" / "oid" |> to_string in
     let committed_date = node / "target" / "committedDate" |> to_string in
-    { Commit_id.owner; Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date }
+    let message = node / "target" / "message" |> to_string in
+    { Commit_id.owner; Commit_id.repo; id = `Ref (prefix ^ name); hash; committed_date; message }
 
   let parse_pr ~owner ~repo json =
     let open Yojson.Safe.Util in
@@ -569,7 +575,8 @@ module Refs = Monitor(struct
     let nodes = node / "commits" / "nodes" |> to_list in
     if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
     let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
-    { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date }
+    let message = List.hd nodes / "commit" / "message" |> to_string in
+    { Commit_id.owner; Commit_id.repo; id = `PR pr; hash; committed_date; message }
 
   let of_yojson t { Repo_id.owner; name } data =
     let open Yojson.Safe.Util in
@@ -835,6 +842,8 @@ module Commit = struct
 
   let committed_date (_, id) = id.Commit_id.committed_date
 
+  let message (_, id) = id.Commit_id.message
+
   let pp = Fmt.using snd Commit_id.pp
 
   let set_status commit context status =
@@ -894,7 +903,7 @@ module Anonymous = struct
       Lwt.try_bind
         (fun () -> query_head repo gref)
         (fun hash ->
-          let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = "" } in
+          let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = ""; message = "" } in
           Lwt_result.return (Commit_id.to_git id)
         )
         (fun ex ->
