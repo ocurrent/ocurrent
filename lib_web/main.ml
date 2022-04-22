@@ -35,8 +35,10 @@ let r ~engine = object
     let uri = Context.uri ctx in
     let config = Current.Engine.config engine in
     let { Current.Engine.value; jobs = _ } = Current.Engine.state engine in
-    let path = "/pipeline.svg?" ^ (Option.value (Uri.verbatim_query uri) ~default:"") in
-    Context.respond_ok ctx [
+    let verbatim_query = Uri.verbatim_query uri in
+    let path = "/pipeline.svg?" ^ (Option.value verbatim_query ~default:"") in
+    let refresh = Option.map (fun _ -> 60) verbatim_query in
+    Context.respond_ok ctx ?refresh [
       div [
         object_ ~a:[a_data path] [txt "Pipeline diagram"];
       ];
