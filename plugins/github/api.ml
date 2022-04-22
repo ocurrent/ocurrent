@@ -931,7 +931,6 @@ end
 open Cmdliner
 
 let token_file =
-  Arg.required @@
   Arg.opt Arg.(some file) None @@
   Arg.info
     ~doc:"A file containing the GitHub OAuth token."
@@ -946,10 +945,16 @@ let webhook_secret_file =
     ~docv:"WEBHOOK_SECRET"
     ["github-webhook-secret-file"]
 
-let make_config token_file webhook_secret_file =
+let make_config webhook_secret_file token_file =
   let token = String.trim (read_file token_file) in
   let webhook_secret = String.trim (read_file webhook_secret_file) in
   of_oauth ~token ~webhook_secret
 
+let make_config_opt webhook_secret_file token_file =
+  Option.map (make_config webhook_secret_file) token_file
+
 let cmdliner =
-  Term.(const make_config $ token_file $ webhook_secret_file)
+  Term.(const make_config $ webhook_secret_file $ Arg.required token_file)
+
+let cmdliner_opt =
+  Term.(const make_config_opt $ webhook_secret_file $ Arg.value token_file)
