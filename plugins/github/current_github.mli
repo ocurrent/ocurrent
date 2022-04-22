@@ -96,6 +96,9 @@ module Api : sig
     val committed_date : t -> string
     (** [committed_date t] is the datetime when [t] was committed *)
 
+    val message : t -> string
+    (** [message t] is the Git commit message of [t]. *)
+
     val pp : t Fmt.t
     val compare : t -> t -> int
 
