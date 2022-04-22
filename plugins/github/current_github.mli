@@ -216,6 +216,9 @@ module Api : sig
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)
+
+  val cmdliner_opt : t option Cmdliner.Term.t
+  (** Like [cmdliner], but the argument is optional. *)
 end
 
 (** Installation of a GitHub application. *)

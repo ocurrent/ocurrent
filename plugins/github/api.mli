@@ -59,6 +59,7 @@ val all_refs : refs -> Commit.t Ref_map.t
 val head_of : t -> Repo_id.t -> [ `Ref of string | `PR of int ] -> Commit.t Current.t
 val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
+val cmdliner_opt : t option Cmdliner.Term.t
 val webhook_secret_file : string Cmdliner.Term.t
 
 module Repo : sig
