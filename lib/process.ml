@@ -19,12 +19,22 @@ let pp_signal f x =
   else if x = sigterm then Fmt.string f "term"
   else Fmt.int f x
 
-let check_status cmd = function
+let check_status pp_cmd cmd = function
   | Unix.WEXITED 0 -> Ok ()
-  | Unix.WEXITED x -> failf "%t exited with status %d" cmd x
-  | Unix.WSIGNALED x -> failf "%t failed with signal %d" cmd x
-  | Unix.WSTOPPED x ->
-      failf "%t stopped with signal %a" cmd pp_signal x
+  | Unix.WEXITED 127 ->
+      let cmd_name =
+        match cmd with
+        | "", args ->
+            if Array.length args > 0 then Some (Array.get args 0) else None
+        | p, _ -> Some p
+      in
+      if Option.is_some cmd_name then
+        failf "%t exited with status %d. Is %s installed?" pp_cmd 127
+          (Option.get cmd_name)
+      else failf "%t exited with status %d" pp_cmd 127
+  | Unix.WEXITED x -> failf "%t exited with status %d" pp_cmd x
+  | Unix.WSIGNALED x -> failf "%t failed with signal %d" pp_cmd x
+  | Unix.WSTOPPED x -> failf "%t stopped with signal %a" pp_cmd pp_signal x
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
@@ -142,7 +152,7 @@ let exec ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
   send_to proc#stdin stdin >>= fun stdin_result ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status pp_error_command status with
+  match check_status pp_error_command cmd status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
@@ -159,7 +169,7 @@ let check_output ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
   reader >>= fun stdout ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status pp_error_command status with
+  match check_status pp_error_command cmd status with
   | Error _ as e -> e
   | Ok () ->
     match stdin_result with
