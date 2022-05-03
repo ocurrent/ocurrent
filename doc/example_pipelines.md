@@ -17,7 +17,7 @@ executes the example with `--help` to check that it runs.
 You can test it using a clone of the OCurrent repository itself:
 
 ```
-$ dune exec -- examples/docker_build_local.exe .
+$ dune exec -- docker_build_local .
    current_web [INFO] Starting web server: (TCP (Port 8080))
        current [INFO] Result: Running
 [...]
