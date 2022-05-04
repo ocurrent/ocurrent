@@ -28,6 +28,7 @@ depends: [
   "result" {>= "1.5"}
   "cstruct" {>= "6.0.0"}
   "mirage-crypto" {>= "0.8.0"}
+  "mdx" {with-test}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]

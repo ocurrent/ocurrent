@@ -78,11 +78,10 @@ let with_checkout ?pool ~job commit fn =
        end >>= fun () ->
        Current.Process.with_tmpdir ~prefix:"git-checkout" @@ fun tmpdir ->
        Cmd.cp_r ~cancellable:true ~job ~src:(Fpath.(repo / ".git")) ~dst:tmpdir >>!= fun () ->
-       Cmd.git_submodule_update ~init:false ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
+       Cmd.git_submodule_deinit ~force:true ~all:true ~cancellable:false ~job ~repo:tmpdir >>!= fun () ->
        Cmd.git_checkout_force ~job ~repo:tmpdir id.Commit_id.gref >>!= fun () ->
        Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
        | Ok () ->
-         Cmd.git_submodule_sync ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
          Cmd.git_submodule_update ~init:true ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
          Current.Switch.turn_off switch >>= fun () ->
          fn tmpdir
