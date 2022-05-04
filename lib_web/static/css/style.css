@@ -1,5 +1,5 @@
 body {
-  font-family: Roboto, sans-serif;
+  font-family: system-ui, sans-serif;
   background: white;
   color: #002000;
   margin: 0;
@@ -25,7 +25,7 @@ a:hover, a:active {
 }
 
 code {
-  font-family: 'Roboto Mono', monospace;
+  font-family: ui-monospace, monospace;
   font-size: 0.97rem;
 }
 
@@ -67,7 +67,7 @@ nav img {
 }
 
 nav .site-name {
-  font-family: 'Roboto Mono', monospace;
+  font-family: ui-monospace, monospace;
   font-size: 0.97rem;
   margin: 0 1rem 0 0;
 }

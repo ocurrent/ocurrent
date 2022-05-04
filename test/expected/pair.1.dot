@@ -1,7 +1,7 @@
 digraph pipeline {
-  graph [fontname="Roboto,sans-serif"]
-  node [fontname="Roboto,sans-serif",shape="box"]
-  edge [fontname="Roboto,sans-serif"]
+  graph [fontname="ui-system,sans-serif"]
+  node [fontname="ui-system,sans-serif",shape="box"]
+  edge [fontname="ui-system,sans-serif"]
   rankdir=LR
   n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
   n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
