@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let program_name = "docker_build_local"
 
 module Git = Current_git
@@ -19,16 +21,22 @@ let pipeline ~repo () =
 
 [@@@part "end-pipeline"]
 
+
+let find_git_root dir =
+  let cmd = [| "git"; "-C"; dir; "rev-parse"; "--show-toplevel" |] in
+  Lwt_process.pread ("", cmd) >|= String.trim
+
 let main config mode repo =
-  let repo = Git.Local.v (Fpath.v repo) in
-  let engine = Current.Engine.create ~config (pipeline ~repo) in
-  let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
-  Lwt_main.run begin
-    Lwt.choose [
-      Current.Engine.thread engine;
-      Current_web.run ~mode site;
-    ]
-  end
+Lwt_main.run begin
+    find_git_root repo >>= fun repo ->
+      let repo = Git.Local.v (Fpath.v repo) in
+      let engine = Current.Engine.create ~config (pipeline ~repo) in
+      let site = Current_web.Site.(v ~has_role:allow_all) ~name:program_name (Current_web.routes engine) in
+        Lwt.choose [
+          Current.Engine.thread engine;
+          Current_web.run ~mode site;
+        ]
+      end
 
 (* Command-line parsing *)
 
