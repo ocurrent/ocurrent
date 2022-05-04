@@ -59,5 +59,13 @@ let cp_r ~cancellable ~job ~src ~dst =
 let git_submodule_sync ~cancellable ~job ~repo =
   git ~cancellable ~job ~cwd:repo ["submodule"; "sync"]
 
+let git_submodule_deinit ~cancellable ~job ~repo ~force ~all =
+  let flags = List.concat [
+      (if force then ["--force"] else []);
+      (if all then ["--all"] else []);
+    ]
+  in
+  git ~cancellable ~job ~cwd:repo ("submodule" :: "deinit" :: flags)
+
 let git_submodule_update ~cancellable ~job ~repo ~init =
   git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: (if init then ["--init"] else []))
