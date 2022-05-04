@@ -36,8 +36,13 @@ let git ~cancellable ~job ?cwd args =
 let git_clone ~cancellable ~job ~src dst =
   git ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
 
-let git_fetch ~cancellable ~job ~src ~dst gref =
-  git ~cancellable ~job ~cwd:dst ["fetch"; "-f"; src; gref]
+let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
+  let flags =
+    match recurse_submodules with
+    | None -> []
+    | Some x -> ["--recurse-submodules=" ^ string_of_bool x]
+  in
+  git ~cancellable ~job ~cwd:dst ("fetch" :: flags @ ["-f"; src; gref])
 
 let git_checkout_force ~job ~repo treeish =
   git ~cancellable:false ~job ~cwd:repo ["-c"; "advice.detachedHead=false"; "checkout"; "-f"; treeish]
@@ -67,5 +72,10 @@ let git_submodule_deinit ~cancellable ~job ~repo ~force ~all =
   in
   git ~cancellable ~job ~cwd:repo ("submodule" :: "deinit" :: flags)
 
-let git_submodule_update ~cancellable ~job ~repo ~init =
-  git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: (if init then ["--init"] else []))
+let git_submodule_update ~cancellable ~job ~repo ~init ~fetch =
+  let flags = List.concat [
+      (if init then ["--init"] else []);
+      (if fetch then [] else ["--no-fetch"]);
+    ]
+  in
+  git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: flags)

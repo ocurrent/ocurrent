@@ -38,10 +38,25 @@ module Fetch = struct
     begin
       Commit.check_cached ~cancellable:false ~job commit >>= function
       | Ok () -> Lwt.return (Ok ())
-      | Error _ -> Cmd.git_fetch ~cancellable:true ~job ~src:remote_repo ~dst:local_repo gref
+      | Error _ -> Cmd.git_fetch ~cancellable:true ~job ~recurse_submodules:false ~src:remote_repo ~dst:local_repo gref
     end >>!= fun () ->
     (* Check we got the commit we wanted. *)
     Commit.check_cached ~cancellable:false ~job commit >>!= fun () ->
+    (* Get any submodules too.
+       "sync" is needed to handle repositories moving.
+       "deinit" is needed to handle submodules being removed.
+       Note:
+       This could cause trouble if we cancel during the "submodule update --init" step, leaving some
+       submodules uninitialised. Then, the "submodule sync" for the next fetch won't do anything
+       and, if the submodule has moved, updating will fail. However, it should eventually recover as
+       the init step happens before the fetch so we'll make a little progress while failing. This is
+       rare enough that it's probably not worth trying to detect this and implementing a retry loop
+       here. What we really want is "submodule update --init --sync --recursive --prune", but Git
+       doesn't offer that. *)
+    Cmd.git_reset_hard ~job ~repo:local_repo commit.id.hash >>!= fun () ->
+    Cmd.git_submodule_sync ~cancellable:false ~job ~repo:local_repo >>!= fun () ->
+    Cmd.git_submodule_deinit ~force:true ~all:true ~cancellable:false ~job ~repo:local_repo >>!= fun () ->
+    Cmd.git_submodule_update ~init:true ~cancellable:true ~fetch:true ~job ~repo:local_repo >>!= fun () ->
     Lwt.return @@ Ok commit
 
   let pp f key = Fmt.pf f "git fetch %a" Key.pp key
@@ -82,7 +97,7 @@ let with_checkout ?pool ~job commit fn =
        Cmd.git_checkout_force ~job ~repo:tmpdir id.Commit_id.gref >>!= fun () ->
        Cmd.git_reset_hard ~job ~repo:tmpdir id.Commit_id.hash >>= function
        | Ok () ->
-         Cmd.git_submodule_update ~init:true ~cancellable:true ~job ~repo:tmpdir >>!= fun () ->
+         Cmd.git_submodule_update ~init:true ~cancellable:true ~fetch:false ~job ~repo:tmpdir >>!= fun () ->
          Current.Switch.turn_off switch >>= fun () ->
          fn tmpdir
        | Error e ->
