@@ -56,7 +56,7 @@ let log t fmt =
 
 let id t = t.id
 
-let jobs_dir = lazy (Disk_store.state_dir "job")
+let jobs_dir = lazy (Config.state_dir "job")
 
 let log_path job_id =
   let open Astring in

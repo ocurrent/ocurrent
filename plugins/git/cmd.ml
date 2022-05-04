@@ -21,7 +21,7 @@ let id_of_repo repo =
 
 (* .../var/git/myrepo-hhh *)
 let local_copy repo =
-  let repos_dir = Current.state_dir "git" in
+  let repos_dir = Current.Config.state_dir "git" in
   Fpath.append repos_dir (Fpath.v (id_of_repo repo))
 
 let git ~cancellable ~job ?cwd args =

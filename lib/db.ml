@@ -53,7 +53,7 @@ let query_some stmt values =
 
 let v =
   lazy (
-    let db_dir = Disk_store.state_dir "db" in
+    let db_dir = Config.state_dir "db" in
     let db = Sqlite3.db_open Fpath.(to_string (db_dir / "sqlite.db")) in
     Sqlite3.busy_timeout db 1000;
     exec_literal db "PRAGMA journal_mode=WAL";

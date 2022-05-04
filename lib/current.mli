@@ -5,10 +5,11 @@ module Level = Level
 module Config : sig
   type t
 
-  val v : ?auto_release:Duration.t -> ?confirm:Level.t -> unit -> t
+  val v : ?auto_release:Duration.t -> ?confirm:Level.t -> ?state_dir:Fpath.t -> unit -> t
   (** A new configuration.
       @param auto_release Remove confirmation requirement this period (unless changed manually first).
-      @param confirm Confirm before performing operations at or above this level. *)
+      @param confirm Confirm before performing operations at or above this level.
+      @param state_dir State directory for the current pipeline. *)
 
   val set_confirm : t -> Level.t option -> unit
   (** Change the [confirm] setting. Existing jobs waiting for confirmation
@@ -20,6 +21,11 @@ module Config : sig
 
   val now : t option Current_incr.t
   (** The configuration of the engine, if any. *)
+
+  val state_dir : string -> Fpath.t
+  (** [state_dir name] is a directory under which state (build results, logs) can be stored.
+      [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory.
+      Can only be called after the configuration has happened. *)
 end
 
 type job_id = string
@@ -118,10 +124,6 @@ module Var (T : Current_term.S.T) : sig
   val set : t -> T.t Current_term.Output.t -> unit
   val update : t -> (T.t Current_term.Output.t -> T.t Current_term.Output.t) -> unit
 end
-
-val state_dir : string -> Fpath.t
-(** [state_dir name] is a directory under which state (build results, logs) can be stored.
-    [name] identifies the sub-component of OCurrent, each of which gets its own subdirectory. *)
 
 module String : sig
   type t = string
