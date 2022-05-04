@@ -48,8 +48,9 @@ let strip_heads gref =
 
 let pp_user_clone f id =
   let short_hash = Astring.String.with_range ~len:8 id.hash in
-  if Astring.String.is_prefix ~affix:"refs/pull/" id.gref then (
-    (* GitHub doesn't recognise pull requests in clones, but it does in fetches. *)
+  if Astring.String.(is_prefix ~affix:"refs/pull/" id.gref
+                     || is_prefix ~affix:"refs/merge-requests/" id.gref) then (
+    (* GitHub and GitLab don't recognise pull requests in clones, but they do in fetches. *)
     Fmt.pf f "git clone --recursive %S && cd %S && git fetch origin %S && git reset --hard %s"
       id.repo
       (Filename.basename id.repo |> Filename.remove_extension)
