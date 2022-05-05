@@ -88,7 +88,7 @@ let template t ?refresh contents =
       )
       (body [
           nav [
-            a ~a:[a_href "/"] [img ~alt:"" ~src:img_dashboard_logo ~a:[ a_height 29 ] ()];
+            a ~a:[a_href "/"] [img ~alt:"" ~src:img_dashboard_logo ~a:[ a_height 29; a_width 29 ] ()];
             div ~a:[a_class ["site-name"]] [txt site.name];
             ul (
               li [a ~a:[a_href "/"; a_class ["nav-menu-option"]] [txt "Home"]] ::
