@@ -44,9 +44,6 @@ let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
   in
   git ~cancellable ~job ~cwd:dst ("fetch" :: flags @ ["-f"; src; gref])
 
-let git_checkout_force ~job ~repo treeish =
-  git ~cancellable:false ~job ~cwd:repo ["-c"; "advice.detachedHead=false"; "checkout"; "-f"; treeish]
-
 let git_reset_hard ~job ~repo hash =
   git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
 
