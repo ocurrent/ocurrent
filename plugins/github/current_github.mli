@@ -100,6 +100,11 @@ module Api : sig
     (** [message t] is the Git commit message of [t]. *)
 
     val pp : t Fmt.t
+    (** [pp t] pretty print the commit as "owner/name id hash committed_date (Commit message)" *)
+
+    val pp_short : t Fmt.t
+    (** [pp_short t] pretty print the commit as "owner/name hash" *)
+
     val compare : t -> t -> int
 
     val uri : t -> Uri.t
