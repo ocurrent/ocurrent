@@ -94,3 +94,42 @@ let logout = object
 
   method nav_link = None
 end
+
+(* Serve a static asset from an OCaml string, with a cache of one day
+   (by default). *)
+let static ~content_type ?(max_age=86400) body = object
+  inherit t
+
+  val! can_get = `Viewer
+
+  method! private get _ctx =
+    let headers =
+      Cohttp.Header.of_list [
+          ("Content-Type", content_type);
+          ("Cache-Control", Printf.sprintf "public, max-age=%d;" max_age);
+        ]
+    in
+    Utils.Server.respond_string ~status:`OK ~headers ~body ()
+  end
+
+(* Serve a static asset from a resource embedded with ocaml-crunch,
+   with a cache of one day (by default). *)
+let crunch ?content_type ?(max_age=86400) _ = object
+  inherit t
+
+  val! can_get = `Viewer
+
+  method! private get ctx =
+    let path = Context.uri ctx |> Uri.path in
+    match Static.read path with
+    | None -> Utils.Server.respond_not_found ()
+    | Some body ->
+      let content_type = Option.value ~default:(Magic_mime.lookup path) content_type in
+      let headers =
+        Cohttp.Header.of_list [
+            ("Content-Type", content_type);
+            ("Cache-Control", Printf.sprintf "public, max-age=%d;" max_age);
+          ]
+      in
+      Utils.Server.respond_string ~status:`OK ~headers ~body ()
+end

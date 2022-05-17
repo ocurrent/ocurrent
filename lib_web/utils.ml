@@ -1,4 +1,5 @@
 module Server = Cohttp_lwt_unix.Server
+module Path = Cohttp.Path
 
 let string_of_timestamp time =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } = time in

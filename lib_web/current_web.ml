@@ -36,12 +36,10 @@ let set_confirm ~engine = object
     | _ -> Context.respond_error ctx `Bad_request "Missing level"
 end
 
-let routes ?(docroot="static") engine =
+let routes engine =
   Routes.[
     empty @--> Main.r ~engine;
     s "index.html" /? nil @--> Main.r ~engine;
-    s "css" / s "style.css" /? nil @--> Style.r;
-    s "js" / s "line-numbers.js" /? nil @--> Script.line_numbers;
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
     s "query" /? nil @--> Query.r ~engine;
     s "log-rules" /? nil @--> Log_rules.r;
@@ -50,7 +48,10 @@ let routes ?(docroot="static") engine =
     s "set" / s "confirm" /? nil @--> set_confirm ~engine;
     s "jobs" /? nil @--> Jobs.r;
     s "logout" /? nil @--> Resource.logout;
-    s "images" / str /? nil @--> Static.r ~docroot;
+    s "css" / s "ansi.css" /? nil @--> Resource.static ~content_type:"text/css" Ansi.css;
+    s "css" / str /? nil @--> Resource.crunch ~content_type:"text/css";
+    s "js" / str /? nil @--> Resource.crunch ~content_type:"text/javascript";
+    s "img" / str /? nil @--> Resource.crunch;
   ] @ Job.routes ~engine
 
 let handle_request ~site _conn request body =

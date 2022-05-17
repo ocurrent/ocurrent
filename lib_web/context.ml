@@ -2,7 +2,7 @@ open Lwt.Infix
 
 let cookie_key = "__session"
 
-let img_dashboard_logo = "/images/dashboard-logo.png"
+let img_dashboard_logo = "/img/dashboard-logo.png"
 
 let fonts =
   [
@@ -81,17 +81,18 @@ let template t ?refresh contents =
   html_to_string (
     html
       (head (title (txt site.name)) (
-           let tags =
-             (List.map (fun font -> link ~rel:[ `Stylesheet ] ~href:font ()) fonts) @ [
-               link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
-               link ~rel:[ `Icon ] ~href:img_dashboard_logo ();
-               meta ~a:[a_charset "UTF-8"] ();
-             ]
-           in
-           match refresh with
-           | Some refresh -> meta ~a:[a_http_equiv "refresh"; a_content (string_of_int refresh)] () :: tags
-           | None -> tags
-         )
+          let tags =
+            (List.map (fun font -> link ~rel:[ `Stylesheet ] ~href:font ()) fonts) @ [
+              link ~rel:[ `Stylesheet ] ~href:"/css/ansi.css" ();
+              link ~rel:[ `Stylesheet ] ~href:"/css/style.css" ();
+              link ~rel:[ `Icon ] ~href:img_dashboard_logo ();
+              meta ~a:[a_charset "UTF-8"] ();
+            ]
+          in
+          match refresh with
+          | Some refresh -> meta ~a:[a_http_equiv "refresh"; a_content (string_of_int refresh)] () :: tags
+          | None -> tags
+        )
       )
       (body [
           nav [
