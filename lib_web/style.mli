@@ -1,1 +1,0 @@
-val r : Resource.t
