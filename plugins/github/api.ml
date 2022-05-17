@@ -261,7 +261,7 @@ module Commit_id = struct
   let owner_name { owner; repo; _} = Fmt.str "%s/%s" owner repo
 
   let uri t =
-    Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/commit/%s/%s" t.owner t.repo t.hash) ()
+    Uri.make ~scheme:"https" ~host:"github.com" ~path:(Printf.sprintf "/%s/%s/commit/%s" t.owner t.repo t.hash) ()
 
   let pp_id = Ref.pp
 
@@ -276,6 +276,9 @@ module Commit_id = struct
 
   let pp f { owner; repo; id; hash; committed_date; message } =
     Fmt.pf f "%s/%s@ %a@ %s@ %s (%s)" owner repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date message
+
+  let pp_short f { owner; repo; hash; _ } =
+    Fmt.pf f "%s/%s@ %s" owner repo (Astring.String.with_range ~len:8 hash)
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 end
@@ -845,6 +848,7 @@ module Commit = struct
   let message (_, id) = id.Commit_id.message
 
   let pp = Fmt.using snd Commit_id.pp
+  let pp_short = Fmt.using snd Commit_id.pp_short
 
   let set_status commit context status =
     Current.component "set_status" |>

@@ -27,6 +27,7 @@ module Commit : sig
   val committed_date : t -> string
   val message : t -> string
   val pp : t Fmt.t
+  val pp_short : t Fmt.t
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
   val uri : t -> Uri.t
