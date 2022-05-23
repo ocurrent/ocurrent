@@ -2,7 +2,25 @@
 
 Web UI:
 
+- UI restyle, embed files using ocaml-crunch. (@ewanmellor, @MisterDA, #315)
+
+- Automatically refresh some pipeline pages. (@MisterDA, #227)
+
 - Allow to import and export using CSV the log rules. (@MisterDA, #327)
+
+API:
+
+- GitHub: Add pp_short for commit and fix url link for GH commits. (@tmcgilchrist, #347)
+
+- GitHub: Fetch commit messages for commits on GitHub (@punchagan, #337)
+
+- GitHub: Add Current_github.Api.cmdliner_opt. (@dra27, #338)
+
+Plugins:
+
+- Git: support GitLab clone fork and fetch MR branch. (@MisterDA, #346)
+
+- Git: Fix handling of git repositories with submodules. (@talex5, #345)
 
 ### v0.6
 
