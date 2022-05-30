@@ -1,5 +1,6 @@
 type source = [
   | `No_context
+  | `Dir of Fpath.t Current.t
   | `Git of Current_git.Commit.t Current.t
 ]
 

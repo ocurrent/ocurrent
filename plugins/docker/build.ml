@@ -17,7 +17,7 @@ let use_pool pool f =
 
 module Key = struct
   type t = {
-    commit : [ `No_context | `Git of Current_git.Commit.t ];
+    commit : [ `No_context | `Git of Current_git.Commit.t | `Dir of Fpath.t ];
     dockerfile : [`File of Fpath.t | `Contents of string];
     docker_context : string option;
     squash : bool;
@@ -32,6 +32,7 @@ module Key = struct
   let source_to_json = function
     | `No_context -> `Null
     | `Git commit -> `String (Current_git.Commit.hash commit)
+    | `Dir path -> `String (Fpath.to_string path)
 
   let to_json { commit; dockerfile; docker_context; squash; build_args; path } =
     `Assoc [
@@ -59,8 +60,13 @@ let or_raise = function
   | Error (`Msg m) -> raise (Failure m)
 
 let with_context ~job context fn =
+  let open Lwt_result.Infix in
   match context with
   | `No_context -> Current.Process.with_tmpdir ~prefix:"build-context-" fn
+  | `Dir path ->
+      Current.Process.with_tmpdir ~prefix:"build-context-" @@ fun dir ->
+      Current.Process.exec ~cwd:dir ~cancellable:true ~job ("", [| "rsync"; "-aHq"; Fpath.to_string path ^ "/"; "." |]) >>= fun () ->
+      fn dir
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
 let build { pull; pool; timeout; level } job key =
