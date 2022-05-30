@@ -143,6 +143,7 @@ module Make (Host : S.HOST) = struct
   let get_build_context = function
     | `No_context -> Current.return `No_context
     | `Git commit -> Current.map (fun x -> `Git x) commit
+    | `Dir path -> Current.map (fun path -> `Dir path) path
 
   let build ?level ?schedule ?timeout ?squash ?label ?dockerfile ?pool ?build_args ~pull src =
     Current.component "build%a" pp_sp_label label |>

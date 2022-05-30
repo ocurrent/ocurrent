@@ -41,7 +41,7 @@ module Raw : sig
     ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
-    [ `Git of Current_git.Commit.t | `No_context ] ->
+    [ `Git of Current_git.Commit.t | `Dir of Fpath.t | `No_context ] ->
     Image.t Current.Primitive.t
 
   val run :
