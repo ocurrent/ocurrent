@@ -1,4 +1,4 @@
-### Unreleased
+### v0.6.1
 
 Web UI:
 
@@ -8,6 +8,8 @@ Web UI:
 
 - Allow to import and export using CSV the log rules. (@MisterDA, #327)
 
+- Log matcher takes the pattern with the highest score (@kit-ty-kate, #335)
+
 API:
 
 - GitHub: Add pp_short for commit and fix url link for GH commits. (@tmcgilchrist, #347)
@@ -16,11 +18,19 @@ API:
 
 - GitHub: Add Current_github.Api.cmdliner_opt. (@dra27, #338)
 
+- GitHub: Add extra PR information to Ref.t (@tmcgilchrist @TheLortex, #336)
+
 Plugins:
 
-- Git: support GitLab clone fork and fetch MR branch. (@MisterDA, #346)
+- GitLab: support GitLab clone fork and fetch MR branch. (@MisterDA, #346)
 
 - Git: Fix handling of git repositories with submodules. (@talex5, #345)
+
+- GitLab: Fix ref filtering bug for GitLab (@tmcgilchrist, #332)
+
+Other:
+
+- Add missing dependencies on Unix (@dra27, #331)
 
 ### v0.6
 
