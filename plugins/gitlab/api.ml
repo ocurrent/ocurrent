@@ -268,7 +268,7 @@ let head_commit t repo =
 
 module Commit = struct
   module Set_status = struct
-    let id ="gitlab-set-status"
+    let id = "gitlab-set-status"
 
     type nonrec t = t
 
@@ -281,7 +281,7 @@ module Commit = struct
       let to_json { commit; context } =
         `Assoc [
           "commit", `String (Commit_id.digest commit);
-          "context", `String context
+          "context", `String context;
         ]
 
       let digest t = Yojson.Safe.to_string @@ to_json t
@@ -305,8 +305,8 @@ module Commit = struct
         | `Failure -> `Failed
         | `Running -> `Running
         | `Pending -> `Pending
-        | `Success -> `Success in
-
+        | `Success -> `Success
+      in
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       let { Key.commit; context=_ } = key in
       get_token t >>= function
