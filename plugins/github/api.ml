@@ -670,10 +670,10 @@ let head_of t repo (id: Ref.id) =
   |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    Ref_map.fold (fun ref value acc -> 
-      match id, ref with 
+    Ref_map.fold (fun ref value acc ->
+      match id, ref with
       | `Ref a, `Ref b when String.equal a b -> Some value
-      | `PR (id_a: int), `PR {Ref.id;_} when id_a = id -> Some value 
+      | `PR (id_a: int), `PR {Ref.id;_} when id_a = id -> Some value
       | _ -> acc) refs.all_refs None
     |> function
     | Some x -> Ok x

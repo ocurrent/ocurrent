@@ -212,7 +212,7 @@ let get_commit project_id =
   | None ->
     fail (Project_not_found project_id)
   | Some (project : Gitlab_t.project_short) ->
-    Project.Branch.branch ~project_id:project.project_short_id ~branch:project.project_short_default_branch () >|~ fun x -> 
+    Project.Branch.branch ~project_id:project.project_short_id ~branch:project.project_short_default_branch () >|~ fun x ->
     (x.Gitlab_t.branch_full_commit, project.project_short_default_branch)
 
 (* Get latest Git ref for the default branch in GitLab? *)
@@ -269,7 +269,7 @@ let head_commit t repo =
 
 module Commit = struct
   module Set_status = struct
-    let id ="gitlab-set-status"
+    let id = "gitlab-set-status"
 
     type nonrec t = t
 
@@ -282,7 +282,7 @@ module Commit = struct
       let to_json { commit; context } =
         `Assoc [
           "commit", `String (Commit_id.digest commit);
-          "context", `String context
+          "context", `String context;
         ]
 
       let digest t = Yojson.Safe.to_string @@ to_json t
@@ -306,8 +306,8 @@ module Commit = struct
         | `Failure -> `Failed
         | `Running -> `Running
         | `Pending -> `Pending
-        | `Success -> `Success in
-
+        | `Success -> `Success
+      in
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       let { Key.commit; context=_ } = key in
       get_token t >>= function
@@ -478,8 +478,8 @@ let remove_stale ?staleness ~default_ref refs =
        | { Commit_id.id = `Ref t; _ } -> Ref.compare default_ref (`Ref t) == 0
        | _ -> false
      in
-     List.filter_map (fun (y, x) -> 
-         if is_default x || active x then 
+     List.filter_map (fun (y, x) ->
+         if is_default x || active x then
            Some (y, x)
          else (
            Log.info (fun f -> f "GitLab remove_stale: Discarding stale ref %a" Commit_id.pp x);
