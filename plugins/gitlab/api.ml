@@ -308,7 +308,7 @@ module Commit = struct
         | `Success -> `Success
       in
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
-      let { Key.commit; context=_ } = key in
+      let { Key.commit; context } = key in
       get_token t >>= function
       | Error (`Msg m) -> Lwt.fail_with m
       | Ok token ->
@@ -322,7 +322,7 @@ module Commit = struct
               let project_id = commit.repo.project_id in
               let new_status =
                 { Gitlab_t.state = (state_to_gitlab status.Status.state)
-                ; name = Some id
+                ; name = Some context
                 ; target_url = (Option.map Uri.to_string status.Status.url)
                 ; ref_name = None
                 ; description = None
