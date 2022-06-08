@@ -288,7 +288,7 @@ ul.query-form li input {
   text-align:right;
 }
 
-#line-numbers span {
+#line-numbers a {
   display:block;
   padding:0 .5em 0 1em;
 }
