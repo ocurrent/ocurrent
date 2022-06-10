@@ -141,7 +141,7 @@ module Api : sig
       title: string;
       bodyHTML: string;
     }
-    
+
     type t = [ `Ref of string | `PR of pr_info ]
 
     type id = [ `Ref of string | `PR of int ]
@@ -168,6 +168,11 @@ module Api : sig
   val head_of : t -> Repo_id.t -> Ref.id -> Commit.t Current.t
   (** [head_of t repo id] evaluates to the commit at the head of [id] in [repo].
       e.g. [head_of t repo (`Ref "refs/heads/master")] *)
+
+  val ci_refs' : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t Ref_map.t Current.t
+  (** [ci_refs' t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages.
+      @param staleness If given, commits older than this are excluded.
+        Note: the main branch commit is always included, even if stale. *)
 
   val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo], excluding gh-pages.

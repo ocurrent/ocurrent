@@ -633,33 +633,41 @@ let to_ptime str =
   | Ok (t, _, _) -> t
   | Error (`RFC3339 (_, e)) -> Fmt.failwith "%a" Ptime.pp_rfc3339_error e
 
-let remove_stale ?staleness ~default_ref refs =
+let remove_stale staleness ~default_ref _ (_, x) =
+  let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
+  let active x =
+    let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
+    committed > cutoff
+  in
+  let is_default = function
+    | { Commit_id.id = `Ref t; _ } -> String.equal default_ref t
+    | _ -> false
+  in
+  is_default x || active x
+
+let to_ci_refs' ?staleness refs =
+  let refs' = Ref_map.remove (`Ref "refs/heads/gh-pages") refs.all_refs in
   match staleness with
-  | None -> refs
+  | None -> refs'
   | Some staleness ->
-    let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
-    let active x =
-      let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
-      committed > cutoff
-    in
-    let is_default = function
-      | { Commit_id.id = `Ref t; _ } -> String.equal default_ref t
-      | _ -> false
-    in
-    List.filter (fun (_, x) -> is_default x || active x) refs
+    Ref_map.filter (remove_stale staleness ~default_ref:refs.default_ref) refs'
 
-let to_ci_refs ?staleness refs =
-  refs.all_refs
-  |> Ref_map.remove (`Ref "refs/heads/gh-pages")
-  |> Ref_map.bindings
-  |> List.map snd
-  |> remove_stale ?staleness ~default_ref:refs.default_ref
-
-let ci_refs ?staleness t repo =
+let ci_refs' ?staleness t repo =
   let+ refs =
     Current.component "%a CI refs" Repo_id.pp repo |>
     let> () = Current.return () in
     refs t repo
+  in
+  to_ci_refs' ?staleness refs
+
+let to_ci_refs ?staleness refs =
+  to_ci_refs' ?staleness refs |> Ref_map.bindings |> List.map snd
+
+let ci_refs ?staleness t repo =
+  let+ refs =
+    Current.component "%a CI refs" Repo_id.pp repo |>
+      let> () = Current.return () in
+      refs t repo
   in
   to_ci_refs ?staleness refs
 

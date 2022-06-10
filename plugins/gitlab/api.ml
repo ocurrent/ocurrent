@@ -464,34 +464,40 @@ let to_ptime str =
   | Ok (t, _, _) -> t
   | Error (`RFC3339 (_, e)) -> Fmt.failwith "%a" Ptime.pp_rfc3339_error e
 
-let remove_stale ?staleness ~default_ref refs =
+let remove_stale staleness ~default_ref _ (_, x) =
+  Log.info (fun f -> f "GitLab default_ref %a" Ref.pp default_ref);
+  let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
+  let active x =
+    let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
+    committed > cutoff
+  in
+  let is_default = function
+    | { Commit_id.id = `Ref t; _ } -> Ref.compare default_ref (`Ref t) == 0
+    | _ -> false
+  in
+  if is_default x || active x then
+    true
+  else (
+    Log.info (fun f -> f "GitLab remove_stale: Discarding stale ref %a" Commit_id.pp x);
+    false
+  )
+
+let to_ci_refs' ?staleness refs =
   match staleness with
-  | None -> refs
+  | None -> refs.all_refs
   | Some staleness ->
-     Log.info (fun f -> f "GitLab default_ref %a" Ref.pp default_ref);
-     let cutoff = Unix.gettimeofday () -. Duration.to_f staleness in
-     let active x =
-       let committed = Ptime.to_float_s (to_ptime x.Commit_id.committed_date) in
-       committed > cutoff
-     in
-     let is_default = function
-       | { Commit_id.id = `Ref t; _ } -> Ref.compare default_ref (`Ref t) == 0
-       | _ -> false
-     in
-     List.filter_map (fun (y, x) ->
-         if is_default x || active x then
-           Some (y, x)
-         else (
-           Log.info (fun f -> f "GitLab remove_stale: Discarding stale ref %a" Commit_id.pp x);
-           None
-         )
-       ) refs
+     Ref_map.filter (remove_stale staleness ~default_ref:refs.default_ref) refs.all_refs
+
+let ci_refs' ?staleness t repo =
+  let+ refs =
+    Current.component "%a CI refs" Repo_id.pp repo |>
+      let> () = Current.return () in
+      refs t repo
+  in
+  to_ci_refs' ?staleness refs
 
 let to_ci_refs ?staleness refs =
-  refs.all_refs
-  |> Ref_map.bindings
-  |> List.map snd
-  |> remove_stale ?staleness ~default_ref:refs.default_ref
+  to_ci_refs' ?staleness refs |> Ref_map.bindings |> List.map snd
 
 let ci_refs ?staleness t repo =
   let+ refs =
