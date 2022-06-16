@@ -71,6 +71,7 @@ module Raw : sig
     name:string -> image:Image.t -> unit -> unit Current.Primitive.t
 
   val compose :
+    ?pull:bool ->
     docker_context:string option ->
     name:string ->
     contents:string -> unit -> unit Current.Primitive.t
