@@ -13,6 +13,7 @@ but OCurrent will automatically re-run steps when the inputs change, and will
 run steps in parallel where possible."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
+license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 doc: "https://ocurrent.github.io/ocurrent/"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
@@ -27,7 +28,7 @@ depends: [
   "sqlite3"
   "duration"
   "prometheus"
-  "dune" {>= "2.0"}
+  "dune" {>= "2.9"}
   "re" {>= "1.9.0"}
   "lwt-dllist"
   "alcotest" {>= "1.2.0" & with-test}
@@ -36,7 +37,7 @@ depends: [
   "fpath" {>= "0.7.3"}
   "logs" {>= "0.7.0"}
   "result" {>= "1.5"}
-  "prometheus-app" {>= "0.7" & with-test}
+  "prometheus-app" {with-test & >= "1.2"}
   "conf-libev" {os != "win32"}
 ]
 build: [
@@ -44,4 +45,3 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-license: "Apache-2.0"

@@ -128,11 +128,11 @@ let test_case_gc name fn =
       fn switch () >>= fun () ->
       SVar.set selected (Error (`Msg "no-test"));
       Current_incr.propagate ();
-      Lwt.pause () >|= fun () ->
+      Lwt.pause () >>= fun () ->
       Gc.full_major ();
       Alcotest.(check int) "No errors logged" 0 @@ Logs.err_count () - old_errors;
-      Prometheus.CollectorRegistry.(collect default)
-      |> Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output
+      Prometheus.CollectorRegistry.(collect default) >|= fun data ->
+      Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data
       |> String.split_on_char '\n'
       |> List.iter (fun line ->
           if Astring.String.is_prefix ~affix:"ocurrent_cache_memory_cache_items{" line then (
