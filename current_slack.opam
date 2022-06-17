@@ -7,6 +7,7 @@ This package provides primitives for interacting with Slack.
 It can post messages to slack channels."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
+license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
@@ -17,7 +18,7 @@ depends: [
   "lwt"
   "tls" {>= "0.12.0"}
   "cohttp-lwt-unix" {>= "4.0.0"}
-  "dune" {>= "2.0"}
+  "dune" {>= "2.9"}
   "logs" {>= "0.7.0"}
   "uri" {>= "4.0.0"}
 ]
@@ -26,4 +27,3 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-license: "Apache-2.0"

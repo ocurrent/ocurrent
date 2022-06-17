@@ -8,6 +8,7 @@ It shows the current pipeline visually and allows viewing job
 logs and configuring the log analyser."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
+license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
@@ -27,12 +28,12 @@ depends: [
   "multipart_form-lwt" {>= "0.4.0"}
   "cmdliner" {>= "1.1.0"}
   "prometheus" {>= "0.7"}
-  "prometheus-app"
+  "prometheus-app" {< "1.2"}
   "cohttp-lwt-unix" {>= "4.0.0"}
   "tyxml" {>= "4.4.0"}
   "csv" {>= "2.4"}
   "routes" {>= "0.8.0"}
-  "dune" {>= "2.0"}
+  "dune" {>= "2.9"}
   "conf-graphviz"
   "astring" {>= "0.8.5"}
   "conduit-lwt-unix" {>= "2.2.2"}
@@ -53,4 +54,3 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-license: "Apache-2.0"

@@ -9,6 +9,7 @@ push GitHub status messages to show the results of testing
 PRs and branches."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
+license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
@@ -27,7 +28,7 @@ depends: [
   "hex" {>= "1.4.0"}
   "x509" {>= "0.10.0"}
   "tls" {>= "0.11.0"}
-  "dune" {>= "2.0"}
+  "dune" {>= "2.9"}
   "github-unix" {>= "4.4.0"}
   "astring" {>= "0.8.5"}
   "base64" {>= "3.4.0"}
@@ -46,4 +47,3 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-license: "Apache-2.0"

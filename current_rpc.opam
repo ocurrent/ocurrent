@@ -7,6 +7,7 @@ This package provides a Cap'n Proto RPC interface, allowing
 an OCurrent engine to be controlled remotely."""
 maintainer: "talex5@gmail.com"
 authors: "talex5@gmail.com"
+license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
@@ -15,7 +16,7 @@ depends: [
   "capnp-rpc" {>= "0.8.0"}
   "capnp-rpc-lwt" {>= "0.4"}
   "fpath"
-  "dune" {>= "2.0"}
+  "dune" {>= "2.9"}
   "fmt" {>= "0.8.9"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.3.0"}
@@ -30,4 +31,3 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
-license: "Apache-2.0"
