@@ -85,9 +85,10 @@ module type DOCKER = sig
   val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
 
-  val compose : name:string -> contents:string Current.t -> unit -> unit Current.t
-  (** [service ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
-      [contents] contains the full Compose Yaml file. *)
+  val compose : ?pull:bool -> name:string -> contents:string Current.t -> unit -> unit Current.t
+  (** [service ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
+      [contents] contains the full Compose Yaml file.
+      @param pull Controls whether images are pulled by the compose command, the default is [true] *)
 end
 
 module type HOST = sig

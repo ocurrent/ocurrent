@@ -56,8 +56,8 @@ module Raw = struct
 
   module CC = Current_cache.Output(Compose)
 
-  let compose ~docker_context ~name ~contents () =
-    CC.set Compose.No_context { Compose.Key.name; docker_context } { Compose.Value.contents }
+  let compose ?(pull=true) ~docker_context ~name ~contents () =
+    CC.set Compose.{ pull } { Compose.Key.name; docker_context } { Compose.Value.contents }
 
   module Cmd = struct
     open Lwt.Infix
@@ -170,10 +170,10 @@ module Make (Host : S.HOST) = struct
     let> image = image in
     Raw.service ~docker_context ~name ~image ()
 
-  let compose ~name ~contents () =
+  let compose ?pull ~name ~contents () =
     Current.component "docker-compose@,%s" name |>
     let> contents = contents in
-    Raw.compose ~docker_context ~name ~contents ()
+    Raw.compose ?pull ~docker_context ~name ~contents ()
 end
 
 module Default = Make(struct
