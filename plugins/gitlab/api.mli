@@ -24,6 +24,8 @@ module Ref : sig
   val to_git : t -> string
 end
 
+val report_message : Ref.t Current.t -> (Commit.t * Status.t) Current.t -> unit Current.t
+
 module Ref_map : Map.S with type key = Ref.t
 
 type t

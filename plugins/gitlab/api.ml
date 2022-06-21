@@ -535,6 +535,156 @@ module Repo = struct
     to_ci_refs ?staleness refs
 end
 
+module Report_message : Current_cache.S.PUBLISHER = struct
+  type t = ()
+
+  let id = "gitlab-report-message"
+
+  module Key = struct
+    type t = [`PR of int]
+
+    let digest t = Ref.to_yojson (t :> Ref.t) |> Yojson.Safe.to_string
+  end
+
+  module Value = struct
+    type t = {
+      commit : Commit_id.t;
+      status : Status.t;
+    }
+
+    let digest t =
+      `Assoc ["commit", Commit_id.to_yojson t.commit;
+              "status", `String (Status.digest t.status) ]
+      |> Yojson.Safe.to_string
+  end
+
+  module Outcome = Current.Unit
+
+  (* Ad-hoc cache for the id of the note where the build log is reported *)
+  module Cache = struct
+    let id = id ^ "-cache-v1"
+
+    type cache_value = int      (* id field of Gitlab_t.note *)
+
+    let fname mr =
+      let digest = Key.digest mr in
+      Fpath.(Current.state_dir id / digest)
+
+    let mem id =
+      let fname = fname id in
+      match Bos.OS.Path.exists fname with Ok true -> true | _ -> false
+
+    let read mr : cache_value option =
+      let fname = fname mr in
+      try
+        let file = open_in (Fpath.to_string fname) in
+        let result = Marshal.from_channel file in
+        close_in file;
+        Some result
+      with Failure _ -> None
+
+    let write (pr, (value : cache_value)) =
+      let fname = fname pr in
+      let _ = Bos.OS.Dir.create (fst (Fpath.split_base fname)) |> Result.get_ok in
+      let file = open_out (Fpath.to_string fname) in
+      Fun.protect (fun () -> Marshal.to_channel file value []) ~finally:(fun () -> close_out file)
+  end
+
+  let pp f (gref, { Value.commit; status }) =
+    Fmt.pf f "Set message report to MR %a, HEAD %a: %a"
+      Ref.pp gref
+      Commit_id.pp commit
+      Status.pp status
+
+  let publish t job (key : Key.t) { Value.commit; status } =
+    let state_to_gitlab = function
+      | `Cancelled -> `Cancelled
+      | `Failure -> `Failed
+      | `Running -> `Running
+      | `Pending -> `Pending
+      | `Success -> `Success
+    in
+    Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
+    let key = key in
+    get_token t >>= function
+    | Error (`Msg m) -> Lwt.fail_with m
+    | Ok token ->
+       if Cache.mem key then
+         (* the message was already posted *)
+         Lwt.try_bind
+          (fun () ->
+            Gitlab.Monad.run (
+              let open Gitlab in
+              let open Monad in
+              let token = Token.of_string token in
+              let project_id = commit.repo.project_id in
+              let merge_request_iid = match key with `PR pr_no -> string_of_int pr_no in
+              let note_id = Cache.read key |> Option.get in
+              let new_status =
+                { Gitlab_t.state = (state_to_gitlab status.Status.state)
+                ; name = Some id
+                ; target_url = (Option.map Uri.to_string status.Status.url)
+                ; ref_name = None
+                ; description = None
+                ; coverage = None
+                ; pipeline_id = None
+                } in
+              let body = Gitlab_j.string_of_new_status new_status in
+              Project.Notes.Merge_request.update ~token ~project_id ~merge_request_iid ~note_id ~body ()
+              >>~ fun resp -> return resp))
+          (fun (_ : Gitlab_t.note) -> Lwt_result.return ())
+          (fun ex ->
+               Log.err (fun f -> f "@[<v2>%a failed: %a@]"
+                            pp (key, { Value.commit; status })
+                            Fmt.exn ex);
+               Lwt_result.fail (`Msg (Fmt.str "Failed to set GitLab status to note %a" Fmt.exn ex)))
+       else
+         (* create the message *)
+         Lwt.try_bind
+          (fun () ->
+            Gitlab.Monad.run (
+              let open Gitlab in
+              let open Monad in
+              let token = Token.of_string token in
+              let project_id = commit.repo.project_id in
+              let merge_request_iid = match key with `PR pr_no -> string_of_int pr_no in
+              let note_id = Cache.read key |> Option.get in
+              let new_status =
+                { Gitlab_t.state = (state_to_gitlab status.Status.state)
+                ; name = Some id
+                ; target_url = (Option.map Uri.to_string status.Status.url)
+                ; ref_name = None
+                ; description = None
+                ; coverage = None
+                ; pipeline_id = None
+                } in
+              let create_note =
+                { Gitlab_t.create_note_body = Gitlab_j.string_of_new_status new_status
+                ; create_note_created_at = None
+                ; create_note_merge_request_diff_sha = None
+                } in
+              Project.Notes.Merge_request.create ~token ~project_id ~merge_request_iid ~create_note ()
+              >>~ fun resp -> return resp))
+          (fun (note : Gitlab_t.note) ->
+            Cache.write (key, note.Gitlab_t.note_id);
+            Lwt_result.return ())
+          (fun ex ->
+               Log.err (fun f -> f "@[<v2>%a failed: %a@]"
+                            pp (key, { Value.commit; status })
+                            Fmt.exn ex);
+               Lwt_result.fail (`Msg (Fmt.str "Failed to set GitLab status to note %a" Fmt.exn ex)))
+
+  let auto_cancel = true
+end
+
+module Report_message_cache = Current_cache.Output(Report_message)
+
+let report_message gref (commit, status) =
+  Current.component "report_status" |>
+    let> (t, gref) = gref
+    and> (commit, message) = (commit, status) in
+    Set_status_cache.set t gref { Report_message.Value.commit; status }
+
 module Anonymous = struct
 
   let query_head (repo : Repo_id.t) gref =

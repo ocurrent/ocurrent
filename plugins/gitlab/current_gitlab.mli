@@ -148,6 +148,11 @@ module Api : sig
         that [input_webhook] gets called whenever the commit changes. *)
   end
 
+  val report_message : Ref.t Current.t -> (Commit.t * Status.t) Current.t -> unit Current.t
+  (** [report_message gref (commit, status)] reports [status] to the merge
+      request [gref] thread for [commit]. The message is overwritten if it
+      already exists. *)
+
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitLab configuration. *)
 end
