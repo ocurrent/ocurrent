@@ -1,3 +1,13 @@
+### v0.6.2
+
+Web UI:
+
+- Update prometheus-app to support version 1.2.
+ 
+Plugins:
+
+- GitLab plugin depend on ocaml-gitlab >= "0.1.4" to include bugfixes.
+
 ### v0.6.1
 
 Web UI:
