@@ -361,8 +361,13 @@ end
 
 (** Helper functions for spawning sub-processes. *)
 module Process : sig
+  val pp_cmd : Format.formatter -> Lwt_process.command -> unit
+  (** The default command printer used in {! exec} and {! check_output}
+      to write the command to the job's log. *)
+
   val exec :
     ?cwd:Fpath.t -> ?stdin:string ->
+    ?pp_cmd:(Format.formatter -> Lwt_process.command -> unit) ->
     ?pp_error_command:(Format.formatter -> unit) ->
     cancellable:bool ->
     job:Job.t -> Lwt_process.command ->
@@ -371,11 +376,13 @@ module Process : sig
       @param cwd Sets the current working directory for this command.
       @param cancellable Should the process be terminated if the job is cancelled?
       @param stdin Data to write to stdin before closing it.
+      @param pp_cmd Format the command for the job's log and error message.
       @param pp_error_command Format the command for an error message.
         The default is to print "Command $cmd". *)
 
   val check_output :
     ?cwd:Fpath.t -> ?stdin:string ->
+    ?pp_cmd:(Format.formatter -> Lwt_process.command -> unit) ->
     ?pp_error_command:(Format.formatter -> unit) ->
     cancellable:bool ->
     job:Job.t -> Lwt_process.command ->

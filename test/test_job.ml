@@ -43,6 +43,27 @@ let output _switch () =
                                  out2\n" (read path);
   Lwt.return_unit
 
+let pp_cmd ppf (v, args) =
+  let remove_token s = 
+    match Astring.String.cut ~sep:":" s with
+    | Some ("token", _secret) -> "token:<TOKEN>"
+    | _ -> s
+  in
+  Current.Process.pp_cmd ppf (v, Array.map remove_token args)
+
+let pp_command _switch () =
+  Job.timestamp := (fun () -> 0.0);
+  let switch = Current.Switch.create ~label:"command" () in
+  let config = Current.Config.v () in
+  let job = Job.create ~switch ~label:"output" ~config () in
+  let cmd = ("", [| "echo"; "token:abcdefgh" |]) in
+  Current.Process.check_output ~pp_cmd ~cancellable:true ~job cmd >>!= fun out ->
+  Current.Switch.turn_off switch >>= fun () ->
+  Alcotest.(check string) "Output" "token:abcdefgh\n" out;
+  let path = Job.log_path (Job.id job) |> Stdlib.Result.get_ok in
+  Alcotest.(check string) "Log" "1970-01-01 00:00.00: Exec: \"echo\" \"token:<TOKEN>\"\n" (read path);
+  Lwt.return_unit
+
 let cancel _switch () =
   Job.timestamp := (fun () -> 0.0);
   let switch = Current.Switch.create ~label:"cancel" () in
@@ -128,6 +149,7 @@ let tests =
   [
     Driver.test_case_gc "streams" streams;
     Driver.test_case_gc "output" output;
+    Driver.test_case_gc "pp_cmd" pp_command;
     Driver.test_case_gc "cancel" cancel;
     Driver.test_case_gc "pool" pool;
     Driver.test_case_gc "pool_cancel" pool_cancel;

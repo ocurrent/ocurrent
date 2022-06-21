@@ -114,7 +114,7 @@ let send_to ch contents =
     (fun () -> Lwt.return (Ok ()))
     (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
 
-let pp_command cmd f = Fmt.pf f "Command %a" pp_cmd cmd
+let pp_command pp_cmd cmd f = Fmt.pf f "Command %a" pp_cmd cmd
 
 let copy_to_log ~job src =
   let rec aux () =
@@ -141,9 +141,9 @@ let add_shutdown_hooks ~cancellable ~job ~cmd proc =
       )
   )
 
-let exec ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
+let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
-  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
@@ -156,9 +156,9 @@ let exec ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?cwd ?(stdin="") ?pp_error_command ~cancellable ~job cmd =
+let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
-  let pp_error_command = Option.value pp_error_command ~default:(pp_command cmd) in
+  let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_full ?cwd cmd in
