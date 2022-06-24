@@ -1,6 +1,7 @@
 (** Integration with GitHub. *)
 
 val webhook : engine:Current.Engine.t
+              -> get_job_ids:(owner:string -> name:string -> hash:string -> string list)
               -> webhook_secret:string
               -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
               -> Current_web.Resource.t
@@ -15,6 +16,10 @@ val webhook : engine:Current.Engine.t
 Webhook payloads are validated against [webhook_secret].
 
 See {{:https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks}}
+
+Note that the endpoint is supplied with a callback `get_job_ids.` This is used to determine what job_ids correspond to a commit.
+The checks API specifies the repository and the commit (that the action is being requested against) - this callback is
+used to determine what jobs to apply the action to.
  *)
 
 (** Identifier for a repository hosted on GitHub. *)
@@ -141,7 +146,7 @@ module Api : sig
       title: string;
       bodyHTML: string;
     }
-    
+
     type t = [ `Ref of string | `PR of pr_info ]
 
     type id = [ `Ref of string | `PR of int ]
