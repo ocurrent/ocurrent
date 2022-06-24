@@ -57,13 +57,17 @@ let digraph f ?fontname name =
     "fontname", fontname;
   ]
   in
+  let graph_attrs = base_attrs @ [
+    "bgcolor", Some "transparent";
+  ]
+  in
   let node_attrs = base_attrs @ [
     "shape", Some "box";
   ]
   in
   Fmt.pf f "@[<v2>digraph %s {@,%a%a%arankdir=LR@,"
     name
-    (pp_options_attr_stmt "graph") base_attrs
+    (pp_options_attr_stmt "graph") graph_attrs
     (pp_options_attr_stmt "node") node_attrs
     (pp_options_attr_stmt "edge") base_attrs
 
