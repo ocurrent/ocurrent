@@ -38,6 +38,7 @@ module Raw : sig
     ?timeout:Duration.t ->
     ?squash:bool ->
     ?dockerfile:[`File of Fpath.t | `Contents of string] ->
+    ?path:Fpath.t ->
     ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->

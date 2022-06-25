@@ -22,6 +22,7 @@ module Key = struct
     docker_context : string option;
     squash : bool;
     build_args: string list;
+    path : Fpath.t option;
   }
 
   let digest_dockerfile = function
@@ -32,13 +33,14 @@ module Key = struct
     | `No_context -> `Null
     | `Git commit -> `String (Current_git.Commit.hash commit)
 
-  let to_json { commit; dockerfile; docker_context; squash; build_args } =
+  let to_json { commit; dockerfile; docker_context; squash; build_args; path } =
     `Assoc [
       "commit", source_to_json commit;
       "dockerfile", digest_dockerfile dockerfile;
       "docker_context", [%derive.to_yojson:string option] docker_context;
       "squash", [%derive.to_yojson:bool] squash;
       "build_args", [%derive.to_yojson:string list] build_args;
+      "path", Option.(value ~default:`Null (map (fun v -> `String (Fpath.to_string v)) path));
     ]
 
   let digest t = Yojson.Safe.to_string (to_json t)
@@ -62,7 +64,7 @@ let with_context ~job context fn =
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
 let build { pull; pool; timeout; level } job key =
-  let { Key.commit; docker_context; dockerfile; squash; build_args } = key in
+  let { Key.commit; docker_context; dockerfile; squash; build_args; path } = key in
   begin match dockerfile with
     | `Contents contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
@@ -71,6 +73,10 @@ let build { pull; pool; timeout; level } job key =
   let level = Option.value level ~default:Current.Level.Average in
   Current.Job.start ?timeout ?pool job ~level >>= fun () ->
   with_context ~job commit @@ fun dir ->
+  let dir = match path with
+    | Some path -> Fpath.(dir // path)
+    | None -> dir
+  in
   let file =
     match dockerfile with
     | `Contents contents ->
