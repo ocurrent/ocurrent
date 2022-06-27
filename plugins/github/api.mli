@@ -115,6 +115,7 @@ val get_token : t -> (string, [`Msg of string]) result Lwt.t
 (** [get_token t] returns the cached token for [t], or fetches a new one if it has expired. *)
 
 val rebuild_webhook : engine:Current.Engine.t
+                      -> get_job_ids:(owner:string -> name:string -> hash:string -> string list)
                       -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
                       -> Yojson.Safe.t -> unit
 (** Call this when we get a "check_run" webhook event. *)

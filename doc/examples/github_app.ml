@@ -76,8 +76,10 @@ let main config mode app =
     let has_role = Current_web.Site.allow_all in
     let engine = Current.Engine.create ~config (pipeline ~app) in
     let webhook_secret = Current_github.App.webhook_secret app in
+    (* this example does not have support for looking up job_ids for a commit *)
+    let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
     let routes =
-      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~has_role ~webhook_secret) ::
+      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~get_job_ids ~webhook_secret ~has_role) ::
       Current_web.routes engine
     in
     let site = Current_web.Site.(v ~has_role) ~name:program_name routes in

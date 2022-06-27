@@ -30,23 +30,43 @@ let lookup_actions ~engine job_id =
        method rebuild = None
      end
 
-let rebuild_webhook ~engine ~has_role json =
+let rebuild_webhook ~engine ~get_job_ids ~has_role json =
   let job_id = Yojson.Safe.Util.(json |> member "check_run" |> member "external_id" |> to_string) in
   let action = Yojson.Safe.Util.(json |> member "action" |> to_string) in
   let requester = Yojson.Safe.Util.(json |> member "sender" |> member "login" |> to_string
                                     |> (fun x -> Current_web.User.v_exn @@ "github:" ^ x)) in
-  Log.info (fun f -> f "rebuild_webhook %s %s triggered by %s" action job_id (Current_web.User.id requester));
+  let commit = Yojson.Safe.Util.(json |> member "check_run" |> member "head_sha" |> to_string) in
+  let full_name = Yojson.Safe.Util.(json |> member "repository" |> member "full_name" |> to_string) in
+
+  Log.info (fun f -> f "rebuild_webhook %s external_id: %s, commit: %s, owner/name: %s -- triggered by %s" action job_id commit full_name (Current_web.User.id requester));
   match (action, has_role (Some requester) `Builder) with
   | ("rerequested", true) -> begin
       let actions = lookup_actions ~engine job_id in
       match actions#rebuild with
-      | None ->
-         Log.info (fun f -> f "not rebuilding");
-         ()
       | Some rebuild ->
-         let new_job_id = rebuild () in
-         Log.info (fun f -> f "rebuilding new_job_id %s" new_job_id);
-         ()
+        let new_job_id = rebuild () in
+        Log.info (fun f -> f "rebuilding new_job_id %s" new_job_id);
+        ()
+      | None ->
+        (*Try rebuilding the entire commit*)
+        let owner_name =
+          match String.split_on_char '/' full_name with
+          | owner :: name :: [] -> Some (owner, name)
+          | _ -> None
+        in
+        match owner_name with
+        | None ->
+          Log.warn (fun f -> f "Could not parse %s" full_name); ()
+        | Some (owner, name) ->
+          get_job_ids ~owner ~name ~hash:commit |>
+          List.iter @@ fun job_id ->
+            let actions = lookup_actions ~engine job_id in
+            match actions#rebuild with
+            | None -> Log.info (fun f -> f "Not rebuilding job_id: %s" job_id)
+            | Some rebuild ->
+              let new_job_id = rebuild () in
+              Log.info (fun f -> f "rebuilding new_job_id %s" new_job_id);
+              ()
     end
   | _ -> ()
 

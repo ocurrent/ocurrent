@@ -31,7 +31,7 @@ See https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-
         event signature request_signature in
     Error s
 
-let webhook ~engine ~webhook_secret ~has_role = object
+let webhook ~engine ~get_job_ids ~webhook_secret ~has_role = object
   inherit Current_web.Resource.t
 
   method! post_raw _site req body =
@@ -52,7 +52,7 @@ let webhook ~engine ~webhook_secret ~has_role = object
         | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
         | Some "installation" -> App.input_installation_webhook ()
         | Some ("pull_request" | "push" | "create") -> Api.input_webhook json_body
-        | Some "check_run" -> Api.rebuild_webhook ~engine ~has_role json_body
+        | Some "check_run" -> Api.rebuild_webhook ~engine ~get_job_ids ~has_role json_body
         | Some x -> Log.warn (fun f -> f "Unknown GitHub event type %S" x)
         | None -> Log.warn (fun f -> f "Missing GitHub event type in webhook!")
       end;
