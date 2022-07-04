@@ -5,6 +5,7 @@ module Api = Api
 module App = App
 module Installation = Installation
 module Auth = Auth
+module Webhook_event = Webhook_event
 
 module Metrics = struct
   open Prometheus
@@ -31,6 +32,7 @@ See https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-
         event signature request_signature in
     Error s
 
+
 let webhook ~engine ~get_job_ids ~webhook_secret ~has_role = object
   inherit Current_web.Resource.t
 
@@ -48,13 +50,17 @@ let webhook ~engine ~get_job_ids ~webhook_secret ~has_role = object
       Log.warn (fun f -> f "%s" msg);
       Cohttp_lwt_unix.Server.respond_string ~status:`Unauthorized ~body:"Invalid X-Hub-Signature-256" ()
     | Ok () ->
-      begin match event with
-        | Some "installation_repositories" -> Installation.input_installation_repositories_webhook ()
-        | Some "installation" -> App.input_installation_webhook ()
-        | Some ("pull_request" | "push" | "create") -> Api.input_webhook json_body
-        | Some "check_run" -> Api.rebuild_webhook ~engine ~get_job_ids ~has_role json_body
-        | Some x -> Log.warn (fun f -> f "Unknown GitHub event type %S" x)
-        | None -> Log.warn (fun f -> f "Missing GitHub event type in webhook!")
+      let event_v = Webhook_event.validate event in
+      begin match event_v with
+        | Error x -> Log.warn (fun f -> f "%s" x);
+        | Ok `InstallationRepositories -> Installation.input_installation_repositories_webhook ()
+        | Ok `Installation -> App.input_installation_webhook ()
+        | Ok (`PullRequest | `Push | `Create) -> Api.input_webhook json_body
+        | (Ok `CheckRun | Ok `CheckSuite) ->
+            let c : Webhook_event.checks_api_event =
+              if event_v = Ok `CheckRun then `Run else `Suite
+            in
+            Api.rebuild_webhook ~engine ~event:c ~get_job_ids ~has_role json_body
       end;
       Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body:"OK" ()
 end

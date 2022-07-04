@@ -30,15 +30,23 @@ let lookup_actions ~engine job_id =
        method rebuild = None
      end
 
-let rebuild_webhook ~engine ~get_job_ids ~has_role json =
-  let job_id = Yojson.Safe.Util.(json |> member "check_run" |> member "external_id" |> to_string) in
+let rebuild_webhook ~engine ~event ~get_job_ids ~has_role json =
+  (* Check that the event that has been passed in is supported *)
+  let event_str = match event with
+  | `Suite -> "check-suite"
+  | `Run -> "check-run"
+  in
+  let job_id = Yojson.Safe.Util.(json |> member event_str |> member "external_id" |> to_string_option)
+                                 |> Option.value ~default:"" in
   let action = Yojson.Safe.Util.(json |> member "action" |> to_string) in
   let requester = Yojson.Safe.Util.(json |> member "sender" |> member "login" |> to_string
                                     |> (fun x -> Current_web.User.v_exn @@ "github:" ^ x)) in
-  let commit = Yojson.Safe.Util.(json |> member "check_run" |> member "head_sha" |> to_string) in
+  let commit = Yojson.Safe.Util.(json |> member event_str |> member "head_sha" |> to_string) in
   let full_name = Yojson.Safe.Util.(json |> member "repository" |> member "full_name" |> to_string) in
 
-  Log.info (fun f -> f "rebuild_webhook %s external_id: %s, commit: %s, owner/name: %s -- triggered by %s" action job_id commit full_name (Current_web.User.id requester));
+  Log.info (fun f -> f "rebuild webhook -- event: %s action: %s" event_str action);
+  Log.info (fun f -> f "rebuild_webhook %s external_id: %s, commit: %s, owner/name: %s -- triggered by %s"
+              action job_id commit full_name (Current_web.User.id requester));
   match (action, has_role (Some requester) `Builder) with
   | ("rerequested", true) -> begin
       let actions = lookup_actions ~engine job_id in
@@ -690,10 +698,10 @@ let head_of t repo (id: Ref.id) =
   |> Current.Primitive.map_result @@ function
   | Error _ as e -> e
   | Ok refs ->
-    Ref_map.fold (fun ref value acc -> 
-      match id, ref with 
+    Ref_map.fold (fun ref value acc ->
+      match id, ref with
       | `Ref a, `Ref b when String.equal a b -> Some value
-      | `PR (id_a: int), `PR {Ref.id;_} when id_a = id -> Some value 
+      | `PR (id_a: int), `PR {Ref.id;_} when id_a = id -> Some value
       | _ -> acc) refs.all_refs None
     |> function
     | Some x -> Ok x
