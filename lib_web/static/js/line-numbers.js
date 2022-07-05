@@ -62,16 +62,15 @@ const showLineNumbers = () => {
 
 const addMutationObserver = () => {
 
-  let debounceTimerFn = setTimeout(() => {
+  let debounceTimer = () => {
     const lineCount = showLineNumbers();
     highlightLines(lineCount, noScroll = true);
-  }, 200);
-  let debounceTimer;
+  };
   const mutationCallback = function (mutationsList) {
     for (const mutation of mutationsList) {
       if (mutation.type === 'characterData') {
         clearTimeout(debounceTimer);
-        debounceTimer = debounceTimerFn();
+        debounceTimer = setTimeout(debounceTimer, 200);
       }
     }
   };
