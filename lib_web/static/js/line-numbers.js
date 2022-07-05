@@ -12,7 +12,7 @@ const hashToLines = (renderedLines, noScroll = false) => {
       return;
     }
   } else if (location.hash === "#end") {
-    start = end = document.getElementById('line-numbers').getElementsByTagName('span').length;
+    start = end = document.getElementById('line-numbers').getElementsByTagName('a').length;
     // Always scroll to the last line
     noScroll = false;
   } else {
@@ -28,14 +28,14 @@ const highlightLines = (start, end, scroll) => {
   );
   // Highlight lines in selected range
   for (let i = start; i <= end; i++) {
-    let lineSpan = document.getElementById('L' + String(i));
-    if (!lineSpan) {
+    let line = document.getElementById('L' + String(i));
+    if (!line) {
       break;
     }
-    lineSpan.classList.add('highlight');
+    line.classList.add('highlight');
     // Scroll to the first selected line
     if (i === start && scroll) {
-      lineSpan.scrollIntoView();
+      line.scrollIntoView();
     }
   }
 };
@@ -50,11 +50,13 @@ const showLineNumbers = () => {
   }
 
   const lineCount = node.innerHTML.split(/\n/).length;
-  const oldLineCount = lineNumbers.getElementsByTagName('span').length;
+  const oldLineCount = lineNumbers.getElementsByTagName('a').length;
   for (let i = oldLineCount + 1; i <= lineCount; i++) {
-    let number = document.createElement('span');
+    let number = document.createElement('a');
     number.innerHTML = i;
-    number.setAttribute('id', 'L' + String(i));
+    const id = 'L' + String(i);
+    number.setAttribute('id', id);
+    number.setAttribute('href', '#' + id);
     lineNumbers.appendChild(number);
   }
   return lineCount;
