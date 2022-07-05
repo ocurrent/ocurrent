@@ -1,5 +1,5 @@
 digraph pipeline {
-  graph [fontname="ui-system,sans-serif"]
+  graph [fontname="ui-system,sans-serif",bgcolor="transparent"]
   node [fontname="ui-system,sans-serif",shape="box"]
   edge [fontname="ui-system,sans-serif"]
   rankdir=LR
