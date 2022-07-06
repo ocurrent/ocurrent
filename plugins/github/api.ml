@@ -33,8 +33,8 @@ let lookup_actions ~engine job_id =
 let rebuild_webhook ~engine ~event ~get_job_ids ~has_role json =
   (* Check that the event that has been passed in is supported *)
   let event_str = match event with
-  | `Suite -> "check-suite"
-  | `Run -> "check-run"
+  | `Suite -> "check_suite"
+  | `Run -> "check_run"
   in
   let job_id = Yojson.Safe.Util.(json |> member event_str |> member "external_id" |> to_string_option)
                                  |> Option.value ~default:"" in
