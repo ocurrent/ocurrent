@@ -117,7 +117,6 @@ val get_token : t -> (string, [`Msg of string]) result Lwt.t
 val rebuild_webhook : engine:Current.Engine.t
                       -> event:(Webhook_event.checks_api_event)
                       -> get_job_ids:(owner:string -> name:string -> hash:string -> string list)
-                      -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
                       -> Yojson.Safe.t -> unit
 (** Call this when we get a "check_run" or "check_suite" webhook event. *)
 

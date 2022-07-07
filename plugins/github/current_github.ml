@@ -33,7 +33,7 @@ See https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-
     Error s
 
 
-let webhook ~engine ~get_job_ids ~webhook_secret ~has_role = object
+let webhook ~engine ~get_job_ids ~webhook_secret = object
   inherit Current_web.Resource.t
 
   method! post_raw _site req body =
@@ -60,7 +60,7 @@ let webhook ~engine ~get_job_ids ~webhook_secret ~has_role = object
             let c : Webhook_event.checks_api_event =
               if event_v = Ok `CheckRun then `Run else `Suite
             in
-            Api.rebuild_webhook ~engine ~event:c ~get_job_ids ~has_role json_body
+            Api.rebuild_webhook ~engine ~event:c ~get_job_ids json_body
       end;
       Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body:"OK" ()
 end

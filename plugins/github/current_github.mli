@@ -3,7 +3,6 @@
 val webhook : engine:Current.Engine.t
               -> get_job_ids:(owner:string -> name:string -> hash:string -> string list)
               -> webhook_secret:string
-              -> has_role:(Current_web.User.t option -> Current_web.Role.t -> bool)
               -> Current_web.Resource.t
 (** GitHub webhook endpoint. This MUST be added to {!Current_web.routes} so that we get notified of events. This webhook handles the events:
  - installation_repositories
@@ -12,6 +11,7 @@ val webhook : engine:Current.Engine.t
  - push
  - create
  - check_run
+ - check_suite
 
 Webhook payloads are validated against [webhook_secret].
 
@@ -20,6 +20,9 @@ See {{:https://docs.github.com/en/developers/webhooks-and-events/webhooks/securi
 Note that the endpoint is supplied with a callback `get_job_ids.` This is used to determine what job_ids correspond to a commit.
 The checks API specifies the repository and the commit (that the action is being requested against) - this callback is
 used to determine what jobs to apply the action to.
+
+Permissions are managed by the checks API so that re-runs can only be requested by anyone with write
+permission to a repository.
  *)
 
 (** Identifier for a repository hosted on GitHub. *)

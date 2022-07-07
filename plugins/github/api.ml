@@ -30,7 +30,7 @@ let lookup_actions ~engine job_id =
        method rebuild = None
      end
 
-let rebuild_webhook ~engine ~event ~get_job_ids ~has_role json =
+let rebuild_webhook ~engine ~event ~get_job_ids json =
   (* Check that the event that has been passed in is supported *)
   let event_str = match event with
   | `Suite -> "check_suite"
@@ -47,8 +47,8 @@ let rebuild_webhook ~engine ~event ~get_job_ids ~has_role json =
   Log.info (fun f -> f "rebuild webhook -- event: %s action: %s" event_str action);
   Log.info (fun f -> f "rebuild_webhook %s external_id: %s, commit: %s, owner/name: %s -- triggered by %s"
               action job_id commit full_name (Current_web.User.id requester));
-  match (action, has_role (Some requester) `Builder) with
-  | ("rerequested", true) -> begin
+  match (action) with
+  | "rerequested" -> begin
       let actions = lookup_actions ~engine job_id in
       match actions#rebuild with
       | Some rebuild ->
