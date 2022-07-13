@@ -117,6 +117,11 @@ module Api : sig
   val head_commit : t -> Repo_id.t -> Commit.t Current.t
   (** [head_commit t repo] evaluates to the commit at the head of the default branch in [repo]. *)
 
+  val ci_refs' : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t Ref_map.t Current.t
+  (** [ci_refs' t repo] evaluates to the list of branches and open PRs in [repo].
+      @param staleness If given, commits older than this are excluded.
+        Note: the main branch commit is always included, even if stale. *)
+
   val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
   (** [ci_refs t repo] evaluates to the list of branches and open PRs in [repo].
       @param staleness If given, commits older than this are excluded.
@@ -142,6 +147,11 @@ module Api : sig
         so it only works for public repositories. You are responsible for adding a web-hook so
         that [input_webhook] gets called whenever the commit changes. *)
   end
+
+  val report_message : Ref.t Current.t -> (Commit.t * Status.t) Current.t -> unit Current.t
+  (** [report_message gref (commit, status)] reports [status] to the merge
+      request [gref] thread for [commit]. The message is overwritten if it
+      already exists. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Command-line options to generate a GitLab configuration. *)

@@ -24,6 +24,8 @@ module Ref : sig
   val to_git : t -> string
 end
 
+val report_message : Ref.t Current.t -> (Commit.t * Status.t) Current.t -> unit Current.t
+
 module Ref_map : Map.S with type key = Ref.t
 
 type t
@@ -35,6 +37,7 @@ val refs : t -> Repo_id.t -> refs Current.Primitive.t
 val default_ref : refs -> Ref.t
 val webhook_secret : t -> string
 val all_refs : refs -> Commit.t Ref_map.t
+val ci_refs' : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t Ref_map.t Current.t
 val ci_refs : ?staleness:Duration.t -> t -> Repo_id.t -> Commit.t list Current.t
 val cmdliner : t Cmdliner.Term.t
 val webhook_secret_file : string Cmdliner.Term.t
@@ -76,4 +79,3 @@ val input_webhook : webhooks_accepted -> unit
 (** [input_webhook] is called when a [webhook_accepted] request is made. *)
 
 val v : get_token:(unit -> token Lwt.t) -> account:string -> webhook_secret:string -> unit -> t
-  
