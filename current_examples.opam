@@ -15,7 +15,7 @@ bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
   "fmt" {>= "0.8.9"}
-  "lwt"
+  "lwt" {>= "5.6.1"}
   "cmdliner" {>= "1.1.0"}
   "duration"
   "current" {= version}
@@ -26,7 +26,7 @@ depends: [
   "current_docker" {= version}
   "current_rpc" {= version}
   "capnp-rpc-unix" {>= "0.5"}
-  "dune" {>= "2.9"}
+  "dune" {>= "3.3"}
   "capnp-rpc" {>= "0.8.0"}
   "capnp-rpc-lwt" {>= "0.8.0"}
   "capnp-rpc-net" {>= "0.8.0"}
