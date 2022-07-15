@@ -145,7 +145,6 @@ module Commit_id = struct
 end
 
 type t = {
-  account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
   webhook_secret : string;  (* Shared secret for validating webhooks from GitLab *)
   token_lock : Lwt_mutex.t;
@@ -165,15 +164,15 @@ let default_ref t = t.default_ref
 
 let all_refs t = t.all_refs
 
-let v ~get_token ~account ~webhook_secret () =
+let v ~get_token ~webhook_secret () =
   let head_monitors = Repo_map.empty in
   let refs_monitors = Repo_map.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; account; webhook_secret }
+  { get_token; token_lock; token = no_token; head_monitors; refs_monitors; webhook_secret }
 
 let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
-  v ~get_token ~account:"oauth" ~webhook_secret ()
+  v ~get_token ~webhook_secret ()
 
 let get_token t =
   Lwt_mutex.with_lock t.token_lock @@ fun () ->
