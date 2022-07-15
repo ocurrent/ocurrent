@@ -8,7 +8,6 @@ let data_cond = Lwt_condition.create ()
 let unwatch = Lwt_condition.create ()
 
 type watch = {
-  ready : unit Lwt.t;
   set_ready : unit Lwt.u;
   update : unit -> unit;
 }
@@ -28,7 +27,7 @@ let watch update =
   Logs.info (fun f -> f "Installing watch");
   assert (!w = None);
   let ready, set_ready = Lwt.wait () in
-  let watch = { ready; set_ready; update } in
+  let watch = { set_ready; update } in
   w := Some watch;
   ready >|= fun () ->
   Logs.info (fun f -> f "Watch installed");

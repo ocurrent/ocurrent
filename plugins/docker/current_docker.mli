@@ -5,7 +5,7 @@ module S = S
 module Default : S.DOCKER
 (** The default Docker engine (from the [$DOCKER_HOST] environment variable). *)
 
-module Make(Host : S.HOST) : S.DOCKER
+module Make (_ : S.HOST) : S.DOCKER
 (** The docker engine running on [Host]. *)
 
 val push_manifest : ?auth:(string * string) -> tag:string -> S.repo_id Current.t list -> S.repo_id Current.t
