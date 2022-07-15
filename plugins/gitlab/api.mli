@@ -76,4 +76,3 @@ val input_webhook : webhooks_accepted -> unit
 (** [input_webhook] is called when a [webhook_accepted] request is made. *)
 
 val v : get_token:(unit -> token Lwt.t) -> account:string -> webhook_secret:string -> unit -> t
-  
