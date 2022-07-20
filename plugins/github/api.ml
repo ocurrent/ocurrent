@@ -209,6 +209,7 @@ module CheckRunStatus = struct
         ~status:"inprogress"
         ~text
         ?identifier
+        ?url
 
     | `Completed `Success ->
       state_json ()
@@ -218,6 +219,7 @@ module CheckRunStatus = struct
         ~text
         ~conclusion:"success"
         ?identifier
+        ?url
 
     | `Completed (`Failure _) ->
        state_json ()
@@ -228,6 +230,7 @@ module CheckRunStatus = struct
          ~conclusion:"failure"
          ~actions
          ?identifier
+         ?url
 
     | `Completed (`Skipped _) ->
       state_json ()
@@ -238,7 +241,7 @@ module CheckRunStatus = struct
         ~conclusion:"skipped"
         ~actions
         ?identifier
-
+        ?url
 
   let digest t = Yojson.Safe.to_string @@ `Assoc (json_items t)
 
