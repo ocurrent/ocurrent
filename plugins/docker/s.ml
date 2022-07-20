@@ -89,6 +89,10 @@ module type DOCKER = sig
   (** [service ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
       [contents] contains the full Compose Yaml file.
       @param pull Controls whether images are pulled by the compose command, the default is [true] *)
+
+  val compose_cli : ?pull:bool -> name:string -> contents:string Current.t -> unit -> unit Current.t
+  (** [service ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
+      [contents] contains the full Compose Yaml file. *)
 end
 
 module type HOST = sig
