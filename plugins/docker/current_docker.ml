@@ -61,8 +61,8 @@ module Raw = struct
 
   module CCC = Current_cache.Output(Compose_cli)
 
-  let compose_cli ?(pull=true) ~docker_context ~name ~contents () =
-    CCC.set Compose_cli.No_context { Compose_cli.Key.name; docker_context } { Compose_cli.Value.contents }
+  let compose_cli ?(pull=true) ~docker_context ~name ~detach ~contents () =
+    CCC.set Compose_cli.{ pull } { Compose_cli.Key.name; docker_context; detach } { Compose_cli.Value.contents }
 
   module Cmd = struct
     open Lwt.Infix
@@ -180,10 +180,10 @@ module Make (Host : S.HOST) = struct
     let> contents = contents in
     Raw.compose ?pull ~docker_context ~name ~contents ()
 
-  let compose_cli ?pull ~name ~contents () =
+  let compose_cli ?pull ~name ~detach ~contents () =
     Current.component "docker-compose-cli@,%s" name |>
     let> contents = contents in
-    Raw.compose_cli ~docker_context ~name ~contents ()
+    Raw.compose_cli ?pull ~docker_context ~name ~detach ~contents ()
 end
 
 module Default = Make(struct
