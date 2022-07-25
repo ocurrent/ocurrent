@@ -8,6 +8,7 @@ module Key = struct
   type t = {
     name : string;
     docker_context : string option;
+    detach : bool;
   } [@@deriving to_yojson]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
@@ -26,10 +27,10 @@ end
 
 module Outcome = Current.Unit
 
-let cmd args { Key.docker_context; name } =
+let cmd args { Key.docker_context; name; _ } =
   Cmd.docker ~docker_context (["compose"; "-f"; "/dev/stdin"; "-p"; name ] @ args)
 
-let cmd_update = cmd ["up"]
+let cmd_update ({ Key.detach; _ } as key) = cmd ("up" :: if detach then ["-d"] else []) key
 
 let publish No_context job key {Value.contents} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->

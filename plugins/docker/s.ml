@@ -87,11 +87,13 @@ module type DOCKER = sig
 
   val compose : name:string -> contents:string Current.t -> unit -> unit Current.t
   (** [service ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
-      [contents] contains the full Compose Yaml file. *)
+      [contents] contains the full Compose Yaml file.
+      This calls `docker-compose` version 1 which as of April 2022 is deprecated in favour of version 2 *)
 
-  val compose_cli : name:string -> contents:string Current.t -> unit -> unit Current.t
-  (** [service ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
-      [contents] contains the full Compose Yaml file. *)
+  val compose_cli : name:string -> detach:bool -> contents:string Current.t -> unit -> unit Current.t
+  (** [service ~name ~image ~detach ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
+      [contents] contains the full Compose Yaml file.
+      This calls `docker compose` which is GA as of April 2022 and should be used in preferance over version 1 *)
 end
 
 module type HOST = sig

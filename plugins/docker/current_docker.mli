@@ -78,6 +78,7 @@ module Raw : sig
   val compose_cli :
     docker_context:string option ->
     name:string ->
+    detach:bool ->
     contents:string -> unit -> unit Current.Primitive.t
 
   (** Building Docker commands. *)
