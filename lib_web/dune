@@ -5,7 +5,7 @@
   (glob_files static/img/*)
   (glob_files static/js/*))
  (action
-  (run ocaml-crunch --mode=plain --output=%{target} static)))
+  (run ocaml-crunch --silent --mode=plain --output=%{target} static)))
 
 (library
  (public_name current_web)
