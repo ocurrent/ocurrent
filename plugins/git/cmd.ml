@@ -42,7 +42,7 @@ let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
     | None -> []
     | Some x -> ["--recurse-submodules=" ^ string_of_bool x]
   in
-  git ~cancellable ~job ~cwd:dst ("fetch" :: flags @ ["-f"; src; gref])
+  git ~cancellable ~job ~cwd:dst ("fetch" :: flags @ ["-q"; "-f"; src; gref])
 
 let git_reset_hard ~job ~repo hash =
   git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
