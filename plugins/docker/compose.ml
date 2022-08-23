@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-type t = No_context
+type t = { pull : bool }
 
 let id = "docker-compose"
 
@@ -33,9 +33,13 @@ let cmd_pull = cmd ["pull"]
 
 let cmd_update = cmd ["up"; "-d"]
 
-let publish No_context job key {Value.contents} =
+let publish { pull } job key {Value.contents} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  Current.Process.exec ~stdin:contents ~cancellable:true ~job (cmd_pull key) >>= function
+  let p =
+    if pull then Current.Process.exec ~stdin:contents ~cancellable:true ~job (cmd_pull key)
+    else Lwt.return (Ok ())
+  in
+  p >>= function
   | Error _ as e -> Lwt.return e
   | Ok () -> Current.Process.exec ~stdin:contents ~cancellable:true ~job (cmd_update key)
 
