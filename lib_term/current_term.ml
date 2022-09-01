@@ -323,6 +323,15 @@ module Make (Metadata : sig type t end) = struct
     Quick_stats.update ~id x;
     node ~id (Constant None) @@ Current_incr.const x
 
+  let observe t =
+    let v = Current_incr.observe t.v in
+    match v with
+    | Error (id, `Msg e) when Id.equal id t.id ->
+      Error (`Msg e)
+    | Error (_, `Active e) -> Error (`Active e)
+    | Error (_, `Msg _) -> Error `Blocked
+    | Ok v -> Ok v
+
   module Executor = struct
     let run (t : 'a t) = Current_incr.map Dyn.run t.v
   end
