@@ -14,6 +14,11 @@ let push = Docker.push
 let engine_result =
   Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
 
+let observe_result fmt =
+  Alcotest.testable 
+    (Current_term.Output.Blockable.pp fmt) 
+    (Current_term.Output.Blockable.equal (=))
+
 let analyse ~lint src =
   Current.component "analyse" |>
   let** _ = src in
@@ -328,6 +333,34 @@ let test_metadata () =
   let job_id = Current_incr.observe (Term.Executor.run pipeline) in
   Alcotest.(check (result (option string) reject)) "Got job ID" (Ok (Some "1")) job_id
 
+let test_observe _switch () =
+  let ok = Current.return "a" in
+  let failure = Current.fail "oh no" in
+  let active = Current.active `Running in
+  let blocked =
+    let+ v = failure in
+    v ^ "::"
+  in
+  let pipeline () =
+    let+ _ = ok
+    and+ _ = failure
+    and+ _ = active 
+    and+ _ = blocked
+    in
+    ()
+  in
+  Driver.test ~name:"observe" pipeline @@ function
+  | _ ->
+    let observe_result = observe_result Fmt.string in
+    Alcotest.(check observe_result) "OK" (Ok "a") (Current.observe ok);
+    Alcotest.(check observe_result) 
+      "Failure" (Error (`Msg "oh no")) (Current.observe failure);
+    Alcotest.(check observe_result) 
+      "Active" (Error (`Active `Running)) (Current.observe active);
+    Alcotest.(check observe_result) 
+      "Blocked" (Error (`Blocked)) (Current.observe blocked);
+    raise Exit
+
 let () =
   Lwt_main.run begin
     Alcotest_lwt.run "test" [
@@ -349,6 +382,7 @@ let () =
       "terms", [
         Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;
         Alcotest_lwt.test_case_sync "metadata"     `Quick test_metadata;
+        Driver.test_case_gc         "observe"             test_observe;
       ];
       "cache", Test_cache.tests;
       "monitor", Test_monitor.tests;

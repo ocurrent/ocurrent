@@ -225,6 +225,10 @@ module type TERM = sig
       as the label for the bind in the generated dot diagrams.
       For convenience, [name] can also be a format string. *)
 
+  val observe : 'a t -> 'a Output.Blockable.t
+  (** [observe x] evaluates the current state of term [x]. A [`Blocked] value
+      occurs when the term failed because an upstream dependency errored. *)
+
   module Syntax : sig
     (** {1 Applicative syntax} *)
 
