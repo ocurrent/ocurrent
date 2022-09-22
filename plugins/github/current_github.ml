@@ -33,7 +33,7 @@ See https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-
     Error s
 
 
-let webhook ~engine ~get_job_ids ~webhook_secret = object
+let webhook_with_handler ~engine ~get_job_ids ~webhook_secret ?handler () = object
   inherit Current_web.Resource.t
 
   method! post_raw _site req body =
@@ -51,7 +51,8 @@ let webhook ~engine ~get_job_ids ~webhook_secret = object
       Cohttp_lwt_unix.Server.respond_string ~status:`Unauthorized ~body:"Invalid X-Hub-Signature-256" ()
     | Ok () ->
       let event_v = Webhook_event.validate event in
-      begin match event_v with
+      begin match handler with
+      | None -> begin match event_v with
         | Error x -> Log.warn (fun f -> f "%s" x);
         | Ok `InstallationRepositories -> Installation.input_installation_repositories_webhook ()
         | Ok `Installation -> App.input_installation_webhook ()
@@ -61,6 +62,10 @@ let webhook ~engine ~get_job_ids ~webhook_secret = object
               if event_v = Ok `CheckRun then `Run else `Suite
             in
             Api.rebuild_webhook ~engine ~event:c ~get_job_ids json_body
+        end
+      | Some handler -> handler ~engine event_v json_body
       end;
       Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body:"OK" ()
 end
+
+let webhook = webhook_with_handler ?handler:None ()

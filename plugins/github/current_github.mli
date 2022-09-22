@@ -25,6 +25,19 @@ Permissions are managed by the checks API so that re-runs can only be requested 
 permission to a repository.
  *)
 
+val webhook_with_handler:
+    engine:Current.Engine.t ->
+    get_job_ids:(owner:string -> name:string -> hash:string -> string list) ->
+    webhook_secret:string ->
+    ?handler:(engine:Current.Engine.t -> (Webhook_event.t, string) result -> Yojson.Safe.t -> unit) ->
+    unit ->
+    Current_web.Resource.t
+(** GitHub webhook endpoint. Similar to the {!webhook} function but the user provides his own event
+    [handler]. A [handler] takes the [engine], an [event] as a result (to deal with the error
+    case) and a [json] that correspond to the body of the GitHub request. Calling [webhook] is equal
+    to [webhook_with_handler ?handler:None ()]. *)
+
+
 (** Identifier for a repository hosted on GitHub. *)
 module Repo_id : sig
   type t = {
