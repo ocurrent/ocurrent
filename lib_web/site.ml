@@ -29,7 +29,12 @@ let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ~has_role routes =
   let nav_links = routes |> List.filter_map (fun route ->
       let target = Fmt.to_to_string Routes.pp_route route in
       if String.contains target ':' then None else (
-        let resource = Routes.match' router ~target |> Option.get in
+        let resource =
+          match Routes.match' router ~target with
+          | Routes.FullMatch v -> v
+          | MatchWithTrailingSlash v -> v
+          | NoMatch -> failwith "No match found"
+        in
         Option.map (fun label -> (label, target)) resource#nav_link
       )
     ) in
