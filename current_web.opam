@@ -32,7 +32,7 @@ depends: [
   "cohttp-lwt-unix" {>= "4.0.0"}
   "tyxml" {>= "4.4.0"}
   "csv" {>= "2.4"}
-  "routes" {>= "0.8.0" & < "2.0.0"}
+  "routes" {>= "2.0.0"}
   "dune" {>= "3.3"}
   "conf-graphviz"
   "astring" {>= "0.8.5"}

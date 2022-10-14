@@ -40,7 +40,7 @@ end
 
 let routes engine =
   Routes.[
-    empty @--> Main.r ~engine;
+    nil @--> Main.r ~engine;
     s "index.html" /? nil @--> Main.r ~engine;
     s "pipeline.svg" /? nil @--> Pipeline.r ~engine;
     s "query" /? nil @--> Query.r ~engine;
@@ -62,8 +62,8 @@ let handle_request ~site _conn request body =
   let path = Uri.path uri in
   Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
   match Routes.match' site.Site.router ~target:path with
-  | None -> Utils.Server.respond_not_found ()
-  | Some resource ->
+  | Routes.NoMatch -> Utils.Server.respond_not_found ()
+  | (FullMatch resource) | (MatchWithTrailingSlash resource) ->
     match meth with
     | `GET -> resource#get_raw site request
     | `POST -> resource#post_raw site request body

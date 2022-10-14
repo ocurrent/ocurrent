@@ -37,7 +37,7 @@ depends: [
   "ppx_deriving_yojson" {>= "3.6.1"}
   "prometheus" {>= "0.7"}
   "result" {>= "1.5"}
-  "routes" {>= "0.8.0" & < "2.0.0"}
+  "routes" {>= "2.0.0"}
   "uri" {>= "4.0.0"}
   "yojson" {>= "1.7.0"}
   "prometheus-app" {>= "1.2"}
