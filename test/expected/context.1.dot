@@ -3,11 +3,11 @@ digraph pipeline {
   node [fontname="ui-system,sans-serif",shape="box"]
   edge [fontname="ui-system,sans-serif"]
   rankdir=LR
-  n5 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n4 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n6 [label="a",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n7 [label="b",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n1 [label="c",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n5 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n4 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n6 [label="a",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n7 [label="b",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n1 [label="c",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
   n7 -> n1
   n6 -> n1
   n4 -> n1

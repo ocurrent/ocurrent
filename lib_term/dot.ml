@@ -82,7 +82,7 @@ let node f ?style ?shape ?bg ?url ?tooltip i label =
     "style", style;
     "shape", shape;
     "URL", url;
-    "tooltip", tooltip;
+    "tooltip", (match tooltip with Some _ -> tooltip | None -> Some " ");
     "target", (if url = None then None else Some "_top");
   ]
   in

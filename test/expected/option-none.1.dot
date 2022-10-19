@@ -3,13 +3,13 @@ digraph pipeline {
   node [fontname="ui-system,sans-serif",shape="box"]
   edge [fontname="ui-system,sans-serif"]
   rankdir=LR
-  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n9 [label="head",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n8 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled"]
-  n7 [label="analyse",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n9 [label="head",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n8 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
+  n7 [label="analyse",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
   subgraph cluster_4 {label=""
-  style="dotted"n13 [label="lint",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  style="dotted"n13 [label="lint",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
   }
   n7 -> n13
   n8 -> n7

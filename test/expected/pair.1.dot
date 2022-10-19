@@ -3,14 +3,14 @@ digraph pipeline {
   node [fontname="ui-system,sans-serif",shape="box"]
   edge [fontname="ui-system,sans-serif"]
   rankdir=LR
-  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n9 [label="Blocked-3",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
-  n8 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n16 [label="Blocked-2",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
-  n15 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n24 [label="Blocked-1",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
-  n23 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled"]
+  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n9 [label="Blocked-3",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n8 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n16 [label="Blocked-2",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n15 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n24 [label="Blocked-1",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n23 [label="state",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
   n24 -> n23
   n2 -> n24
   n16 -> n15
