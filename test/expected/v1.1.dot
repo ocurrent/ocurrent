@@ -3,12 +3,12 @@ digraph pipeline {
   node [fontname="ui-system,sans-serif",shape="box"]
   edge [fontname="ui-system,sans-serif"]
   rankdir=LR
-  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n6 [label="head",color="#90ee90",fillcolor="#90ee90",style="filled"]
-  n5 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled"]
-  n4 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
-  n1 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled"]
+  n3 [label="current-test",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n2 [label="choose pipeline",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n6 [label="head",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n5 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
+  n4 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n1 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
   n4 -> n1
   n5 -> n4
   n6 -> n5
