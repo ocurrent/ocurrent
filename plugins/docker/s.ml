@@ -44,6 +44,7 @@ module type DOCKER = sig
     ?squash:bool ->
     ?label:string ->
     ?dockerfile:[`File of Fpath.t | `Contents of string] Current.t ->
+    ?path:Fpath.t ->
     ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
@@ -54,7 +55,9 @@ module type DOCKER = sig
       @param squash If set to [true], pass "--squash" to "docker build".
       @param dockerfile If present, this is used as the contents of the Dockerfile.
       @param pull If [true], always check for updates and pull the latest version.
-      @param pool Rate limit builds by requiring a resource from the pool. *)
+      @param pool Rate limit builds by requiring a resource from the pool.
+      @param path The relative file path passed to the docker build command as the build context.
+                  No checks are done over the path: it can point anywhere outside the build directory. *)
 
   val run :
     ?label:string ->
