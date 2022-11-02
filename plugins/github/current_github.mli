@@ -117,6 +117,9 @@ module Api : sig
 
     val uri : t -> Uri.t
     (** [uri t] is a URI for the GitHub web page showing [t]. *)
+
+    val ref_title : t -> string
+    (** [ref_title t] is the title of the ref that the commit belongs to, either branch or PR *)
   end
 
   module CheckRun : sig

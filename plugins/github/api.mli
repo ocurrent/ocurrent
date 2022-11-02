@@ -31,6 +31,7 @@ module Commit : sig
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
   val uri : t -> Uri.t
+  val ref_title : t -> string
 end
 
 

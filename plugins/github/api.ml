@@ -326,6 +326,15 @@ module Commit_id = struct
     Fmt.pf f "%s/%s@ %s" owner repo (Astring.String.with_range ~len:8 hash)
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
+
+  let ref_title t =
+    match t.id with
+    | `Ref gref -> (
+        match Astring.String.cuts ~sep:"/" gref with
+        | "refs" :: "heads" :: branch ->
+          Astring.String.concat ~sep:"/" branch
+        | _ -> gref)
+    | `PR { title; _ } -> title
 end
 
 module Repo_key = struct
@@ -911,6 +920,8 @@ module Commit = struct
     let> (t, commit) = commit
     and> status = status in
     Set_status_cache.set t {Set_status.Key.commit; context} status
+
+  let ref_title (_, id) = Commit_id.ref_title id
 end
 
 module Repo = struct
