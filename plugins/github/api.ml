@@ -338,7 +338,7 @@ module Commit_id = struct
       match Astring.String.cuts ~sep:"/" gref with
       | "refs" :: "heads" :: branch ->
         Some (Astring.String.concat ~sep:"/" branch)
-      | _ -> Some gref)
+      | _ -> None)
     | `PR _ -> None
 end
 
