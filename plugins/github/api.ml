@@ -327,14 +327,19 @@ module Commit_id = struct
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
 
-  let ref_title t =
+  let pr_name t =
+    match t.id with
+    | `Ref _ -> None
+    | `PR { title; _ } -> Some title
+
+  let branch_name t =
     match t.id with
     | `Ref gref -> (
-        match Astring.String.cuts ~sep:"/" gref with
-        | "refs" :: "heads" :: branch ->
-          Astring.String.concat ~sep:"/" branch
-        | _ -> gref)
-    | `PR { title; _ } -> title
+      match Astring.String.cuts ~sep:"/" gref with
+      | "refs" :: "heads" :: branch ->
+        Some (Astring.String.concat ~sep:"/" branch)
+      | _ -> Some gref)
+    | `PR _ -> None
 end
 
 module Repo_key = struct
@@ -921,7 +926,9 @@ module Commit = struct
     and> status = status in
     Set_status_cache.set t {Set_status.Key.commit; context} status
 
-  let ref_title (_, id) = Commit_id.ref_title id
+  let pr_name (_, id) = Commit_id.pr_name id
+
+  let branch_name (_, id) = Commit_id.branch_name id
 end
 
 module Repo = struct
