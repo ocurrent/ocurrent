@@ -15,6 +15,7 @@ Set up the environment:
 Create an "upstream" repository for the submodule:
 
 ```sh
+$ git config --global protocol.file.allow always
 $ mkdir sub
 $ git init -q sub
 $ echo sub > sub/file
