@@ -1,3 +1,39 @@
+### v0.6.3
+
+Web UI:
+
+- Make line numbers clickable in logs (@MisterDA, #352, #356)
+- Make the background of rendered graphiz transparent (@MisterDA, #362)
+- Disable uneeded tooltips on diagrams nodes (@MisterDA, #382)
+
+API:
+
+- Add collapse_list to control rendering of ocurrent pipeline (@TheLortex @tmcgilchrist, #314)
+- Added ref_title accessor for commits (@benmandrew, #383)
+
+Plugins:
+
+- GitHub: Add support for rebuilding a commit. (@novemberkilo, #361)
+- GitHub: Refactor and add support for check-suite events to allow rebuild webooks from GitHub. (@novemberkilo, #364)
+- GitHub: Remove the role check for webhooks. (@novemberkilo, #366)
+- GitHub: More explicitly set details_url in CheckRunStatus. (@tmcgilchrist, #369)
+
+- GitLab: use set_status name (= context) in the web interface (@tmcgilchrist, #350)
+
+- Git: Make the output of git fetch quiet (@kit-ty-kate, #371)
+
+- Docker: Add pull argument to docker compose (@patrickoferris, #358)
+- Docker: Docker compose cli v2. Required to support AWS ECS. (@mtelvers @tmcgilchrist, #373)
+- Docker: Add build context parameter to docker build (@patricoferris, #363)
+
+Other:
+
+- Dune 3 fixes (@MisterDA, #367)
+- Fix some overuse of memory and concurrent fd open when too many jobs are queued (@kit-ty-kate, #372)
+- Pull in crunch.3.3.0 for Windows fixes (@MisterDA, #370)
+- Allow users to provide a command printer (@patricoferris, #359)
+- Update to routes 2.0 (@anuragsoni, #381)
+
 ### v0.6.2
 
 Web UI:
