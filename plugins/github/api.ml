@@ -700,13 +700,18 @@ let to_ci_refs ?staleness refs =
   |> List.map snd
   |> remove_stale ?staleness ~default_ref:refs.default_ref
 
+let collect_ci_refs t repo =
+  Current.component "%a CI refs" Repo_id.pp repo |>
+  let> () = Current.return () in
+  refs t repo
+
 let ci_refs ?staleness t repo =
-  let+ refs =
-    Current.component "%a CI refs" Repo_id.pp repo |>
-    let> () = Current.return () in
-    refs t repo
-  in
+  let+ refs = collect_ci_refs t repo in
   to_ci_refs ?staleness refs
+
+let ci_refs_with_default ?staleness t repo =
+  let+ refs = collect_ci_refs t repo in
+  (to_ci_refs ?staleness refs, default_ref refs)
 
 let head_of t repo (id: Ref.id) =
   Current.component "%a@,%a" Repo_id.pp repo Ref.pp_id id |>
