@@ -36,7 +36,7 @@ module Metrics = struct
     Gauge.v_labels ~label_names:["account"; "name"] ~help ~namespace ~subsystem "refs_total"
 
   let prs_total =
-    let help = "Total number of monitored PRs" in
+    let help = "Total number of monitored MRs" in
     Gauge.v_labels ~label_names:["account"; "name"] ~help ~namespace ~subsystem "prs_total"
 end
 
@@ -93,17 +93,26 @@ module Status = struct
 end
 
 module Ref = struct
-  type t = [ `Ref of string | `PR of int ] [@@deriving to_yojson]
+  type mr_info = {
+    id: int;
+    base: string;
+    title: string;
+    body: string;
+  } [@@deriving to_yojson]
+
+  type t = [ `Ref of string | `MR of mr_info ] [@@deriving to_yojson]
+
+  type id = [ `Ref of string | `MR of int ]
 
   let compare = Stdlib.compare
 
   let pp f = function
     | `Ref r -> Fmt.string f r
-    | `PR pr -> Fmt.pf f "PR %d" pr
+    | `MR {id; base; title; _} -> Fmt.pf f "MR %d on %s:@ %s" id base title
 
   let to_git = function
     | `Ref head -> head
-    | `PR id -> Fmt.str "refs/merge-requests/%d/head" id
+    | `MR { id ; _} -> Fmt.str "refs/merge-requests/%d/head" id
 end
 
 module Ref_map = Map.Make(Ref)
@@ -142,6 +151,20 @@ module Commit_id = struct
     Fmt.pf f "%a@ %a@ %s@ %s" Repo_id.to_git repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
+
+  let mr_name t =
+      match t.id with
+      | `Ref _ -> None
+      | `MR {title ; _ } -> Some title
+
+   let branch_name t =
+      match t.id with
+      | `Ref gref -> (
+        match Astring.String.cuts ~sep:"/" gref with
+        | "refs" :: "heads" :: branch ->
+          Some (Astring.String.concat ~sep:"/" branch)
+        | _ -> None)
+      | `MR _ -> None
 end
 
 type t = {
@@ -366,6 +389,10 @@ module Commit = struct
     let> (t, commit) = commit
     and> status = status in
     Set_status_cache.set t {Set_status.Key.commit; context} status
+
+  let mr_name (_, id) = Commit_id.mr_name id
+
+  let branch_name (_, id) = Commit_id.branch_name id
 end
 
 let query_branches token project_id =
@@ -389,12 +416,14 @@ let parse_ref ~repo ~prefix (branch : Gitlab_t.branch_full) : Commit_id.t =
 
 let parse_merge_request ~repo (mr : Gitlab_t.merge_request) : Commit_id.t =
   let hash = mr.merge_request_sha in
-  let pr = mr.merge_request_iid in
+  let mr' = Ref.{ id = mr.merge_request_iid; title = mr.merge_request_title;
+             base = mr.merge_request_source_branch ; body = mr.merge_request_description  }
+  in
   let committed_date = mr.merge_request_updated_at in
   (* TODO merge_request_updated_at as a proxy for most recent git activity.
      This isn't totally accurate but we would need extra calls to retrieve that.
   *)
-  { Commit_id.repo; id = `PR pr; hash;
+  { Commit_id.repo; id = `MR mr'; hash;
     committed_date = Gitlab_json.DateTime.unwrap committed_date }
 
 let get_refs t (repo : Repo_id.t) =
@@ -530,7 +559,7 @@ end
 
 module Anonymous = struct
 
-  let query_head (repo : Repo_id.t) gref =
+  let query_head (repo : Repo_id.t) (gref : Ref.t) =
     let cmd =
       let open Gitlab in
       let open Monad in
@@ -539,13 +568,13 @@ module Anonymous = struct
       | `Ref the_ref ->
         Project.Commit.commits ~project_id ~ref_name:the_ref () |> Stream.next
         >|= fun x -> Option.map (fun (x,_) -> x.Gitlab_t.commit_id) x |> Option.get
-      | `PR pr_no ->
-        Project.merge_request ~project_id ~merge_request_iid:(string_of_int pr_no) () >>~ fun x ->
+      | `MR mr_no ->
+        Project.merge_request ~project_id ~merge_request_iid:(string_of_int mr_no.id) () >>~ fun x ->
         return x.Gitlab_t.merge_request_sha
     in
     Gitlab.Monad.run cmd
 
-  let head_of (repo : Repo_id.t) gref =
+  let head_of (repo : Repo_id.t) (gref : Ref.t)=
     let owner_name = Fmt.str "%a" Repo_id.to_git repo in
     let read () =
       Lwt.try_bind

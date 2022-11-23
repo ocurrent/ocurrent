@@ -102,8 +102,21 @@ module Api : sig
 
   (** A Ref as an indirect way of referring to a commit. *)
   module Ref : sig
-    type t = [ `Ref of string | `PR of int ]
+
+    type mr_info = {
+        id: int;
+        base: string;
+        title: string;
+        body: string;
+    }
+
+    type t = [ `Ref of string | `MR of mr_info ]
     (** Ref is either a regular git ref or a MergeRequest. *)
+ 
+    type id = [ `Ref of string | `MR of int ]
+    (** Ref is either a regular git ref or a MergeRequest. This is
+        intended to be used by user when a [t] type is manipulated by
+        the API. *)
 
     val pp : t Fmt.t
     val compare : t -> t -> int

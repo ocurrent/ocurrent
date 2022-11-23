@@ -15,10 +15,19 @@ module Commit : sig
   val compare : t -> t -> int
   val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
   val uri : t -> Uri.t
+  val mr_name : t -> string option
+  val branch_name : t -> string option
 end
 
 module Ref : sig
-  type t = [ `PR of int | `Ref of string ]
+  type mr_info = {
+    id: int;
+    base: string;
+    title: string;
+    body: string;
+  }
+  type t = [ `Ref of string | `MR of mr_info ]
+  type id = [ `MR of int | `Ref of string ]
   val compare : t -> t -> int
   val pp : t Fmt.t
   val to_git : t -> string
