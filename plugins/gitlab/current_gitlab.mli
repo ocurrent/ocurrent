@@ -20,12 +20,14 @@ module Repo_id : sig
            }
 
   val pp : t Fmt.t
+  (** Pretty print [t] as {"owner/name/project_id"}. *)
 
   val compare : t -> t -> int
+  (** Compare two [compare t t] two repo_ids. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Cmdliner parser for reading a repo_id as a string.
-      Expected format is "owner/name/project_id"
+      The expected format is {"owner/name/project_id"}.
   *)
 end
 
@@ -49,7 +51,7 @@ module Api : sig
     (** All possible Commit states in GitLab. *)
 
     val v : name:string -> ?description:string -> ?url:Uri.t -> state -> t
-    (** Create [t] with an optional [?url] and [?description] to associate with the displayed status in GitLab.*)
+    (** Create [t] with an optional [?url] and [?description] to associate with the displayed status in GitLab. *)
   end
 
   (** A specific Git commit. *)
@@ -84,6 +86,13 @@ module Api : sig
 
     val uri : t -> Uri.t
     (** [uri t] is a URI for the GitLab web page showing [t]. *)
+
+    val mr_name : t -> string option
+    (** [mr_name t] is the name of the ref that the commit belongs to if it is a MR, and None if it is a branch. *)
+
+    val branch_name : t -> string option
+    (** [branch_name t] is the name of the ref that the commit belongs to if it is a branch, and None if it is a PR. *)
+
   end
 
   (** A Project's repository on GitLab. *)
@@ -91,7 +100,10 @@ module Api : sig
     type nonrec t = t * Repo_id.t
 
     val id : t -> Repo_id.t
+
     val pp : t Fmt.t
+    (** Pretty print [t]. *)
+
     val compare : t -> t -> int
 
     val ci_refs : ?staleness:Duration.t -> t Current.t -> Commit.t list Current.t
@@ -114,14 +126,16 @@ module Api : sig
     }
 
     type t = [ `Ref of string | `MR of mr_info ]
-    (** Ref is either a regular git ref or a MergeRequest. *)
+    (** [t] is a regular git ref or a merge request record of [mr_info]. *)
  
     type id = [ `Ref of string | `MR of int ]
-    (** Ref is either a regular git ref or a MergeRequest. This is
-        intended to be used by user when a [t] type is manipulated by
-        the API. *)
+    (** Id as a regular git ref or a merge request. 
+
+        This is intended to be used by a user when a [t] type is manipulated by the API. *)
 
     val pp : t Fmt.t
+    (** Pretty print [t]. *)
+
     val compare : t -> t -> int
 
     val to_git : t -> string
@@ -140,16 +154,17 @@ module Api : sig
 
   val refs : t -> Repo_id.t -> refs Current.Primitive.t
   (** [refs t repo] is the primitive for all the references in [repo].
+
       This is the low-level API for getting the refs.
       It is used internally by [ci_refs] and [head_of] but in some cases you may want to use it directly,
       [default_ref] and [all_refs] will expose useful information for you.
       The result is cached (so calling it twice will return the same primitive). *)
 
   val default_ref : refs -> Ref.t
-  (** [default_ref refs] will return the full name of the repository's default branch ref *)
+  (** [default_ref refs] will return the full name of the repository's default branch ref. *)
 
   val all_refs : refs -> Commit.t Ref_map.t
-  (** [all_refs refs] will return a map of all the repository's refs *)
+  (** [all_refs refs] will return a map of all the repository's refs. *)
 
   (** Perform Anonymous request to GitLab. *)
   module Anonymous : sig
@@ -160,7 +175,7 @@ module Api : sig
   end
 
   val cmdliner : t Cmdliner.Term.t
-  (** Command-line options to generate a GitLab configuration. *)
+  (** Command-line options to generate a GitLab configuration [t]. *)
 end
 
 
