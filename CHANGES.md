@@ -27,7 +27,7 @@ Plugins:
 - Docker: Add build context parameter to docker build (@patricoferris, #363)
 
 Other:
-
+- Fix infinite loop in test (@maiste, @art-w, @MisterDA #386)
 - Dune 3 fixes (@MisterDA, #367)
 - Fix some overuse of memory and concurrent fd open when too many jobs are queued (@kit-ty-kate, #372)
 - Pull in crunch.3.3.0 for Windows fixes (@MisterDA, #370)
