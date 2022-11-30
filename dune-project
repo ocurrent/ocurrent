@@ -2,4 +2,4 @@
 (name current)
 (formatting disabled)
 
-(using mdx 0.1)
+(using mdx 0.3)

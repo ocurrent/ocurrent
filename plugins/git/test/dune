@@ -1,3 +1,6 @@
 (mdx
- (packages current_git)
+ (deps (package current_git)
+  (package current)
+  (package lwt)
+  (package current_incr))
  (package current_git))

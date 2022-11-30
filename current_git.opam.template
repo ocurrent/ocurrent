@@ -1,0 +1,3 @@
+pin-depends: [
+  ["mdx.dev" "git+https://github.com/tmcgilchrist/mdx#e4e8ad391a77aae83b9aca8c868b330c338e5108"]
+]
