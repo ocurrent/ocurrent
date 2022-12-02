@@ -48,3 +48,6 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+pin-depends: [
+  ["mdx.dev" "git+https://github.com/tmcgilchrist/mdx#a603d79d2b674a2cb6bc8c57c9472e9c7e1ec1c5"]
+]
