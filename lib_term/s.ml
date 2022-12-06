@@ -229,7 +229,7 @@ module type TERM = sig
         {[
           component "my-op" |>
             let> x = fetch uri in
-            ...
+            …
         ]} *)
 
     val (let**) : 'a t -> ('a -> 'b t) -> description -> 'b t
@@ -237,7 +237,7 @@ module type TERM = sig
         {[
           component "my-op" |>
             let** x = fetch uri in
-            ...
+            …
         ]} *)
 
     val (and*) : 'a t -> 'b t -> ('a * 'b) t
