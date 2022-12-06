@@ -141,31 +141,44 @@ let add_shutdown_hooks ~cancellable ~job ~cmd proc =
       )
   )
 
-let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
+let exec ?cwd ?stdin ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
+  let proc, send_stdin =
+    match stdin with
+    | Some data ->
+      let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
+      (proc :> Lwt_process.process_in), send_to proc#stdin data
+    | None ->
+      let proc = Lwt_process.open_process_in ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
+      proc, Lwt_result.ok Lwt.return_unit
+  in
   let copy_thread = copy_to_log ~job proc#stdout in
   add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
-  send_to proc#stdin stdin >>= fun stdin_result ->
+  send_stdin >>= fun stdin_result ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
   match check_status pp_error_command cmd status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
-let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
+let check_output ?cwd ?stdin ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_full ?cwd cmd in
+  let send_stdin =
+    match stdin with
+    | Some data -> send_to proc#stdin data
+    | None -> Lwt_result.ok (Lwt_io.close proc#stdin)
+  in
   let copy_thread = copy_to_log ~job proc#stderr in
   add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   let reader = Lwt_io.read proc#stdout in
-  send_to proc#stdin stdin >>= fun stdin_result ->
+  send_stdin >>= fun stdin_result ->
   reader >>= fun stdout ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
