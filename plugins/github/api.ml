@@ -641,7 +641,7 @@ module Refs = Monitor(struct
     let title = node / "title" |> to_string in
     let bodyHTML = node / "bodyHTML" |> to_string in
     let nodes = node / "commits" / "nodes" |> to_list in
-    if List.length nodes = 0 then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
+    if nodes = [] then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
     let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
     let message = List.hd nodes / "commit" / "message" |> to_string in
     { Commit_id.owner; Commit_id.repo; id = `PR {id=pr; base; title; bodyHTML}; hash; committed_date; message }
@@ -660,9 +660,9 @@ module Refs = Monitor(struct
     let n_prs = repo / "pullRequests" / "totalCount" |> to_int in
     Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.refs_total [owner; name]) (float_of_int n_branches);
     Prometheus.Gauge.set (Prometheus.Gauge.labels Metrics.prs_total [owner; name]) (float_of_int n_prs);
-    if List.length refs < n_branches then
+    if List.compare_length_with refs n_branches < 0 then
       Log.warn (fun f -> f "Too many branches in %s/%s (%d)" owner name n_branches);
-    if List.length prs < n_prs then
+    if List.compare_length_with prs n_prs < 0 then
       Log.warn (fun f -> f "Too many open PRs in %s/%s (%d)" owner name n_prs);
     let add xs map = List.fold_left (fun acc x -> Ref_map.add x.Commit_id.id (t, x) acc) map xs in
     Ref_map.empty
