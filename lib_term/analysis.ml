@@ -12,7 +12,7 @@ module Make (Meta : sig type t end) = struct
     let rec aux f t =
       let Term t = t in
       if Id.Set.mem t.id !seen then
-        Fmt.string f "..."
+        Fmt.string f "…"
       else (
         seen := Id.Set.add t.id !seen;
         match t.ty with

@@ -25,7 +25,7 @@ let is_local t =
   if Astring.String.is_prefix ~affix:"file:" t.repo then true
   else match String.index_opt t.repo ':',
              String.index_opt t.repo '/' with
-  | Some i, Some j -> i < j     (* http://... is remote; /http:foo is local *)
+  | Some i, Some j -> i < j     (* http://… is remote; /http:foo is local *)
   | None, _ -> true             (* All remote URLs have colons *)
   | Some _, None -> false       (* foo:bar is remote *)
 

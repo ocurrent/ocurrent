@@ -114,7 +114,7 @@ module Engine = struct
     let last_result = ref booting in
     let rec aux outcome =
       let next = Lwt_condition.wait propagate in
-      Log.debug (fun f -> f "Evaluating...");
+      Log.debug (fun f -> f "Evaluating…");
       let t0 = Unix.gettimeofday () in
       Current_incr.propagate ();
       let t1 = Unix.gettimeofday () in
@@ -129,7 +129,7 @@ module Engine = struct
         jobs = Job.Map.map List.hd !active_jobs;
       };
       trace ~next !last_result >>= fun () ->
-      Log.debug (fun f -> f "Waiting for an external event...");
+      Log.debug (fun f -> f "Waiting for an external event…");
       next >>= fun () ->
       Lwt.pause () >>= fun () ->
       Step.advance ();

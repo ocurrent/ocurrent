@@ -544,7 +544,7 @@ module Head_ref = Monitor(struct
           prefix
           name
           target {
-            ...on Commit {
+            …on Commit {
               oid
               committedDate
               message
@@ -591,7 +591,7 @@ module Refs = Monitor(struct
           node {
             name
             target {
-              ...on Commit {
+              …on Commit {
                 oid
                 committedDate
                 message

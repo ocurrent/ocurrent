@@ -2,8 +2,8 @@ open Tyxml.Html
 
 let render_result = function
   | Ok () -> [txt "Success!"]
-  | Error (`Active `Ready) -> [txt "Ready..."]
-  | Error (`Active `Running) -> [txt "Running..."]
+  | Error (`Active `Ready) -> [txt "Ready…"]
+  | Error (`Active `Running) -> [txt "Running…"]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]
 
 let settings ctx config =

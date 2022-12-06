@@ -75,7 +75,7 @@ let start job =
     show_log job
 
 let rebuild job =
-  Fmt.pr "Requesting rebuild...@.";
+  Fmt.pr "Requesting rebuild…@.";
   let new_job = Current_rpc.Job.rebuild job in
   show_log new_job
 

@@ -52,7 +52,7 @@ module Test = struct
     Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
     (* Start the container running: *)
     Raw.Cmd.with_container ~docker_context ~job ~kill_on_cancel:true (run image ~docker_context) @@ fun id ->
-    Current.Job.log job "Waiting 1 second to let HTTP server start...";
+    Current.Job.log job "Waiting 1 second to let HTTP server start…";
     Lwt_unix.sleep 1.0 >>= fun () ->
     (* Test the container's service: *)
     Current.Process.exec ~cancellable:true ~job (exec id test_command ~docker_context)

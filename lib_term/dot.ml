@@ -49,7 +49,7 @@ let fix_escaping s =
 
 let limit_str len s =
   if String.length s <= len then s
-  else String.sub s 0 (len - 3) ^ "..."
+  else String.sub s 0 (len - 3) ^ "…"
 
 
 let digraph f ?fontname name =

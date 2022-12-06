@@ -45,7 +45,7 @@ let get_user token =
   run cmd
 
 let example_config () =
-  v ~client_id:"..." ~client_secret:"..." ~redirect_uri:"..." ()
+  v ~client_id:"…" ~client_secret:"…" ~redirect_uri:"…" ()
   |> to_yojson
   |> Yojson.Safe.pretty_to_string
 
