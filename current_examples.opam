@@ -49,5 +49,5 @@ build: [
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
 pin-depends: [
-  ["mdx.dev" "git+https://github.com/tmcgilchrist/mdx#8345ffecc4599fee5dcc6f00665e07c381a0fe8b"]
+  ["mdx.dev" "git+https://github.com/realworldocaml/mdx#0d20ffe33461321040207cdcab89686bb45fdcaf"]
 ]
