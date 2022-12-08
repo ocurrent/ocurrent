@@ -121,44 +121,44 @@ Ensure that our new checkout doesn't have the deleted submodule:
 - : string list option = Some ["file"]
 ```
 
-<!-- Add it back in again: -->
+Add it back in again:
 
-<!-- ```sh -->
-<!-- $ git -C main submodule add --force -q ../sub >/dev/null -->
-<!-- $ git -C main commit -q -a -m 'Restore submodule' -->
-<!-- ``` -->
+```sh
+$ git -C main submodule add --force -q ../sub >/dev/null
+$ git -C main commit -q -a -m 'Restore submodule'
+```
 
-<!-- Ensure we re-create it in our checkout: -->
+Ensure we re-create it in our checkout:
 
-<!-- ```ocaml -->
-<!-- # Lwt_stream.get results;; -->
-<!-- - : string list option = Some ["file"; "sub"] -->
-<!-- ``` -->
+```ocaml
+# Lwt_stream.get results;;
+- : string list option = Some ["file"; "sub"]
+```
 
-<!-- Update the submodule upstream: -->
+Update the submodule upstream:
 
-<!-- ```sh -->
-<!-- $ mv sub newsub -->
-<!-- $ echo sub2 > newsub/file2 -->
-<!-- $ git -C newsub add file2 -->
-<!-- $ git -C newsub commit -q -a -m 'sub2' -->
-<!-- ``` -->
+```sh
+$ mv sub newsub
+$ echo sub2 > newsub/file2
+$ git -C newsub add file2
+$ git -C newsub commit -q -a -m 'sub2'
+```
 
-<!-- Moving the submodule to a new location: -->
+Moving the submodule to a new location:
 
-<!-- ```sh -->
-<!-- $ git -C main submodule deinit -q --all -->
-<!-- $ rm main/.gitmodules; touch main/.gitmodules -->
-<!-- $ rm -r main/sub -->
-<!-- $ git -C main submodule add --force -q "${PWD}/newsub" sub >/dev/null -->
-<!-- $ git -C main submodule sync -q -->
-<!-- $ git -C main/sub pull -q origin -->
-<!-- $ git -C main commit -q -a -m 'Move module' -->
-<!-- ``` -->
+```sh
+$ git -C main submodule deinit -q --all
+$ rm main/.gitmodules; touch main/.gitmodules
+$ rm -r main/sub
+$ git -C main submodule add --force -q "${PWD}/newsub" sub >/dev/null
+$ git -C main submodule sync -q
+$ git -C main/sub pull -q origin
+$ git -C main commit -q -a -m 'Move module'
+```
 
-<!-- Ensure we fetch from the new location: -->
+Ensure we fetch from the new location:
 
-<!-- ```ocaml -->
-<!-- # Lwt_stream.get results;; -->
-<!-- - : string list option = Some ["file"; "sub"] -->
-<!-- ``` -->
+```ocaml
+# Lwt_stream.get results;;
+- : string list option = Some ["file"; "sub"]
+```
