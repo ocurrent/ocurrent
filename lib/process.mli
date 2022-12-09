@@ -1,3 +1,8 @@
+val check_status :
+  ?pp_error_command:(Format.formatter -> unit) ->
+  string * string array ->
+  Unix.process_status -> unit Current_term.S.or_error
+
 val pp_cmd : Format.formatter -> Lwt_process.command -> unit
 
 val exec :

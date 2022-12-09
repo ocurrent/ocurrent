@@ -19,7 +19,11 @@ let pp_signal f x =
   else if x = sigterm then Fmt.string f "term"
   else Fmt.int f x
 
-let check_status pp_cmd cmd = function
+let pp_command pp_cmd cmd f = Fmt.pf f "Command %a" pp_cmd cmd
+
+let check_status ?pp_error_command cmd status =
+  let pp_cmd = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
+  match status with
   | Unix.WEXITED 0 -> Ok ()
   | Unix.WEXITED 127 ->
       let cmd_name =
@@ -114,8 +118,6 @@ let send_to ch contents =
     (fun () -> Lwt.return (Ok ()))
     (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
 
-let pp_command pp_cmd cmd f = Fmt.pf f "Command %a" pp_cmd cmd
-
 let copy_to_log ~job src =
   let rec aux () =
     Lwt_io.read ~count:4096 src >>= function
@@ -143,7 +145,6 @@ let add_shutdown_hooks ~cancellable ~job ~cmd proc =
 
 let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
-  let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
@@ -152,13 +153,12 @@ let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job
   send_to proc#stdin stdin >>= fun stdin_result ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status pp_error_command cmd status with
+  match check_status ?pp_error_command cmd status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
 let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
-  let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
   let proc = Lwt_process.open_process_full ?cwd cmd in
@@ -169,7 +169,7 @@ let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancella
   reader >>= fun stdout ->
   copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
   proc#status >|= fun status ->
-  match check_status pp_error_command cmd status with
+  match check_status ?pp_error_command cmd status with
   | Error _ as e -> e
   | Ok () ->
     match stdin_result with
