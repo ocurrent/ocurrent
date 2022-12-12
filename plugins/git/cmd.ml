@@ -19,7 +19,7 @@ let id_of_repo repo =
   let digest = Hash.digest (Cstruct.of_string repo) in
   Fmt.str "%s-%a" base pp_hex digest
 
-(* …/var/git/myrepo-hhh *)
+(* .../var/git/myrepo-hhh *)
 let local_copy repo =
   let repos_dir = Current.state_dir "git" in
   Fpath.append repos_dir (Fpath.v (id_of_repo repo))
