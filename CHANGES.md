@@ -19,6 +19,7 @@ Plugins:
 - GitHub: More explicitly set details_url in CheckRunStatus. (@tmcgilchrist, #369)
 
 - GitLab: use set_status name (= context) in the web interface (@tmcgilchrist, #350)
+- GitLab: More information from current_gitlab plugin (@maiste, #389)
 
 - Git: Make the output of git fetch quiet (@kit-ty-kate, #371)
 
@@ -33,6 +34,7 @@ Other:
 - Pull in crunch.3.3.0 for Windows fixes (@MisterDA, #370)
 - Allow users to provide a command printer (@patricoferris, #359)
 - Update to routes 2.0 (@anuragsoni, #381)
+- Misc. patches: don't use List.length for comparisons, use Unicode ellipsis (@MisterDA, #391)
 
 ### v0.6.2
 
