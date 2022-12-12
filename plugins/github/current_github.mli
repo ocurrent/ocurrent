@@ -219,7 +219,7 @@ module Api : sig
 
           {[
             query($owner: String!, $name: String!) {
-              rateLimit { … }
+              rateLimit { ... }
               <<query>>
             }
           ]}
