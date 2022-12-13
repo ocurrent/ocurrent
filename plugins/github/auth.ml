@@ -61,7 +61,7 @@ let get_user token =
     Error (err, body)
 
 let example_config () =
-  v ~client_id:"…" ~client_secret:"…" ()
+  v ~client_id:"..." ~client_secret:"..." ()
   |> to_yojson
   |> Yojson.Safe.pretty_to_string
 
