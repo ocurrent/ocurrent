@@ -319,8 +319,8 @@ module Commit_id = struct
       end
     | x -> x
 
-  let pp f { owner; repo; id; hash; committed_date; message } =
-    Fmt.pf f "%s/%s@ %a@ %s@ %s (%s)" owner repo pp_id id (Astring.String.with_range ~len:8 hash) committed_date message
+  let pp f { owner; repo; id; hash; committed_date = _; message = _ } =
+    Fmt.pf f "%s/%s@ %a@ %s" owner repo pp_id id (Astring.String.with_range ~len:8 hash)
 
   let pp_short f { owner; repo; hash; _ } =
     Fmt.pf f "%s/%s@ %s" owner repo (Astring.String.with_range ~len:8 hash)
