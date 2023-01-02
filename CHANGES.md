@@ -1,3 +1,10 @@
+### unreleased
+
+Web UI:
+
+- Allow controlling and disabling the refresh timer for pipelines
+  graphs and job page (@MisterDA, #398, #400)
+
 ### v0.6.3
 
 Web UI:
@@ -41,7 +48,7 @@ Other:
 Web UI:
 
 - Update prometheus-app to support version 1.2.
- 
+
 Plugins:
 
 - GitLab plugin depend on ocaml-gitlab >= "0.1.4" to include bugfixes.

@@ -22,7 +22,7 @@ let r = object
 
   method! private get ctx =
     let jobs = Current.Job.jobs () in
-    Context.respond_ok ctx ~refresh:60 (
+    Context.respond_ok ctx ?refresh:ctx.site.refresh_pipeline (
       if Current.Job.Map.is_empty jobs then [
         txt "There are no active jobs."
       ] else [

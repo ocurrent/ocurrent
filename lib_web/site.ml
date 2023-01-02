@@ -17,13 +17,14 @@ type t = {
   session_backend : Sess.backend;
   router : t raw Routes.router;
   nav_links : (string * string) list;   (* Label, path *)
+  refresh_pipeline : int option;
 }
 
 class type raw_resource = [t] raw
 
 let allow_all _ _ = true
 
-let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ~has_role routes =
+let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ?refresh_pipeline ~has_role routes =
   let db = Lazy.force Current.Db.v in
   let router = Routes.one_of routes in
   let nav_links = routes |> List.filter_map (fun route ->
@@ -38,4 +39,5 @@ let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ~has_role routes =
         Option.map (fun label -> (label, target)) resource#nav_link
       )
     ) in
-  { name; authn; has_role; secure_cookies; session_backend = Sqlite_session.create db; router; nav_links }
+  { name; authn; has_role; secure_cookies; session_backend = Sqlite_session.create db;
+    router; nav_links; refresh_pipeline }
