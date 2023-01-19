@@ -9,7 +9,8 @@
                github
                github_app
                rpc_server
-               rpc_client)
+               rpc_client
+               confirmation)
  (package current_examples)
  (libraries
    capnp-rpc
