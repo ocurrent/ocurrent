@@ -2,6 +2,7 @@ type 'a or_error = ('a, [`Msg of string]) result
 
 type stats = {
   ok : int;
+  waiting_for_confirmation : int;
   ready : int;
   running : int;
   failed : int;

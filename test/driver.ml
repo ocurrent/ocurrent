@@ -62,8 +62,10 @@ let rebuild msg =
   | Some rebuild -> rebuild () |> ignore
 
 let stats =
-  let pp f { Current_term.S.ok; ready; running; failed; blocked } =
-    Fmt.pf f "ok=%d,ready=%d,running=%d,failed=%d,blocked=%d" ok ready running failed blocked
+  let pp f { Current_term.S.ok; waiting_for_confirmation; ready; running; failed; blocked } =
+    Fmt.pf f
+      "ok=%d,waiting_for_confirmation=%d,ready=%d,running=%d,failed=%d,blocked=%d"
+      ok waiting_for_confirmation ready running failed blocked
   in
   Alcotest.testable pp (=)
 

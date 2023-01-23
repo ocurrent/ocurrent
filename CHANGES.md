@@ -1,5 +1,9 @@
 ### unreleased
 
+API:
+
+- Add an Active Waiting_for_confirmation state, allows manual confirmation to run a task. (@kit-ty-kate @maiste, #269)
+
 Web UI:
 
 - Allow controlling and disabling the refresh timer for pipelines

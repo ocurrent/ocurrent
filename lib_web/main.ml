@@ -2,6 +2,7 @@ open Tyxml.Html
 
 let render_result = function
   | Ok () -> [txt "Success!"]
+  | Error (`Active `Waiting_for_confirmation) -> [txt "Waiting for confirmation..."]
   | Error (`Active `Ready) -> [txt "Ready..."]
   | Error (`Active `Running) -> [txt "Running..."]
   | Error (`Msg msg) -> [txt ("ERROR: " ^ msg)]

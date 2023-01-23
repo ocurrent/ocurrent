@@ -10,7 +10,7 @@ digraph pipeline {
   n6 [label="build",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
   n5 [label="docker run make test",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
   n4 [label="",color="#90ee90",fillcolor="#90ee90",style="filled",shape="circle",tooltip=" "]
-  n1 [label="docker push foo/bar",color="#ffff00",fillcolor="#ffff00",style="filled",tooltip=" "]
+  n1 [label="docker push foo/bar",color="#4975ff",fillcolor="#4975ff",style="filled",tooltip=" "]
   n4 -> n1
   n6 -> n4
   n5 -> n4 [style="dashed"]

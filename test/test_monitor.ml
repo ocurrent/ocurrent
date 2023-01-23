@@ -62,6 +62,7 @@ let get_watch () =
 
 let result =
   let pp f = function
+    | `Active `Waiting_for_confirmation -> Fmt.string f "Waiting for confirmation"
     | `Active `Ready -> Fmt.string f "Ready"
     | `Active `Running -> Fmt.string f "Running"
     | (`Msg m) -> Fmt.pf f "ERR: %s" m

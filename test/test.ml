@@ -87,6 +87,7 @@ let test_v3 _switch () =
     { Current_term.S.
       ok = 8;
       failed = 1;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 1;
       blocked = 3;
@@ -135,6 +136,7 @@ let test_v5 _switch () =
     { Current_term.S.
       ok = 7;
       failed = 0;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 2;
       blocked = 4;
@@ -150,6 +152,7 @@ let test_v5_nil _switch () =
     { Current_term.S.
       ok = 7;
       failed = 0;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 0;
       blocked = 3;
@@ -172,6 +175,7 @@ let test_option_some _switch () =
     { Current_term.S.
       ok = 6;
       failed = 0;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 0;
       blocked = 0;
@@ -188,6 +192,7 @@ let test_option_none _switch () =
     { Current_term.S.
       ok = 5;
       failed = 0;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 0;
       blocked = 1;
@@ -235,6 +240,7 @@ let test_pair _switch () =
     { Current_term.S.
       ok = 2;
       failed = 0;
+      waiting_for_confirmation = 0;
       ready = 0;
       running = 0;
       blocked = 3;
