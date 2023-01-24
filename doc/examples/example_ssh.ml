@@ -2,7 +2,7 @@
 
    Given a host and arguments, runs the command every 30 minutes.
 
-   e.g. Run `ls -phil` on host host.example.com
+   e.g. Run `tar -cvzf bin.tar.gz /bin` on host host.example.com
    $ dune exec -- ./doc/examples/example_ssh.exe -- host.example.com tar -cvf bin.tar.gz /bin
 
    Check the output and run history via http://localhost:8080
@@ -48,7 +48,7 @@ let args =
     []
 
 let cmd =
-  let doc = "Build the head commit of a local Git repository using Docker." in
+  let doc = "Run an SSH command every 30 minutes." in
   let info = Cmd.info program_name ~doc in
   Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ host $ args))
 
