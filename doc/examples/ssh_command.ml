@@ -1,9 +1,9 @@
-(* Usage: example_ssh.exe host args
+(* Usage: ssh_command.exe host args
 
    Given a host and arguments, runs the command every 30 minutes.
 
    e.g. Run `tar -cvzf bin.tar.gz /bin` on host host.example.com
-   $ dune exec -- ./doc/examples/example_ssh.exe -- host.example.com tar -cvf bin.tar.gz /bin
+   $ dune exec -- ./doc/examples/ssh_command.exe -- host.example.com tar -cvf bin.tar.gz /bin
 
    Check the output and run history via http://localhost:8080
 *)

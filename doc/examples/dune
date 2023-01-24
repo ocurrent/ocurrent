@@ -11,7 +11,7 @@
                rpc_server
                rpc_client
                confirmation
-               example_ssh)
+               ssh_command)
  (package current_examples)
  (libraries
    capnp-rpc
