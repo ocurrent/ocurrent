@@ -264,6 +264,7 @@ module Ref = struct
     id: int;
     base: string;
     title: string;
+    labels: string list;
     bodyHTML: string;
   } [@@deriving to_yojson]
 
@@ -608,6 +609,11 @@ module Refs = Monitor(struct
             headRefOid
             baseRefName
             title
+            labels(first: 100) {
+              nodes {
+                name
+              }
+            }
             bodyHTML
             commits(last: 1) {
               nodes {
@@ -639,12 +645,13 @@ module Refs = Monitor(struct
     let hash = node / "headRefOid" |> to_string in
     let pr = node / "number" |> to_int in
     let title = node / "title" |> to_string in
+    let labels = node / "labels" / "nodes" |> to_list |> List.map (fun label -> label / "name" |> to_string) in
     let bodyHTML = node / "bodyHTML" |> to_string in
     let nodes = node / "commits" / "nodes" |> to_list in
     if nodes = [] then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
     let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
     let message = List.hd nodes / "commit" / "message" |> to_string in
-    { Commit_id.owner; Commit_id.repo; id = `PR {id=pr; base; title; bodyHTML}; hash; committed_date; message }
+    { Commit_id.owner; Commit_id.repo; id = `PR {id=pr; base; title; labels; bodyHTML}; hash; committed_date; message }
 
   let of_yojson t { Repo_id.owner; name } data =
     let open Yojson.Safe.Util in
