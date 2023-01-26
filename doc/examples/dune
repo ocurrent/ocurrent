@@ -10,7 +10,8 @@
                github_app
                rpc_server
                rpc_client
-               confirmation)
+               confirmation
+               ssh_command)
  (package current_examples)
  (libraries
    capnp-rpc
@@ -28,6 +29,7 @@
    current_gitlab
    current_rpc
    current_web
+   current_ssh
    dockerfile
    duration
    fmt.tty

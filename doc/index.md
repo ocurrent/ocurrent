@@ -16,6 +16,7 @@ Welcome to the OCurrent documentation!
 * [Current_gitlab](https://ocurrent.github.io/ocurrent/current_gitlab/index.html)
 * [Current_slack](https://ocurrent.github.io/ocurrent/current_slack/index.html)
 * [Current_rpc](https://ocurrent.github.io/ocurrent/current_rpc/index.html) - control OCurrent remotely via Cap'n Proto
+* [Current_ssh](https://ocurrent.github.io/ocurrent/current_ssh/index.html)
 
 Or you can [write your own plugin](writing_plugins.md).
 
