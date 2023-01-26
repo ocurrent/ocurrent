@@ -3,6 +3,7 @@
 API:
 
 - Add an Active Waiting_for_confirmation state, allows manual confirmation to run a task. (@kit-ty-kate @maiste, #269)
+- Add Current_term.option_iter. (@kit-ty-kate, #403)
 
 Web UI:
 

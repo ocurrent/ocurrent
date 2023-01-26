@@ -131,6 +131,10 @@ module type TERM = sig
       evaluates to [Some y], or to [None] otherwise. 
       @param label Label the optional in the diagrams. *)
 
+  val option_iter : ?label:string -> ('a t -> unit t) -> 'a option t -> unit t
+  (** Like [option_map] but for the simpler case when the result is unit.
+      @param label Label the list in the diagrams. *)
+
   val option_seq : 'a t option -> 'a option t
   (** [option_seq None] is [Current.return None] and
       [option_seq (Some x)] is [Current.map some x].
