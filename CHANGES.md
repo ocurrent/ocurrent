@@ -9,6 +9,10 @@ Web UI:
 - Allow controlling and disabling the refresh timer for pipelines
   graphs and job page (@MisterDA, #398, #400)
 
+Plugins:
+
+- GitHub: Added information about labels in Api.Ref.pr_info (@ElectreAAS, #402)
+
 ### v0.6.3
 
 Web UI:

@@ -153,6 +153,7 @@ module Api : sig
       id: int;
       base: string;
       title: string;
+      labels: string list;
       bodyHTML: string;
     }
 
