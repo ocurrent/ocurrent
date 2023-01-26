@@ -240,6 +240,10 @@ module Make (Metadata : sig type t end) = struct
     let output = Current_incr.map (fun x -> Term x) results in
     node (Option_map { item = Term input; output; label }) (join results)
 
+  let option_iter (type a) ?label (f : a t -> unit t) (input : a option t)  =
+    let+ (_ : unit option) = option_map ?label f input in
+    ()
+
   let rec list_seq : 'a t list -> 'a list t = function
     | [] -> return []
     | x :: xs ->
