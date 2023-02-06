@@ -1,3 +1,11 @@
-(mdx
- (packages current_git)
- (package current_git))
+; (mdx
+;  (deps (package current_git))
+;  (package current_git))
+
+(test
+  (name git_test)
+  (libraries alcotest
+             alcotest-lwt
+             current
+             current_git
+             lwt))
