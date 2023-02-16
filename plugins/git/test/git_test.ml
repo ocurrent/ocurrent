@@ -12,7 +12,7 @@ module Cmd = struct
     | Unix.WSIGNALED _ -> Alcotest.fail "Process received signal."
 
   let mkdir ?cwd dir =
-    let cmd = [ "mkdir"; "-p"; dir ] in
+    let cmd = [ "mkdir"; dir ] in
     exec_or_fail ?cwd ~name:"mkdir" cmd
 
   let rm ?cwd cmd =
@@ -93,7 +93,7 @@ let init root =
   >>= fun () ->
   Cmd.git_with ~cwd ~path:"sub" [ "add"; "file" ] >>= fun () ->
   Cmd.git_with ~cwd ~path:"sub"
-    [ "commit"; "-q"; "-a"; "-m"; "'Initial submodule commit'" ]
+    [ "commit"; "-q"; "-a"; "-m"; "Initial submodule commit" ]
   >>= fun () ->
   let dir = "main" in
   Cmd.mkdir ~cwd dir >>= fun () ->
@@ -114,7 +114,7 @@ let remove root =
   Cmd.rm ~cwd [ "main/.gitmodules" ] >>= fun () ->
   Cmd.rm ~cwd [ "-r"; "main/sub" ] >>= fun () ->
   Cmd.git_with ~cwd ~path:"main"
-    [ "commit"; "-q"; "-a"; "-m"; "'Remove submodule'" ]
+    [ "commit"; "-q"; "-a"; "-m"; "Remove submodule" ]
 
 let add_back cwd =
   let cwd = Fpath.to_string cwd in
@@ -134,7 +134,7 @@ let update_submodules cwd =
   Cmd.git_with ~cwd ~path:"newsub"
     [ "config"; "user.email"; "test@example.com" ]
   >>= fun () ->
-  Cmd.git_with ~cwd ~path:"newsub" [ "commit"; "-q"; "-a"; "-m"; "'sub2" ]
+  Cmd.git_with ~cwd ~path:"newsub" [ "commit"; "-q"; "-a"; "-m"; "sub2" ]
 
 let move_submodule cwd_f =
   let cwd = Fpath.to_string cwd_f in
