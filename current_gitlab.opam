@@ -20,17 +20,17 @@ depends: [
   "current_git" {= version}
   "current_web" {= version}
   "ocaml" {>= "4.08.0"}
-  "fmt" {>= "0.8.9"}
-  "lwt" {>= "5.6.1"}
-  "yojson"
-  "cohttp-lwt-unix" {>= "4.0.0"}
-  "gitlab-unix" {>= "0.1.4"}
   "cmdliner" {>= "1.1.0"}
+  "cohttp-lwt-unix" {>= "4.0.0"}
+  "fmt" {>= "0.8.9"}
+  "gitlab-unix" {>= "0.1.4"}
   "logs" {>= "0.7.0"}
+  "lwt" {>= "5.6.1"}
   "ppx_deriving_yojson" {>= "3.6.1"}
   "prometheus" {>= "0.7"}
   "result" {>= "1.5"}
   "rresult" {>= "0.6.0"}
+  "yojson"
   "odoc" {with-doc}
 ]
 build: [

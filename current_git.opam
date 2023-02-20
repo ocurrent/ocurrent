@@ -16,20 +16,20 @@ depends: [
   "dune" {>= "3.3"}
   "current" {= version}
   "ocaml" {>= "4.08.0"}
-  "conf-git"
-  "fmt" {>= "0.8.9"}
-  "ppx_deriving"
-  "lwt" {>= "5.6.1"}
-  "irmin-watcher"
-  "ppx_deriving_yojson" {>= "3.5.1"}
-  "yojson"
   "astring" {>= "0.8.5"}
   "bos" {>= "0.2.0"}
-  "fpath" {>= "0.7.3"}
-  "logs" {>= "0.7.0"}
-  "result" {>= "1.5"}
+  "conf-git"
   "cstruct" {>= "6.0.0"}
+  "fmt" {>= "0.8.9"}
+  "fpath" {>= "0.7.3"}
+  "irmin-watcher"
+  "logs" {>= "0.7.0"}
+  "lwt" {>= "5.6.1"}
   "mirage-crypto" {>= "0.8.0"}
+  "ppx_deriving"
+  "ppx_deriving_yojson" {>= "3.5.1"}
+  "result" {>= "1.5"}
+  "yojson"
   "mdx" {with-test}
   "odoc" {with-doc}
 ]
