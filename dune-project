@@ -27,25 +27,25 @@ but OCurrent will automatically re-run steps when the inputs change, and will
 run steps in parallel where possible.")
  (depends
   (ocaml (>= 4.08.0))
-  (current_incr (>= 0.6.1))
-  (fmt (>= 0.8.9))
-  bos
-  ppx_deriving
-  (lwt (>= 5.6.1))
-  (cmdliner (>= 1.1.0))
-  sqlite3
-  duration
-  prometheus
-  (re (>= 1.9.0))
-  lwt-dllist
-  (alcotest (and :with-test (>= 1.2.0)))
-  (alcotest-lwt (and :with-test (>= 1.2.0)))
   (astring (>= 0.8.5))
+  bos
+  (cmdliner (>= 1.1.0))
+  (conf-libev (<> :os win32))
+  (current_incr (>= 0.6.1))
+  duration
+  (fmt (>= 0.8.9))
   (fpath (>= 0.7.3))
   (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
+  lwt-dllist
+  ppx_deriving
+  prometheus
+  (re (>= 1.9.0))
   (result (>= 1.5))
-  (prometheus-app (and :with-test (>= 1.2)))
-  (conf-libev (<> :os win32))))
+  sqlite3
+  (alcotest (and :with-test (>= 1.2.0)))
+  (alcotest-lwt (and :with-test (>= 1.2.0)))
+  (prometheus-app (and :with-test (>= 1.2)))))
 
 (package
  (name current_git)
@@ -58,20 +58,20 @@ It can pull from remote repositories, or monitor local ones for changes.")
  (depends
   (current (= :version))
   (ocaml (>= 4.08.0))
-  conf-git
-  (fmt (>= 0.8.9))
-  ppx_deriving
-  (lwt (>= 5.6.1))
-  irmin-watcher
-  (ppx_deriving_yojson (>= 3.5.1))
-  yojson
   (astring (>= 0.8.5))
   (bos (>= 0.2.0))
-  (fpath (>= 0.7.3))
-  (logs (>= 0.7.0))
-  (result (>= 1.5))
+  conf-git
   (cstruct (>= 6.0.0))
+  (fmt (>= 0.8.9))
+  (fpath (>= 0.7.3))
+  irmin-watcher
+  (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
   (mirage-crypto (>= 0.8.0))
+  ppx_deriving
+  (ppx_deriving_yojson (>= 3.5.1))
+  (result (>= 1.5))
+  yojson
   (mdx :with-test)))
 
 (package
@@ -84,39 +84,39 @@ This package provides a basic web UI for service administrators.
 It shows the current pipeline visually and allows viewing job
 logs and configuring the log analyser.")
  (depends
-  (crunch (and (>= 3.3.0) :build))
+  (crunch (and :build (>= 3.3.0)))
   (current (= :version))
-  (ansi (>= 0.5.0))
   (ocaml (>= 4.08.0))
-  (ppx_deriving_yojson (>= 3.5.1))
-  base64
-  session
-  session-cohttp-lwt
-  (mirage-crypto (>= 0.8.7))
-  (mirage-crypto-rng (< 0.11.0))
-  (fmt (>= 0.8.9))
-  bos
-  (lwt (>= 5.6.1))
-  (multipart_form-lwt (>= 0.4.0))
-  (cmdliner (>= 1.1.0))
-  (prometheus (>= 0.7))
-  (prometheus-app (>= 1.2))
-  (cohttp-lwt-unix (>= 4.0.0))
-  (tyxml (>= 4.4.0))
-  (csv (>= 2.4))
-  (routes (>= 2.0.0))
-  conf-graphviz
+  (ansi (>= 0.5.0))
   (astring (>= 0.8.5))
+  base64
+  bos
+  (cmdliner (>= 1.1.0))
+  (cohttp-lwt-unix (>= 4.0.0))
   (conduit-lwt-unix (>= 2.2.2))
+  conf-graphviz
   (cstruct (>= 5.2.0))
+  (csv (>= 2.4))
+  (fmt (>= 0.8.9))
   (fpath (>= 0.7.3))
   (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
+  (mirage-crypto (>= 0.8.7))
+  (mirage-crypto-rng (< 0.11.0))
+  (multipart_form-lwt (>= 0.4.0))
   (ppx_deriving (>= 5.1))
+  (ppx_deriving_yojson (>= 3.5.1))
   (ppx_sexp_conv (>= v0.14.1))
+  (prometheus (>= 0.7))
+  (prometheus-app (>= 1.2))
   (re (>= 1.9.0))
   (result (>= 1.5))
+  (routes (>= 2.0.0))
+  session
+  session-cohttp-lwt
   (sexplib (>= v0.14.0))
   (sqlite3 (>= 5.0.2))
+  (tyxml (>= 4.4.0))
   (uri (>= 4.0.0))
   (yojson (>= 1.7.0))))
 
@@ -133,17 +133,17 @@ multiple Docker Engine instances.")
   (current (= :version))
   (current_git (= :version))
   (ocaml (>= 4.08.0))
-  (fmt (>= 0.8.9))
-  ppx_deriving
-  (lwt (>= 5.6.1))
-  (ppx_deriving_yojson (>= 3.5.1))
-  yojson
   (astring (>= 0.8.5))
   (bos (>= 0.2.0))
   (duration (>= 0.1.3))
+  (fmt (>= 0.8.9))
   (fpath (>= 0.7.3))
   (logs (>= 0.7.0))
-  (result (>= 1.5))))
+  (lwt (>= 5.6.1))
+  ppx_deriving
+  (ppx_deriving_yojson (>= 3.5.1))
+  (result (>= 1.5))
+  yojson))
 
 (package
  (name current_github)
@@ -160,29 +160,29 @@ PRs and branches.")
   (current_git (= :version))
   (current_web (= :version))
   (ocaml (>= 4.08.0))
-  (fmt (>= 0.8.9))
-  (lwt (>= 5.6.1))
-  duration
-  ptime
-  yojson
-  (cohttp-lwt-unix (>= 4.0.0))
-  mirage-crypto
-  mirage-crypto-pk
-  (hex (>= 1.4.0))
-  (x509 (>= 0.10.0))
-  (tls (>= 0.11.0))
-  (github-unix (>= 4.4.0))
   (astring (>= 0.8.5))
   (base64 (>= 3.4.0))
   (cmdliner (>= 1.1.0))
+  (cohttp-lwt-unix (>= 4.0.0))
   (cstruct (>= 5.2.0))
+  duration
+  (fmt (>= 0.8.9))
+  (github-unix (>= 4.4.0))
+  (hex (>= 1.4.0))
   (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
+  mirage-crypto
+  mirage-crypto-pk
   (ppx_deriving_yojson (>= 3.6.1))
   (prometheus (>= 0.7))
+  ptime
   (result (>= 1.5))
   (rresult (>= 0.6.0))
+  (tls (>= 0.11.0))
   (tyxml (>= 4.4.0))
-  (uri (>= 4.0.0))))
+  (uri (>= 4.0.0))
+  (x509 (>= 0.10.0))
+  yojson))
 
 (package
  (name current_gitlab)
@@ -201,17 +201,17 @@ PRs and branches.")
   (current_git (= :version))
   (current_web (= :version))
   (ocaml (>= 4.08.0))
-  (fmt (>= 0.8.9))
-  (lwt (>= 5.6.1))
-  yojson
-  (cohttp-lwt-unix (>= 4.0.0))
-  (gitlab-unix (>= 0.1.4))
   (cmdliner (>= 1.1.0))
+  (cohttp-lwt-unix (>= 4.0.0))
+  (fmt (>= 0.8.9))
+  (gitlab-unix (>= 0.1.4))
   (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
   (ppx_deriving_yojson (>= 3.6.1))
   (prometheus (>= 0.7))
   (result (>= 1.5))
-  (rresult (>= 0.6.0))))
+  (rresult (>= 0.6.0))
+  yojson))
 
 (package
  (name current_rpc)
@@ -226,8 +226,8 @@ an OCurrent engine to be controlled remotely.")
   (capnp (>= 3.4.0))
   (capnp-rpc (>= 0.8.0))
   (capnp-rpc-lwt (>= 0.4))
-  fpath
   (fmt (>= 0.8.9))
+  fpath
   (logs (>= 0.7.0))
   (lwt (>= 5.6.1))
   (result (>= 1.5))
@@ -246,13 +246,13 @@ It can post messages to slack channels.")
  (depends
   (current (= :version))
   (ocaml (>= 4.08.0))
+  (cohttp-lwt-unix (>= 4.0.0))
   (fmt (>= 0.8.9))
-  yojson
+  (logs (>= 0.7.0))
   (lwt (>= 5.6.1))
   (tls (>= 0.12.0))
-  (cohttp-lwt-unix (>= 4.0.0))
-  (logs (>= 0.7.0))
-  (uri (>= 4.0.0))))
+  (uri (>= 4.0.0))
+  yojson))
 
 (package
  (name current_ssh)
@@ -278,31 +278,31 @@ This package provides some example pipelines.
 It exists mainly to test the integration of various OCurrent
 plugins.")
  (depends
-  (ocaml (>= 4.08.0))
-  (fmt (>= 0.8.9))
-  (lwt (>= 5.6.1))
-  (cmdliner (>= 1.1.0))
-  duration
   (current (= :version))
-  (current_web (= :version))
+  (current_docker (= :version))
   (current_git (= :version))
   (current_github (= :version))
   (current_gitlab (= :version))
-  (current_docker (= :version))
   (current_rpc (= :version))
-  (capnp-rpc-unix (>= 0.5))
+  (current_web (= :version))
+  (ocaml (>= 4.08.0))
   (capnp-rpc (>= 0.8.0))
   (capnp-rpc-lwt (>= 0.8.0))
   (capnp-rpc-net (>= 0.8.0))
+  (capnp-rpc-unix (>= 0.5))
+  (cmdliner (>= 1.1.0))
+  duration
   (dockerfile (>= 7.0.0))
+  (fmt (>= 0.8.9))
   (fpath (>= 0.7.3))
   (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
   (ppx_deriving (>= 5.1))
   (ppx_deriving_yojson (>= 3.6.1))
   (prometheus (>= 0.7))
+  (prometheus-app (>= 1.2))
   (result (>= 1.5))
   (routes (>= 2.0.0))
   (uri (>= 4.0.0))
   (yojson (>= 1.7.0))
-  (prometheus-app (>= 1.2))
   (mdx :with-test)))
