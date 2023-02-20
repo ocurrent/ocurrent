@@ -1,5 +1,308 @@
 (lang dune 3.3)
 (name current)
-(formatting disabled)
 
+(generate_opam_files true)
+(formatting disabled)
 (using mdx 0.1)
+
+(source (github ocurrent/ocurrent))
+(maintainers "Thomas Leonard <talex5@gmail.com>")
+(authors "Thomas Leonard <talex5@gmail.com>")
+(documentation "https://ocurrent.github.io/ocurrent/")
+(license "Apache-2.0")
+
+(package
+ (name current)
+ (synopsis "Pipeline language for keeping things up-to-date")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+It is used in ocaml-ci (which provides CI for OCaml projects on GitHub),
+and in docker-base-images (a pipeline that builds Docker images for various
+Linux distributions, OCaml compiler versions and CPU types, and pushes them
+to Docker Hub).
+
+A pipeline is written much like you would write a one-shot sequential script,
+but OCurrent will automatically re-run steps when the inputs change, and will
+run steps in parallel where possible.")
+ (depends
+  (ocaml (>= 4.08.0))
+  (current_incr (>= 0.6.1))
+  (fmt (>= 0.8.9))
+  bos
+  ppx_deriving
+  (lwt (>= 5.6.1))
+  (cmdliner (>= 1.1.0))
+  sqlite3
+  duration
+  prometheus
+  (re (>= 1.9.0))
+  lwt-dllist
+  (alcotest (and :with-test (>= 1.2.0)))
+  (alcotest-lwt (and :with-test (>= 1.2.0)))
+  (astring (>= 0.8.5))
+  (fpath (>= 0.7.3))
+  (logs (>= 0.7.0))
+  (result (>= 1.5))
+  (prometheus-app (and :with-test (>= 1.2)))
+  (conf-libev (<> :os win32))))
+
+(package
+ (name current_git)
+ (synopsis "Git plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for interacting with Git.
+It can pull from remote repositories, or monitor local ones for changes.")
+ (depends
+  (current (= :version))
+  (ocaml (>= 4.08.0))
+  conf-git
+  (fmt (>= 0.8.9))
+  ppx_deriving
+  (lwt (>= 5.6.1))
+  irmin-watcher
+  (ppx_deriving_yojson (>= 3.5.1))
+  yojson
+  (astring (>= 0.8.5))
+  (bos (>= 0.2.0))
+  (fpath (>= 0.7.3))
+  (logs (>= 0.7.0))
+  (result (>= 1.5))
+  (cstruct (>= 6.0.0))
+  (mirage-crypto (>= 0.8.0))
+  (mdx :with-test)))
+
+(package
+ (name current_web)
+ (synopsis "Test web UI for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a basic web UI for service administrators.
+It shows the current pipeline visually and allows viewing job
+logs and configuring the log analyser.")
+ (depends
+  (crunch (and (>= 3.3.0) :build))
+  (current (= :version))
+  (ansi (>= 0.5.0))
+  (ocaml (>= 4.08.0))
+  (ppx_deriving_yojson (>= 3.5.1))
+  base64
+  session
+  session-cohttp-lwt
+  (mirage-crypto (>= 0.8.7))
+  (mirage-crypto-rng (< 0.11.0))
+  (fmt (>= 0.8.9))
+  bos
+  (lwt (>= 5.6.1))
+  (multipart_form-lwt (>= 0.4.0))
+  (cmdliner (>= 1.1.0))
+  (prometheus (>= 0.7))
+  (prometheus-app (>= 1.2))
+  (cohttp-lwt-unix (>= 4.0.0))
+  (tyxml (>= 4.4.0))
+  (csv (>= 2.4))
+  (routes (>= 2.0.0))
+  conf-graphviz
+  (astring (>= 0.8.5))
+  (conduit-lwt-unix (>= 2.2.2))
+  (cstruct (>= 5.2.0))
+  (fpath (>= 0.7.3))
+  (logs (>= 0.7.0))
+  (ppx_deriving (>= 5.1))
+  (ppx_sexp_conv (>= v0.14.1))
+  (re (>= 1.9.0))
+  (result (>= 1.5))
+  (sexplib (>= v0.14.0))
+  (sqlite3 (>= 5.0.2))
+  (uri (>= 4.0.0))
+  (yojson (>= 1.7.0))))
+
+(package
+ (name current_docker)
+ (synopsis "OCurrent Docker plugin")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a plugin for interacting with Docker.
+It can pull, build, run and push images, and can coordinate
+multiple Docker Engine instances.")
+ (depends
+  (current (= :version))
+  (current_git (= :version))
+  (ocaml (>= 4.08.0))
+  (fmt (>= 0.8.9))
+  ppx_deriving
+  (lwt (>= 5.6.1))
+  (ppx_deriving_yojson (>= 3.5.1))
+  yojson
+  (astring (>= 0.8.5))
+  (bos (>= 0.2.0))
+  (duration (>= 0.1.3))
+  (fpath (>= 0.7.3))
+  (logs (>= 0.7.0))
+  (result (>= 1.5))))
+
+(package
+ (name current_github)
+ (synopsis "GitHub plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for interacting with GitHub.
+It can monitor and clone remote GitHub repositories, and can
+push GitHub status messages to show the results of testing
+PRs and branches.")
+ (depends
+  (current (= :version))
+  (current_git (= :version))
+  (current_web (= :version))
+  (ocaml (>= 4.08.0))
+  (fmt (>= 0.8.9))
+  (lwt (>= 5.6.1))
+  duration
+  ptime
+  yojson
+  (cohttp-lwt-unix (>= 4.0.0))
+  mirage-crypto
+  mirage-crypto-pk
+  (hex (>= 1.4.0))
+  (x509 (>= 0.10.0))
+  (tls (>= 0.11.0))
+  (github-unix (>= 4.4.0))
+  (astring (>= 0.8.5))
+  (base64 (>= 3.4.0))
+  (cmdliner (>= 1.1.0))
+  (cstruct (>= 5.2.0))
+  (logs (>= 0.7.0))
+  (ppx_deriving_yojson (>= 3.6.1))
+  (prometheus (>= 0.7))
+  (result (>= 1.5))
+  (rresult (>= 0.6.0))
+  (tyxml (>= 4.4.0))
+  (uri (>= 4.0.0))))
+
+(package
+ (name current_gitlab)
+ (synopsis "GitLab plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for interacting with GitLab.
+It can monitor and clone remote GitLab repositories, and can
+push GitLab status messages to show the results of testing
+PRs and branches.")
+ (authors "Tim McGilchrist <timmcgil@gmail.com>")
+ (maintainers "Tim McGilchrist <timmcgil@gmail.com>")
+ (depends
+  (current (= :version))
+  (current_git (= :version))
+  (current_web (= :version))
+  (ocaml (>= 4.08.0))
+  (fmt (>= 0.8.9))
+  (lwt (>= 5.6.1))
+  yojson
+  (cohttp-lwt-unix (>= 4.0.0))
+  (gitlab-unix (>= 0.1.4))
+  (cmdliner (>= 1.1.0))
+  (logs (>= 0.7.0))
+  (ppx_deriving_yojson (>= 3.6.1))
+  (prometheus (>= 0.7))
+  (result (>= 1.5))
+  (rresult (>= 0.6.0))))
+
+(package
+ (name current_rpc)
+ (synopsis "Cap'n Proto RPC plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a Cap'n Proto RPC interface, allowing
+an OCurrent engine to be controlled remotely.")
+ (depends
+  (ocaml (>= 4.08.0))
+  (capnp (>= 3.4.0))
+  (capnp-rpc (>= 0.8.0))
+  (capnp-rpc-lwt (>= 0.4))
+  fpath
+  (fmt (>= 0.8.9))
+  (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
+  (result (>= 1.5))
+  (stdint (>= 0.7.0)))
+ (conflicts
+  (x509 (= 0.11.0))))
+
+(package
+ (name current_slack)
+ (synopsis "Slack plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides primitives for interacting with Slack.
+It can post messages to slack channels.")
+ (depends
+  (current (= :version))
+  (ocaml (>= 4.08.0))
+  (fmt (>= 0.8.9))
+  yojson
+  (lwt (>= 5.6.1))
+  (tls (>= 0.12.0))
+  (cohttp-lwt-unix (>= 4.0.0))
+  (logs (>= 0.7.0))
+  (uri (>= 4.0.0))))
+
+(package
+ (name current_ssh)
+ (synopsis "SSH plugin for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a plugin for running ssh commands.")
+ (authors "Mark Elvers <mark.elvers@tunbury.org>")
+ (maintainers "Mark Elvers <mark.elvers@tunbury.org>")
+ (depends
+  (current (= :version))
+  (ocaml (>= 4.08.0))
+  yojson))
+
+(package
+ (name current_examples)
+ (synopsis "Example pipelines for OCurrent")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides some example pipelines.
+It exists mainly to test the integration of various OCurrent
+plugins.")
+ (depends
+  (ocaml (>= 4.08.0))
+  (fmt (>= 0.8.9))
+  (lwt (>= 5.6.1))
+  (cmdliner (>= 1.1.0))
+  duration
+  (current (= :version))
+  (current_web (= :version))
+  (current_git (= :version))
+  (current_github (= :version))
+  (current_gitlab (= :version))
+  (current_docker (= :version))
+  (current_rpc (= :version))
+  (capnp-rpc-unix (>= 0.5))
+  (capnp-rpc (>= 0.8.0))
+  (capnp-rpc-lwt (>= 0.8.0))
+  (capnp-rpc-net (>= 0.8.0))
+  (dockerfile (>= 7.0.0))
+  (fpath (>= 0.7.3))
+  (logs (>= 0.7.0))
+  (ppx_deriving (>= 5.1))
+  (ppx_deriving_yojson (>= 3.6.1))
+  (prometheus (>= 0.7))
+  (result (>= 1.5))
+  (routes (>= 2.0.0))
+  (uri (>= 4.0.0))
+  (yojson (>= 1.7.0))
+  (prometheus-app (>= 1.2))
+  (mdx :with-test)))
