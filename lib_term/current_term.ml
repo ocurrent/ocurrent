@@ -83,12 +83,7 @@ module Make (Metadata : sig type t end) = struct
     let id = Id.mint () in
     node ~id (Constant None) @@ Current_incr.const (Dyn.fail ~id msg)
 
-  let incr_map ?eq fn v =
-    let open Current_incr in
-    of_cc begin
-      read v @@ fun x ->
-      write ~eq:(Dyn.equal ?eq) (fn x)
-    end
+  let incr_map ?eq fn v = Current_incr.map ~eq:(Dyn.equal ?eq) fn v
 
   let state ?(hidden=false) t =
     let eq = Output.equal (==) in
@@ -106,7 +101,7 @@ module Make (Metadata : sig type t end) = struct
       Current_incr.read y.v @@ Current_incr.write ~eq:(Dyn.equal ?eq)
     end
 
-  let bind ?(info="") (f:'a -> 'b t) (x:'a t) =
+  let bind ?(info="") ?eq (f:'a -> 'b t) (x:'a t) =
     Quick_stats.update_total ();
     let bind_in = node (Bind_in (Term x, info)) x.v in
     let t =
@@ -118,11 +113,13 @@ module Make (Metadata : sig type t end) = struct
       | Ok y -> f y
     in
     let nested = Current_incr.map (fun t -> Term t) t in
-    node (Bind_out nested) (join t)
+    node (Bind_out nested) (join ?eq t)
 
-  let map f x =
+  let map ?eq f x =
     let id = Id.mint () in
-    node ~id (Map (Term x)) @@ incr_map (Dyn.map ~id f) x.v
+    node ~id (Map (Term x)) @@ incr_map ?eq (Dyn.map ~id f) x.v
+
+  let cutoff ~eq x = map ~eq (fun x -> x) x
 
   let map_error f x =
     let id = Id.mint () in
