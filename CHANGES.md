@@ -1,18 +1,29 @@
-### unreleased
+### v0.6.4 (2023-02-27)
 
 API:
 
-- Add an Active Waiting_for_confirmation state, allows manual confirmation to run a task. (@kit-ty-kate @maiste, #269)
+- Add an Active Waiting_for_confirmation state, allows manual
+  confirmation to run a task. (@kit-ty-kate @maiste, #269)
 - Add Current_term.option_iter. (@kit-ty-kate, #403)
+- Add Current_term.cutoff operation to decide whether changes should
+  propagate according to an equality function (@art-w, #409)
+- Expose eq parameter for Current_term.map and Current_term.bind (@art-w, #409)
 
 Web UI:
 
 - Allow controlling and disabling the refresh timer for pipelines
   graphs and job page (@MisterDA, #398, #400)
+- Shorten the PR labels (remove commit date and messages) (@kit-ty-kate, #399)
 
 Plugins:
 
-- GitHub: Added information about labels in Api.Ref.pr_info (@ElectreAAS, #402)
+- GitHub: Add information about labels in Api.Ref.pr_info (@ElectreAAS, #402)
+- SSH: Add a plugin for running ssh commands (@mtelvers, #401)
+
+Other:
+
+- Replaced mdx tests with Alcotest (@maiste #405, review by @MisterDA)
+- Updated to mirage-crypto-rng.0.11.0 and capnp-rpc.1.2.3 (@hannesm, @MisterDA, #412)
 
 ### v0.6.3
 
