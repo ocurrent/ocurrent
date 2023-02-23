@@ -23,10 +23,10 @@ depends: [
   "current_rpc" {= version}
   "current_web" {= version}
   "ocaml" {>= "4.08.0"}
-  "capnp-rpc" {>= "0.8.0"}
-  "capnp-rpc-lwt" {>= "0.8.0"}
-  "capnp-rpc-net" {>= "0.8.0"}
-  "capnp-rpc-unix" {>= "0.5"}
+  "capnp-rpc" {>= "1.2.3"}
+  "capnp-rpc-lwt" {>= "1.2.3"}
+  "capnp-rpc-net" {>= "1.2.3"}
+  "capnp-rpc-unix" {>= "1.2.3"}
   "cmdliner" {>= "1.1.0"}
   "duration"
   "dockerfile" {>= "7.0.0"}
