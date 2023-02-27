@@ -7,7 +7,7 @@ val test :
   (unit -> unit Current.t) ->
   (int -> unit) ->
   unit Lwt.t
-(** [test ~name pipeline actions] runs [pipeline]. After each interation,
+(** [test ~name pipeline actions] runs [pipeline]. After each iteration,
     it calls [actions i] where [i] is the number of the next step ([1] on the
     first call). If [actions i] raises [Exit] then the tests finish. *)
 

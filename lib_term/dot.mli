@@ -1,4 +1,4 @@
-(* Utilties for generating dot files. *)
+(* Utilities for generating dot files. *)
 
 val digraph : Format.formatter -> ?fontname:string -> string -> unit
 

@@ -20,14 +20,14 @@ module Repo_id : sig
            }
 
   val pp : t Fmt.t
-  (** Pretty print [t] as {"owner/name/project_id"}. *)
+  (** Pretty print [t] as [owner/name/project_id]. *)
 
   val compare : t -> t -> int
   (** Compare two [compare t t] two repo_ids. *)
 
   val cmdliner : t Cmdliner.Term.t
   (** Cmdliner parser for reading a repo_id as a string.
-      The expected format is {"owner/name/project_id"}.
+      The expected format is ["owner/name/project_id"].
   *)
 end
 
@@ -127,9 +127,9 @@ module Api : sig
 
     type t = [ `Ref of string | `MR of mr_info ]
     (** [t] is a regular git ref or a merge request record of [mr_info]. *)
- 
+
     type id = [ `Ref of string | `MR of int ]
-    (** Id as a regular git ref or a merge request. 
+    (** Id as a regular git ref or a merge request.
 
         This is intended to be used by a user when a [t] type is manipulated by the API. *)
 

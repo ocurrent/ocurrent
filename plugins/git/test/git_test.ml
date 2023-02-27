@@ -172,7 +172,7 @@ let test_lwt _switch () =
     in
     let _engine = Current.Engine.create pipeline in
     let expected = Some [ "file"; "sub" ] in
-    check_result "Inital state" expected results >>= fun () ->
+    check_result "Initial state" expected results >>= fun () ->
     remove dir >>= fun () ->
     let expected = Some [ "file" ] in
     check_result "After remove" expected results >>= fun () ->

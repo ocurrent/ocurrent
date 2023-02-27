@@ -20,7 +20,7 @@ Web UI:
 
 - Make line numbers clickable in logs (@MisterDA, #352, #356)
 - Make the background of rendered graphiz transparent (@MisterDA, #362)
-- Disable uneeded tooltips on diagrams nodes (@MisterDA, #382)
+- Disable unneeded tooltips on diagrams nodes (@MisterDA, #382)
 
 API:
 
