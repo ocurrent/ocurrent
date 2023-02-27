@@ -3,7 +3,7 @@
 
 (generate_opam_files true)
 (formatting disabled)
-(using mdx 0.1)
+(using mdx 0.3)
 
 (source (github ocurrent/ocurrent))
 (maintainers "Thomas Leonard <talex5@gmail.com>")
