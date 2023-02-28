@@ -24,17 +24,28 @@ let local_copy repo =
   let repos_dir = Current.state_dir "git" in
   Fpath.append repos_dir (Fpath.v (id_of_repo repo))
 
-let git ~cancellable ~job ?cwd args =
+let git ~cancellable ~job ?cwd ?config args =
   let args =
     match cwd with
     | None -> args
     | Some cwd -> "-C" :: Fpath.to_string cwd :: args
   in
-  let cmd = Array.of_list ("git" :: args) in
+  let config = match config with
+  | None -> []
+  | Some config ->
+          List.map (fun config -> ["-c" ; config]) config
+          |> List.flatten
+  in
+  let cmd = Array.of_list ("git" :: config @ args) in
   Current.Process.exec ~cancellable ~job ("", cmd)
 
+(*  This command manipulates paths. It requires [protocol.file.allow=always] to
+    be set to make sure we can update the submodules.
+
+    Cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_clone ~cancellable ~job ~src dst =
-  git ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
+    let config = [ "protocol.file.allow=always" ] in
+    git ~config ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
 
 let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
   let flags =
@@ -69,10 +80,15 @@ let git_submodule_deinit ~cancellable ~job ~repo ~force ~all =
   in
   git ~cancellable ~job ~cwd:repo ("submodule" :: "deinit" :: flags)
 
+(*  This command manipulates paths. It requires [protocol.file.allow=always] to
+    be set to make sure we can update the submodules.
+
+    cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_submodule_update ~cancellable ~job ~repo ~init ~fetch =
+  let config = [ "protocol.file.allow=always" ] in
   let flags = List.concat [
       (if init then ["--init"] else []);
       (if fetch then [] else ["--no-fetch"]);
     ]
   in
-  git ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: flags)
+  git ~config ~cancellable ~job ~cwd:repo ("submodule" :: "update" :: "--recursive" :: flags)

@@ -33,7 +33,7 @@ module Cmd = struct
       with_file ~mode:Output file (fun cout -> Lwt_io.write_line cout content))
 
   let git ?cwd cmd =
-    let cmd = "git" :: cmd in
+    let cmd = "git" :: "-c" :: "protocol.file.allow=always" :: cmd in
     exec_or_fail ?cwd ~name:"git" cmd
 
   let git_with ?cwd ~path cmd =
@@ -82,8 +82,6 @@ let show_files commit =
 let init root =
   let cwd = Fpath.to_string root in
   let dir = "sub" in
-  Cmd.git ~cwd [ "config"; "--global"; "protocol.file.allow"; "always" ]
-  >>= fun () ->
   Cmd.mkdir ~cwd dir >>= fun () ->
   Cmd.git ~cwd [ "init"; "-q"; dir ] >>= fun () ->
   let file = "sub/file" in
