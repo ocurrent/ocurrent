@@ -39,6 +39,10 @@ let git ~cancellable ~job ?cwd ?config args =
   let cmd = Array.of_list ("git" :: config @ args) in
   Current.Process.exec ~cancellable ~job ("", cmd)
 
+(*  This command manipulates paths. It requires [protocol.file.allow=always] to
+    be set to make sure we can update the submodules.
+
+    Cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_clone ~cancellable ~job ~src dst =
     let config = [ "protocol.file.allow=always" ] in
     git ~config ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
@@ -76,6 +80,10 @@ let git_submodule_deinit ~cancellable ~job ~repo ~force ~all =
   in
   git ~cancellable ~job ~cwd:repo ("submodule" :: "deinit" :: flags)
 
+(*  This command manipulates paths. It requires [protocol.file.allow=always] to
+    be set to make sure we can update the submodules.
+
+    cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_submodule_update ~cancellable ~job ~repo ~init ~fetch =
   let config = [ "protocol.file.allow=always" ] in
   let flags = List.concat [
