@@ -22,6 +22,7 @@ depends: [
   "current_gitlab" {= version}
   "current_rpc" {= version}
   "current_web" {= version}
+  "current_ssh" {= version}
   "ocaml" {>= "4.08.0"}
   "capnp-rpc" {>= "1.2.3"}
   "capnp-rpc-lwt" {>= "1.2.3"}

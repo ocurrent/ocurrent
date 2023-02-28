@@ -3,9 +3,11 @@
 ;  (package current_git))
 
 (test
-  (name git_test)
-  (libraries alcotest
-             alcotest-lwt
-             current
-             current_git
-             lwt))
+ (name git_test)
+ (package current_git)
+ (libraries
+   alcotest
+   alcotest-lwt
+   current
+   current_git
+   lwt))

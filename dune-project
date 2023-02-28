@@ -72,7 +72,9 @@ It can pull from remote repositories, or monitor local ones for changes.")
   (ppx_deriving_yojson (>= 3.5.1))
   (result (>= 1.5))
   yojson
-  (mdx :with-test)))
+  (mdx :with-test)
+  (alcotest (and :with-test (>= 1.2.0)))
+  (alcotest-lwt (and :with-test (>= 1.2.0)))))
 
 (package
  (name current_web)
@@ -286,6 +288,7 @@ plugins.")
   (current_gitlab (= :version))
   (current_rpc (= :version))
   (current_web (= :version))
+  (current_ssh (= :version))
   (ocaml (>= 4.08.0))
   (capnp-rpc (>= 1.2.3))
   (capnp-rpc-lwt (>= 1.2.3))
