@@ -1,3 +1,9 @@
+### dev
+
+API:
+
+- Add `Current_term.observe` to evaluate the current state of a term. (@TheLortex, #374)
+
 ### v0.6.4 (2023-02-27)
 
 API:
