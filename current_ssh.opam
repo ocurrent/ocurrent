@@ -14,7 +14,7 @@ bug-reports: "https://github.com/ocurrent/ocurrent/issues"
 depends: [
   "dune" {>= "3.3"}
   "current" {= version}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.12.0"}
   "yojson"
   "odoc" {with-doc}
 ]

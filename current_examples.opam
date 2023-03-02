@@ -23,7 +23,7 @@ depends: [
   "current_rpc" {= version}
   "current_web" {= version}
   "current_ssh" {= version}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.12.0"}
   "capnp-rpc" {>= "1.2.3"}
   "capnp-rpc-lwt" {>= "1.2.3"}
   "capnp-rpc-net" {>= "1.2.3"}
