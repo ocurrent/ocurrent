@@ -26,7 +26,7 @@ A pipeline is written much like you would write a one-shot sequential script,
 but OCurrent will automatically re-run steps when the inputs change, and will
 run steps in parallel where possible.")
  (depends
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (astring (>= 0.8.5))
   bos
   (cmdliner (>= 1.1.0))
@@ -57,7 +57,7 @@ This package provides primitives for interacting with Git.
 It can pull from remote repositories, or monitor local ones for changes.")
  (depends
   (current (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (astring (>= 0.8.5))
   (bos (>= 0.2.0))
   conf-git
@@ -88,7 +88,7 @@ logs and configuring the log analyser.")
  (depends
   (crunch (and :build (>= 3.3.0)))
   (current (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (ansi (>= 0.5.0))
   (astring (>= 0.8.5))
   base64
@@ -135,7 +135,7 @@ multiple Docker Engine instances.")
  (depends
   (current (= :version))
   (current_git (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (astring (>= 0.8.5))
   (bos (>= 0.2.0))
   (duration (>= 0.1.3))
@@ -162,7 +162,7 @@ PRs and branches.")
   (current (= :version))
   (current_git (= :version))
   (current_web (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (astring (>= 0.8.5))
   (base64 (>= 3.4.0))
   (cmdliner (>= 1.1.0))
@@ -203,7 +203,7 @@ PRs and branches.")
   (current (= :version))
   (current_git (= :version))
   (current_web (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (cmdliner (>= 1.1.0))
   (cohttp-lwt-unix (>= 4.0.0))
   (fmt (>= 0.8.9))
@@ -225,7 +225,7 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 This package provides a Cap'n Proto RPC interface, allowing
 an OCurrent engine to be controlled remotely.")
  (depends
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (capnp (>= 3.4.0))
   (capnp-rpc (>= 1.2.3))
   (capnp-rpc-lwt (>= 1.2.3))
@@ -248,7 +248,7 @@ This package provides primitives for interacting with Slack.
 It can post messages to slack channels.")
  (depends
   (current (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (cohttp-lwt-unix (>= 4.0.0))
   (fmt (>= 0.8.9))
   (logs (>= 0.7.0))
@@ -268,7 +268,7 @@ This package provides a plugin for running ssh commands.")
  (maintainers "Mark Elvers <mark.elvers@tunbury.org>")
  (depends
   (current (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   yojson))
 
 (package
@@ -289,7 +289,7 @@ plugins.")
   (current_rpc (= :version))
   (current_web (= :version))
   (current_ssh (= :version))
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (capnp-rpc (>= 1.2.3))
   (capnp-rpc-lwt (>= 1.2.3))
   (capnp-rpc-net (>= 1.2.3))
