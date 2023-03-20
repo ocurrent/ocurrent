@@ -7,6 +7,7 @@ API:
 Other:
 
 - Bump constraint to OCaml 4.12. (@MisterDA, #415)
+- Adopt the OCaml Code of Conduct (@tmcgilchrist)
 
 ### v0.6.4 (2023-02-27)
 
