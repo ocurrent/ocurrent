@@ -22,7 +22,7 @@ module Make (Current : S.CURRENT) = struct
 
     let stream_log_data ~job_id ~start =
       match Current.Job.log_path job_id with
-      | Error `Msg m -> Lwt_result.fail (`Capnp (`Exception (Capnp_rpc.Exception.v m)))
+      | Error `Msg m -> Result.Error (`Capnp (`Exception (Capnp_rpc.Exception.v m)))
       | Ok path ->
         let rec aux () =
           match read ~start path with
@@ -34,7 +34,7 @@ module Make (Current : S.CURRENT) = struct
             end
           | x -> Lwt_result.return x
         in
-        aux ()
+        Lwt_eio.run_lwt (fun () -> aux ())
 
     let rec local engine job_id =
       let module Job = Api.Service.Job in
@@ -56,14 +56,15 @@ module Make (Current : S.CURRENT) = struct
               release_param_caps ();
               let start = Params.start_get params in
               Log.info (fun f -> f "log(%S, %Ld)" job_id start);
-              Service.return_lwt @@ fun () ->
-              stream_log_data ~job_id ~start >|= function
-              | Error _ as e -> e
-              | Ok (log, next) ->
-                let response, results = Service.Response.create Results.init_pointer in
-                Results.log_set results log;
-                Results.next_set results next;
-                Ok response
+              Service.return @@ begin
+                stream_log_data ~job_id ~start |> function
+                | Error _ -> raise Exit
+                | Ok (log, next) ->
+                  let response, results = Service.Response.create Results.init_pointer in
+                  Results.log_set results log;
+                  Results.next_set results next;
+                  response
+              end
 
             method rebuild_impl _params release_param_caps =
               release_param_caps ();
@@ -79,11 +80,13 @@ module Make (Current : S.CURRENT) = struct
                   let new_job = local engine (rebuild ()) in
                   Results.job_set results (Some new_job);
                   Capability.dec_ref new_job;
-                  Service.return_lwt @@ fun () ->
-                  (* Allow the engine to re-evaluate, so the job will appear
-                     active to the caller immediately. *)
-                  Lwt.pause () >|= fun () ->
-                  Ok response
+                    Service.return @@ begin
+                    (* Allow the engine to re-evaluate, so the job will appear
+                      active to the caller immediately. *)
+                    (* Lwt.pause () >|= fun () -> *)
+                    Eio.Fiber.yield ();
+                    response
+                  end
 
             method cancel_impl _params release_param_caps =
               release_param_caps ();

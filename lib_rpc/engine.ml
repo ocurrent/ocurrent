@@ -7,7 +7,7 @@ module Engine = Api.Client.Engine
 let active_jobs t =
   let open Engine.ActiveJobs in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_value t method_id request |> Lwt_result.map Results.ids_get_list
+  Capability.call_for_value t method_id request |> Result.map Results.ids_get_list
 
 let job t id =
   let open Engine.Job in
