@@ -28,7 +28,6 @@
    Rebuild scheduled
 *)
 
-open Lwt.Infix
 open Capnp_rpc_lwt
 
 let () = Prometheus_unix.Logging.init ~default_level:Logs.Warning ()
@@ -40,9 +39,9 @@ let list_jobs engine =
 let show_log job =
   let rec aux start =
     match Current_rpc.Job.log ~start job with
-    | Error _ as e -> Lwt.return e
+    | Error _ as e -> e
     | Ok (data, next) ->
-      if data = "" then Lwt_result.return ()
+      if data = "" then Result.ok ()
       else (
         output_string stdout data;
         flush stdout;
@@ -69,7 +68,7 @@ let cancel job =
 
 let start job =
   match Current_rpc.Job.approve_early_start job with
-  | Error _ as e -> Lwt.return e
+  | Error _ as e -> e
   | Ok () ->
     Fmt.pr "Job is now approved to start without waiting for confirmation.@.";
     show_log job
@@ -144,7 +143,7 @@ let cmd =
   let doc = "Client for rpc_server.ml" in
   let main engine job_id job_op =
     let job_op = to_fn job_op in
-    match Eio_main.run (fun env -> main ?job_id ~job_op engine) with
+    match Eio_main.run (fun env -> main ~env ?job_id ~job_op engine) with
     | Error `Capnp ex -> Fmt.error_msg "%a" Capnp_rpc.Error.pp ex
     | Ok () | Error `Msg _ as x -> x
   in
