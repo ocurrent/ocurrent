@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 let () =
   Random.self_init ()
 
@@ -53,122 +51,186 @@ let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   mktmp 10
 
 let win32_unlink fn =
-  Lwt.catch
-    (fun () -> Lwt_unix.unlink fn)
-    (function
-     | Unix.Unix_error (Unix.EACCES, _, _) as exn ->
-        (* Try removing the read-only attribute before retrying unlink. We catch
-          any exception here and ignore it in favour of the original [exn]. *)
-        Lwt.catch
-          (fun () ->
-            Lwt_unix.lstat fn >>= fun {st_perm; _} ->
-            Lwt_unix.chmod fn 0o666 >>= fun () ->
-            Lwt.catch
-              (fun () -> Lwt_unix.unlink fn)
-              (function _ ->
-                 (* If everything succeeded but the final removal still failed,
-                   restore original permissions *)
-                 Lwt_unix.chmod fn st_perm >>= fun () ->
-                 Lwt.fail exn)
-          )
-          (fun _ -> Lwt.fail exn)
-     | exn -> Lwt.fail exn)
+  try
+    Unix.unlink fn
+  with
+  | Unix.Unix_error (Unix.EACCES, _, _) as exn ->
+    try
+      let st_perm = (Unix.lstat fn).st_perm in
+      Unix.chmod fn 0o666;
+      try
+        Unix.unlink fn
+      with
+      | _ ->
+        (* If everything succeeded but the final removal still failed,
+          restore original permissions *)
+        Unix.chmod fn st_perm;
+        raise exn
+    with
+    | _ -> raise exn
 
 let unlink =
   if Sys.win32 then
     win32_unlink
   else
-    Lwt_unix.unlink
+    Unix.unlink
 
-let rm_f_tree root =
+let get_files_in_dir path =
+  let handle = Unix.opendir path in
+  let rec aux () =
+    try Unix.readdir handle :: aux ()
+    with Not_found -> []
+  in
+  aux ()
+
+let rm_f_tree root : unit =
   let rec rmtree path =
-    Lwt_unix.lstat path >>= fun info ->
+    let info = Unix.lstat path in
     match info.Unix.st_kind with
     | Unix.S_REG | Unix.S_LNK | Unix.S_BLK | Unix.S_CHR | Unix.S_SOCK
     | Unix.S_FIFO ->
       unlink path
     | Unix.S_DIR ->
-      Lwt_unix.chmod path 0o700 >>= fun () ->
-      Lwt_unix.files_of_directory path
-      |> Lwt_stream.iter_s (function
-          | "." | ".." -> Lwt.return_unit
+      Unix.chmod path 0o700;
+      get_files_in_dir path
+      |> List.iter (function
+          | "." | ".." -> ()
           | leaf -> rmtree (Filename.concat path leaf)
-        )
-      >>= fun () ->
-      Lwt_unix.rmdir path
+        );
+      Unix.rmdir path
   in
   rmtree root
 
 let with_tmpdir ?prefix fn =
   let tmpdir = make_tmp_dir ?prefix ~mode:0o700 (Filename.get_temp_dir_name ()) in
-  Lwt.finalize
-    (fun () -> fn (Fpath.v tmpdir))
-    (fun () -> rm_f_tree tmpdir)
+  fn (Fpath.v tmpdir);
+  rm_f_tree tmpdir
 
 let send_to ch contents =
-  Lwt.try_bind
-    (fun () ->
-       Lwt_io.write ch contents >>= fun () ->
-       Lwt_io.close ch
-    )
-    (fun () -> Lwt.return (Ok ()))
-    (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
+  try
+    let len = String.length contents in
+    let buf = Bytes.of_string contents in
+    let _ = Unix.write ch buf 0 len in
+    Unix.close ch;
+    Ok ()
+  with
+  | ex -> Error (`Msg (Printexc.to_string ex))
 
 let pp_command pp_cmd cmd f = Fmt.pf f "Command %a" pp_cmd cmd
 
 let copy_to_log ~job src =
+  let size = 4096 in
+  let buf = Bytes.create size in
   let rec aux () =
-    Lwt_io.read ~count:4096 src >>= function
-    | "" -> Lwt.return_unit
-    | data -> Job.write job data; aux ()
+    match Unix.read src buf 0 size with
+    | 0 -> ()
+    | n when n = size -> Job.write job (Bytes.to_string buf); aux ()
+    | n ->
+      Bytes.blit buf 0 buf 0 n;
+      Job.write job (Bytes.to_string buf) 
   in
   aux ()
 
+(* TODO: Lwt's implementation is by some external function *)
+let win32_terminate _proc = ()
+
+let unix_terminate proc =
+  let pid = Unix.process_full_pid proc in
+  Unix.kill pid Sys.sigkill
+
+type state =
+  | Running
+  | Exited of Unix.process_status
+
+(* TODO: Lwt's implementation uses Lwt.poll *)
+let win32_state _proc = Running
+
+let unix_state proc =
+  let pid = Unix.process_full_pid proc in
+  (* With WNOHANG, if the process is running then immediately return with a pid of 0 *)
+  match Unix.waitpid [ Unix.WNOHANG ] pid with
+  | 0, _ -> Running
+  | _, s -> Exited s
+
+(* TODO: Lwt's implementation uses some external function! *)
+let win32_waitproc _proc = Lwt_unix.WEXITED 1
+  (* Lwt_unix.run_job (win32_wait_job proc.fd) >>= fun code ->
+  Lwt.return
+    (proc.id,
+      Lwt_unix.WEXITED code,
+      {Lwt_unix.ru_utime = 0.; Lwt_unix.ru_stime = 0.}) *)
+
+let unix_waitproc proc =
+  let pid = Unix.process_full_pid proc in
+  Unix.waitpid [] pid
+  |> snd
+
+let terminate = if Sys.win32 then win32_terminate else unix_terminate
+let state = if Sys.win32 then win32_state else unix_state
+let waitproc  = if Sys.win32 then win32_waitproc else unix_waitproc
+
 let add_shutdown_hooks ~cancellable ~job ~cmd proc =
-  if cancellable then (
-    Job.on_cancel job (fun reason ->
-        if proc#state = Lwt_process.Running then (
-          Log.info (fun f -> f "Cancelling %a (%s)" pp_cmd cmd reason);
-          proc#terminate;
-        );
-        Lwt.return_unit
-      )
-  ) else (
-    (* Always terminate process if the job ends: *)
-    Switch.add_hook_or_exec job.Job.switch (fun _reason ->
-        if proc#state = Lwt_process.Running then proc#terminate;
-        Lwt.return_unit
-      )
-  )
+  Lwt_eio.run_lwt @@ fun () ->
+    if cancellable then (
+      Job.on_cancel job (fun reason ->
+          if state proc = Running then (
+            Log.info (fun f -> f "Cancelling %a (%s)" pp_cmd cmd reason);
+            terminate proc;
+          );
+          Lwt.return_unit
+        )
+    ) else (
+      (* Always terminate process if the job ends: *)
+      Switch.add_hook_or_exec job.Job.switch (fun _reason ->
+          if state proc = Running then terminate proc;
+          Lwt.return_unit
+        )
+    )
+
+let normalise_process (proc_out, proc_in, proc_err) =
+  let proc_out = Unix.descr_of_in_channel proc_out in
+  let proc_in = Unix.descr_of_out_channel proc_in in
+  let proc_err = Unix.descr_of_in_channel proc_err in
+  (proc_out, proc_in, proc_err)
 
 let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
-  let cwd = Option.map Fpath.to_string cwd in
+  (* let cwd = Option.map Fpath.to_string cwd in *)
+  ignore cwd;
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
-  let copy_thread = copy_to_log ~job proc#stdout in
-  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
-  send_to proc#stdin stdin >>= fun stdin_result ->
-  copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
-  proc#status >|= fun status ->
+  let cmd_str = String.concat " " @@ Array.to_list (snd cmd) in
+  let proc = Unix.open_process_full cmd_str [||] in
+  let (proc_out, proc_in, _) = normalise_process proc in
+  let _, stdin_result =
+    Eio.Fiber.pair
+      (fun () -> copy_to_log ~job proc_out)
+      (fun () ->
+        add_shutdown_hooks ~cancellable ~job ~cmd proc;
+        send_to proc_in stdin)
+  in
+  let status = waitproc proc in
   match check_status pp_error_command cmd status with
   | Ok () -> stdin_result
   | Error _ as e -> e
 
 let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
-  let cwd = Option.map Fpath.to_string cwd in
+  (* let cwd = Option.map Fpath.to_string cwd in *)
+  ignore cwd;
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process_full ?cwd cmd in
-  let copy_thread = copy_to_log ~job proc#stderr in
-  add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
-  let reader = Lwt_io.read proc#stdout in
-  send_to proc#stdin stdin >>= fun stdin_result ->
-  reader >>= fun stdout ->
-  copy_thread >>= fun () -> (* Ensure all data has been copied before returning *)
-  proc#status >|= fun status ->
+  let cmd_str = String.concat " " @@ Array.to_list (snd cmd) in
+  let proc = Unix.open_process_full cmd_str [||] in
+  let (proc_out, proc_in, proc_err) = normalise_process proc in
+  copy_to_log ~job proc_err;
+  add_shutdown_hooks ~cancellable ~job ~cmd proc;
+  let buf = Bytes.create 4096 in
+  let len = Unix.read proc_out buf 0 4096 in
+  Bytes.blit buf 0 buf 0 len;
+  let stdout = Bytes.to_string buf in
+  let stdin_result = send_to proc_in stdin in
+  let status = waitproc proc in
   match check_status pp_error_command cmd status with
   | Error _ as e -> e
   | Ok () ->
