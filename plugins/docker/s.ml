@@ -90,15 +90,21 @@ module type DOCKER = sig
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
 
   val compose : ?pull:bool -> name:string -> contents:string Current.t -> unit -> unit Current.t
-  (** [service ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
+  (** [compose ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
       [contents] contains the full Compose Yaml file.
       @param pull Controls whether images are pulled by the compose command, the default is [true] 
       This calls `docker-compose` version 1 which as of April 2022 is deprecated in favour of version 2 *)
 
-  val compose_cli : ?pull:bool -> name:string -> detach:bool -> contents:string Current.t -> unit -> unit Current.t
-  (** [service ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
+  val compose_cli :
+    ?pull:bool ->
+    ?up_args: string list ->
+    name:string ->
+    detach:bool ->
+    contents:string Current.t ->
+    unit -> unit Current.t
+  (** [compose_cli ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
       [contents] contains the full Compose Yaml file.
-      This calls `docker compose` which is GA as of April 2022 and should be used in preference over version 1 *)
+      This calls `docker compose` which is GA as of April 2022 and should be used in preference over version 1. *)
 end
 
 module type HOST = sig

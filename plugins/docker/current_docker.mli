@@ -79,10 +79,12 @@ module Raw : sig
 
   val compose_cli :
     ?pull:bool ->
+    ?up_args: string list ->
     docker_context:string option ->
     name:string ->
     detach:bool ->
-    contents:string -> unit -> unit Current.Primitive.t
+    contents:string ->
+    unit -> unit Current.Primitive.t
 
   (** Building Docker commands. *)
   module Cmd : sig
