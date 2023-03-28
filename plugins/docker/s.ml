@@ -43,6 +43,7 @@ module type DOCKER = sig
     ?schedule:Current_cache.Schedule.t ->
     ?timeout:Duration.t ->
     ?squash:bool ->
+    ?buildx:bool ->
     ?label:string ->
     ?dockerfile:[`File of Fpath.t | `Contents of string] Current.t ->
     ?path:Fpath.t ->
@@ -54,6 +55,7 @@ module type DOCKER = sig
   (** [build ~pull src] builds a Docker image from source.
       @param timeout If set, abort builds that take longer than this.
       @param squash If set to [true], pass "--squash" to "docker build".
+      @param build If set to [true], runs with "docker buildx build" instead of "docker build".
       @param dockerfile If present, this is used as the contents of the Dockerfile.
       @param pull If [true], always check for updates and pull the latest version.
       @param pool Rate limit builds by requiring a resource from the pool.
