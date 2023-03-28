@@ -21,6 +21,7 @@ module Key = struct
     dockerfile : [`File of Fpath.t | `Contents of string];
     docker_context : string option;
     squash : bool;
+    buildx: bool;
     build_args: string list;
     path : Fpath.t option;
   }
@@ -34,12 +35,13 @@ module Key = struct
     | `Git commit -> `String (Current_git.Commit.hash commit)
     | `Dir path -> `String (Fpath.to_string path)
 
-  let to_json { commit; dockerfile; docker_context; squash; build_args; path } =
+  let to_json { commit; dockerfile; docker_context; squash; buildx; build_args; path } =
     `Assoc [
       "commit", source_to_json commit;
       "dockerfile", digest_dockerfile dockerfile;
       "docker_context", [%derive.to_yojson:string option] docker_context;
       "squash", [%derive.to_yojson:bool] squash;
+      "buildx", [%derive.to_yojson:bool] buildx;
       "build_args", [%derive.to_yojson:string list] build_args;
       "path", Option.(value ~default:`Null (map (fun v -> `String (Fpath.to_string v)) path));
     ]
@@ -70,7 +72,7 @@ let with_context ~job context fn =
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
 let build { pull; pool; timeout; level } job key =
-  let { Key.commit; docker_context; dockerfile; squash; build_args; path } = key in
+    let { Key.commit; docker_context; dockerfile; squash; buildx; build_args; path } = key in
   begin match dockerfile with
     | `Contents contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
@@ -93,8 +95,9 @@ let build { pull; pool; timeout; level } job key =
   in
   let pull = if pull then ["--pull"] else [] in
   let squash = if squash then ["--squash"] else [] in
+  let buildx = if buildx then ["buildx"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
-  let cmd = Cmd.docker ~docker_context @@ ["build"] @
+  let cmd = Cmd.docker ~docker_context @@ buildx @ ["build"] @
                                           pull @ squash @ build_args @ file @
                                           ["--iidfile";
                                            Fpath.to_string iidfile; "--";
