@@ -3,6 +3,8 @@
 API:
 
 - Add `Current_term.observe` to evaluate the current state of a term. (@TheLortex, #374)
+- Add `up_args` to `Current_docker.compose_cli` (@maiste, #418)
+- Add support for `buildx` in `Current_docker.build` (@maiste, #418)
 
 Other:
 
