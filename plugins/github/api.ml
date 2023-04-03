@@ -500,6 +500,7 @@ module Monitor (Query : GRAPHQL_QUERY) = struct
     let watch refresh =
       let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
       let rec aux x =
+        Log.info (fun f -> f "Received webhook for owner/name: %s" owner_name);
         x >>= fun () ->
         let x = await_event ~owner_name in
         refresh ();
