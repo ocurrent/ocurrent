@@ -55,7 +55,7 @@ module type DOCKER = sig
   (** [build ~pull src] builds a Docker image from source.
       @param timeout If set, abort builds that take longer than this.
       @param squash If set to [true], pass "--squash" to "docker build".
-      @param build If set to [true], runs with "docker buildx build" instead of "docker build".
+      @param buildx If set to [true], runs with "docker buildx build" instead of "docker build".
       @param dockerfile If present, this is used as the contents of the Dockerfile.
       @param pull If [true], always check for updates and pull the latest version.
       @param pool Rate limit builds by requiring a resource from the pool.
@@ -106,7 +106,8 @@ module type DOCKER = sig
     unit -> unit Current.t
   (** [compose_cli ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
       [contents] contains the full Compose Yaml file.
-      This calls `docker compose` which is GA as of April 2022 and should be used in preference over version 1. *)
+      [up_args] contains additional arguments to pass to the {e docker compose up} command.
+      This calls {e docker compose} which is GA as of April 2022 and should be used in preference over version 1. *)
 end
 
 module type HOST = sig

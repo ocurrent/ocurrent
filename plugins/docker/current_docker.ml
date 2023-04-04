@@ -62,7 +62,7 @@ module Raw = struct
   module CCC = Current_cache.Output(Compose_cli)
 
   let compose_cli ?(pull=true) ?(up_args = []) ~docker_context ~name ~detach ~contents () =
-      CCC.set Compose_cli.{ pull } { Compose_cli.Key.name; docker_context; detach ; up_args } { Compose_cli.Value.contents }
+     CCC.set Compose_cli.{ pull } { Compose_cli.Key.name; docker_context; detach ; up_args } { Compose_cli.Value.contents }
 
   module Cmd = struct
     open Lwt.Infix

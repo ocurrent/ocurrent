@@ -1,17 +1,17 @@
 open Lwt.Infix
 
 type t = {
-    pull : bool ;
+  pull: bool ;
 }
 
 let id = "docker-compose-cli"
 
 module Key = struct
   type t = {
-    name : string;
-    docker_context : string option;
-    detach : bool;
-    up_args : string list;
+    name: string;
+    docker_context: string option;
+    detach: bool;
+    up_args: string list;
   } [@@deriving to_yojson]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
@@ -36,8 +36,8 @@ let cmd args { Key.docker_context; name; detach=_; up_args=_ } =
 let cmd_pull = cmd ["pull"]
 
 let cmd_update ({ Key.detach; up_args; _ } as key) =
-    let args = if detach then ["-d"] else [] @ up_args in
-    cmd ("up" :: args) key
+  let args = (if detach then ["-d"] else []) @ up_args in
+  cmd ("up" :: args) key
 
 let publish { pull } job key {Value.contents} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
