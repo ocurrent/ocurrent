@@ -72,7 +72,7 @@ let with_context ~job context fn =
   | `Git commit -> Current_git.with_checkout ~job commit fn
 
 let build { pull; pool; timeout; level } job key =
-    let { Key.commit; docker_context; dockerfile; squash; buildx; build_args; path } = key in
+  let { Key.commit; docker_context; dockerfile; squash; buildx; build_args; path } = key in
   begin match dockerfile with
     | `Contents contents ->
       Current.Job.log job "@[<v2>Using Dockerfile:@,%a@]" Fmt.lines contents
@@ -97,11 +97,13 @@ let build { pull; pool; timeout; level } job key =
   let squash = if squash then ["--squash"] else [] in
   let buildx = if buildx then ["buildx"] else [] in
   let iidfile = Fpath.add_seg dir "docker-iid" in
-  let cmd = Cmd.docker ~docker_context @@ buildx @ ["build"] @
-                                          pull @ squash @ build_args @ file @
-                                          ["--iidfile";
-                                           Fpath.to_string iidfile; "--";
-                                           Fpath.to_string dir] in
+  let cmd = Cmd.docker ~docker_context (
+    buildx @ ["build"] @
+    pull @ squash @ build_args @ file @
+    ["--iidfile";
+     Fpath.to_string iidfile; "--";
+     Fpath.to_string dir])
+  in
   let pp_error_command f = Fmt.string f "Docker build" in
   Current.Process.exec ~cancellable:true ~pp_error_command ~job cmd >|= function
   | Error _ as e -> e
