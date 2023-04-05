@@ -39,10 +39,16 @@ module Commit : sig
   val unmarshal : string -> t
 end
 
-val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commit.t Current.t
-(** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master"). *)
+val clone :
+  schedule:Current_cache.Schedule.t ->
+  ?token: string ->
+  ?gref:string ->
+  string ->
+  Commit.t Current.t
+(** [clone ~schedule ?token ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master").
+    [token] is an authentification token you can provide if the forge supports API tokens and private repositories. *)
 
-val fetch : Commit_id.t Current.t -> Commit.t Current.t
+val fetch : ?token:string -> Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
   ?pool:unit Current.Pool.t ->
