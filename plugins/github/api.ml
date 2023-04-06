@@ -940,21 +940,30 @@ module Commit = struct
 end
 
 module Repo = struct
-  type nonrec t = t * Repo_id.t
 
-  let id = snd
+  type metadata = {
+      private_: bool;
+    }
+
+  type nonrec t = {
+    api: t;
+    repo_id: Repo_id.t;
+    metadata: metadata;
+  }
+
+  let id { repo_id ; _ } = repo_id
   let pp = Fmt.using id Repo_id.pp
   let compare a b = Repo_id.compare (id a) (id b)
 
   let head_commit t =
     Current.component "head" |>
-    let> (api, repo) = t in
+  let> {api ; repo_id = repo ; _ } = t in
     Head_ref.get api repo
 
   let ci_refs ?staleness t =
     let+ refs =
       Current.component "CI refs" |>
-      let> (api, repo) = t in
+  let> {api ; repo_id = repo ; _ } = t in
       refs api repo
     in
     to_ci_refs ?staleness refs

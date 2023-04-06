@@ -62,8 +62,9 @@ let list_repositories ~api ~token ~account =
         |> List.map (fun r ->
             let name = r |> member "name" |> to_string in
             let archived = r |> member "archived" |> to_bool in
+            let private_ = r |> member "private"|> to_bool in
             let metadata = { archived } in
-            (api, Repo_id.{ owner = account; name }), metadata
+            ({ Api.Repo.api ; repo_id = Repo_id.{ owner = account; name } ; metadata = { private_} }), metadata
           )
       in
       begin match next (Cohttp.Response.headers resp) with
@@ -117,8 +118,8 @@ let repositories ?(include_archived=false) t =
     if include_archived then List.map fst
     else
       List.filter_map (function
-          | _, { archived = true } -> None
-          | repo, { archived = false } -> Some repo
+          | _, { archived = true ; _ } -> None
+          | repo, { archived = false ; _ } -> Some repo
         )
   in
   Current.Monitor.get t.repos
