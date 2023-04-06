@@ -136,7 +136,16 @@ module Api : sig
   end
 
   module Repo : sig
-    type nonrec t = t * Repo_id.t
+
+    type metadata = {
+      private_: bool;
+    }
+
+    type nonrec t = {
+      api: t;
+      repo_id: Repo_id.t;
+      metadata: metadata;
+    }
 
     val id : t -> Repo_id.t
     val pp : t Fmt.t
