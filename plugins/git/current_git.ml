@@ -14,7 +14,7 @@ let ( >>!= ) x f =
 
 module Fetch = struct
   type t = {
-    token: string option;
+      token: (string, [ `Msg of string ]) result Lwt.t;
   }
   module Key = Commit_id
   module Value = Commit
@@ -23,10 +23,11 @@ module Fetch = struct
 
   let build { token } job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
-    let src = match token with
-    | Some token -> Clone.insert_token ~token remote_repo
-    | None -> remote_repo
-    in
+    token >>= (function
+    | Ok "" -> Lwt.return remote_repo
+    | Ok token -> Lwt.return (Clone.insert_token ~token remote_repo)
+    | Error (`Msg m) -> Lwt.fail_with m)
+    >>= fun src ->
     let level =
       if Commit_id.is_local key then Current.Level.Harmless
       else Current.Level.Mostly_harmless
@@ -72,14 +73,14 @@ end
 
 module Fetch_cache = Current_cache.Make(Fetch)
 
-let fetch ?token cid =
+let fetch ?(token = Lwt.return_ok "") cid =
   Current.component "fetch" |>
   let> cid = cid in
   Fetch_cache.get { token } cid
 
 module Clone_cache = Current_cache.Make(Clone)
 
-let clone ~schedule ?token ?(gref="master") repo =
+let clone ~schedule ?(token = Lwt.return_ok "") ?(gref="master") repo =
   Current.component "clone@ %s@ %s" repo gref |>
   let> () = Current.return () in
   Clone_cache.get ~schedule { token } { Clone.Key.repo; gref }
