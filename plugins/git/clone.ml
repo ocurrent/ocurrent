@@ -1,7 +1,7 @@
 open Lwt.Infix
 
 type t = {
-    token: string option;
+    token: (string, [ `Msg of string ]) result Lwt.t;
 }
 
 let ( >>!= ) = Lwt_result.bind
@@ -41,10 +41,11 @@ let id = "git-clone"
 let build { token } job { Key.repo; gref } =
   Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
-  let src = match token with
-  | Some token -> insert_token ~token repo
-  | None -> repo
-  in
+  token >>= (function
+  | Ok "" -> Lwt.return repo
+  | Ok token -> Lwt.return (insert_token ~token repo)
+  | Error (`Msg m) -> Lwt.fail_with m)
+  >>= fun src ->
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin
