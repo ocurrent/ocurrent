@@ -6,6 +6,10 @@ API:
 - Add `up_args` to `Current_docker.compose_cli` (@maiste, #418)
 - Add support for `buildx` in `Current_docker.build` (@maiste, #418)
 
+Plugins:
+
+- GitHub: Fetch most relevant PRs and branches by update dates (@punchagan, #421)
+
 Other:
 
 - Bump constraint to OCaml 4.12. (@MisterDA, #415)
