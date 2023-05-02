@@ -587,7 +587,7 @@ module Refs = Monitor(struct
       defaultBranchRef {
         name
       }
-      refs(first: 100, refPrefix:"refs/heads/") {
+      refs(first: 100, refPrefix:"refs/heads/", orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {
         totalCount
         edges {
           node {
@@ -602,7 +602,7 @@ module Refs = Monitor(struct
           }
         }
       }
-      pullRequests(first: 100, states:[OPEN]) {
+      pullRequests(first: 100, states:[OPEN], orderBy: {field: UPDATED_AT, direction: DESC}) {
         totalCount
         edges {
           node {
