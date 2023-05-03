@@ -19,6 +19,7 @@ module type DOCKER = sig
   val docker_context : string option
 
   val pull :
+    ?auth:(string * string) ->
     ?label:string ->
     ?arch:string ->
     schedule:Current_cache.Schedule.t ->
@@ -26,7 +27,8 @@ module type DOCKER = sig
   (** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
       @param arch Select a specific architecture from a multi-arch manifest.
       @param schedule Controls how often we check for updates. If the schedule
-                      has no [valid_for] limit then we will only ever pull once. *)
+                      has no [valid_for] limit then we will only ever pull once.
+      @param auth If given do a "docker login" using this username/password pair before pulling. *)
 
   val peek :
     ?label:string ->

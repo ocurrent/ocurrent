@@ -24,6 +24,7 @@ module Raw : sig
   val pull :
     docker_context:string option ->
     schedule:Current_cache.Schedule.t ->
+    ?auth:(string * string) ->
     ?arch:string -> string -> Image.t Current.Primitive.t
 
   val peek :
