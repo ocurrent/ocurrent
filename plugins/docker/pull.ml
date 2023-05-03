@@ -1,8 +1,12 @@
 open Lwt.Infix
 
-type t = No_context
+type auth = Push.auth
+
+type t = auth option
 
 let ( >>!= ) = Lwt_result.bind
+
+let id = "docker-pull"
 
 module Key = struct
   type t = {
@@ -17,8 +21,6 @@ module Key = struct
 end
 
 module Value = Image
-
-let id = "docker-pull"
 
 let get_digest_from_manifest manifest arch =
   let open Yojson.Basic.Util in
@@ -37,9 +39,15 @@ let get_digest_from_manifest manifest arch =
         Fmt.exn ex
         (Yojson.Basic.pretty_print ~std:true) json
 
-let build No_context job key =
+let build auth job key =
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
   let { Key.docker_context; tag; arch } = key in
+  begin match auth with
+    | None -> Lwt.return (Ok ())
+    | Some (user, password) ->
+        let cmd = Cmd.login ~docker_context user in
+        Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
+  end >>!= fun () ->
   match arch with
   | None -> begin
       Current.Process.exec ~cancellable:true ~job (Key.cmd key) >>!= fun () ->

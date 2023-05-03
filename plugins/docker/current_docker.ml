@@ -9,8 +9,8 @@ module Raw = struct
 
   module PullC = Current_cache.Make(Pull)
 
-  let pull ~docker_context ~schedule ?arch tag =
-    PullC.get ~schedule Pull.No_context { Pull.Key.docker_context; tag; arch }
+  let pull ~docker_context ~schedule ?auth ?arch tag =
+    PullC.get ~schedule auth { Pull.Key.docker_context; tag; arch }
 
   module PeekC = Current_cache.Make(Peek)
 
@@ -126,11 +126,11 @@ module Make (Host : S.HOST) = struct
     | None -> ()
     | Some arch -> Fmt.pf f "@,%s" arch
 
-  let pull ?label ?arch ~schedule tag =
+  let pull ?auth ?label ?arch ~schedule tag =
     let label = Option.value label ~default:tag in
     Current.component "pull %s%a" label pp_opt_arch arch |>
     let> () = Current.return () in
-    Raw.pull ~docker_context ~schedule ?arch tag
+    Raw.pull ~docker_context ~schedule ?arch ?auth tag
 
   let peek ?label ~arch ~schedule tag =
     let label = Option.value label ~default:tag in
