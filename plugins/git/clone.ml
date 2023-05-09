@@ -1,8 +1,15 @@
 open Lwt.Infix
 
-type t = No_context
+type t = {
+    token: (string, [ `Msg of string ]) result Lwt.t;
+}
 
 let ( >>!= ) = Lwt_result.bind
+
+let insert_token ~token url =
+    match Astring.String.cut ~sep:"https://" url with
+    | Some ("", rest) -> Printf.sprintf "https://x-access-token:%s@%s" token rest
+    | Some (_,_) | None -> url
 
 module Key = struct
   type t = {
@@ -31,15 +38,20 @@ let repo_lock repo =
 
 let id = "git-clone"
 
-let build No_context job { Key.repo; gref } =
+let build { token } job { Key.repo; gref } =
   Lwt_mutex.with_lock (repo_lock repo) @@ fun () ->
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
+  token >>= (function
+  | Ok "" -> Lwt.return repo
+  | Ok token -> Lwt.return (insert_token ~token repo)
+  | Error (`Msg m) -> Lwt.fail_with m)
+  >>= fun src ->
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin
     if Cmd.dir_exists local_repo
-    then Cmd.git_fetch ~cancellable:true ~job ~src:repo ~dst:local_repo (Fmt.str "%s:refs/remotes/origin/%s" gref gref)
-    else Cmd.git_clone ~cancellable:true ~job ~src:repo local_repo
+    then Cmd.git_fetch ~cancellable:true ~job ~src ~dst:local_repo (Fmt.str "%s:refs/remotes/origin/%s" gref gref)
+    else Cmd.git_clone ~cancellable:true ~job ~src local_repo
   end >>!= fun () ->
   Cmd.git_rev_parse ~cancellable:true ~job ~repo:local_repo ("origin/" ^ gref) >>!= fun hash ->
   let id = { Commit_id.repo; gref; hash } in

@@ -24,6 +24,19 @@ let local_copy repo =
   let repos_dir = Current.state_dir "git" in
   Fpath.append repos_dir (Fpath.v (id_of_repo repo))
 
+let remove_access_token url =
+  match Astring.String.cut ~sep:"https://x-access-token:" url with
+  | Some ("", next) -> (
+    match Astring.String.cut ~sep:"@" next with
+    | None -> url
+    | Some (_token, rest) -> "https://<token>@" ^ rest
+  )
+  | Some (_, _) | None -> url
+
+let pp_cmd ppf (v, args) =
+  let args' = Array.map remove_access_token args in
+  Current.Process.pp_cmd ppf (v, args')
+
 let git ~cancellable ~job ?cwd ?config args =
   let args =
     match cwd with
@@ -37,7 +50,7 @@ let git ~cancellable ~job ?cwd ?config args =
           |> List.flatten
   in
   let cmd = Array.of_list ("git" :: config @ args) in
-  Current.Process.exec ~cancellable ~job ("", cmd)
+  Current.Process.exec ~pp_cmd ~cancellable ~job ("", cmd)
 
 (*  This command manipulates paths. It requires [protocol.file.allow=always] to
     be set to make sure we can update the submodules.
