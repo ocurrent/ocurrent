@@ -1,0 +1,5 @@
+(library
+ (public_name current_curl)
+ (libraries
+   current.cache)
+ (preprocess (pps ppx_deriving_yojson)))

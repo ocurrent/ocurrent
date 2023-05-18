@@ -12,6 +12,7 @@ RUN opam pin add -yn current_web.dev "./" && \
     opam pin add -yn current_examples.dev "./" && \
     opam pin add -yn current_docker.dev "./" && \
     opam pin add -yn current_ssh.dev "./" && \
+    opam pin add -yn current_curl.dev "./" && \
     opam pin add -yn current.dev "./"
 RUN opam install -y --deps-only -t .
 ADD --chown=opam . .
