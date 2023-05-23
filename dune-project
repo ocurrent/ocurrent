@@ -272,13 +272,14 @@ This package provides a plugin for running ssh commands.")
   yojson))
 
 (package
- (name current_curl)
- (synopsis "OCurrent CURL/DIG plugin")
+ (name current_health_check)
+ (synopsis "OCurrent plugin to test services")
  (description "\
 OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
-This package provides a plugin for interacting with Dig and Curl.
-It can query a name server using dig and download the page using curl.")
+This package provides a plugin to test external services.  Currently,
+it can query a name server using dig, ping an address and download the
+page using curl.")
  (authors "Mark Elvers <mark.elvers@tunbury.org>")
  (maintainers "Mark Elvers <mark.elvers@tunbury.org>")
  (depends

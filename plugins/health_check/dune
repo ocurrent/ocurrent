@@ -1,5 +1,5 @@
 (library
- (public_name current_curl)
+ (public_name current_health_check)
  (libraries
    current.cache)
  (preprocess (pps ppx_deriving_yojson)))

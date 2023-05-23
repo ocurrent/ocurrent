@@ -20,11 +20,7 @@ module Value = struct
     result : string;
   } [@@deriving yojson]
     
-  let digest { fqdn; result } = 
-    Yojson.Safe.to_string @@ `Assoc [
-      "fqdn", `String fqdn;
-      "result", `String result;
-    ]
+  let digest t = Yojson.Safe.to_string (to_yojson t)
 
   let marshal t = to_yojson t |> Yojson.Safe.to_string
   let unmarshal s =

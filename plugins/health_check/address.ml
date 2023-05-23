@@ -19,14 +19,14 @@ let pp f { fqdn = _; ip } = Fmt.pf f "%s" ip
 let pp_short f t =
   Fmt.string f @@ Astring.String.with_range ~len:6 (hash t)
 
-let expand a =
+let expand dns =
   Current.component "list" |>
-  let> a = a in
+  let> dns = dns in
   Current.Primitive.const (
-    String.split_on_char '\n' a.Dig.Value.result |>
+    String.split_on_char '\n' dns.Dig.Value.result |>
     List.filter_map (fun s -> match (Scanf.sscanf s "%s %s %s %s %s" (fun _ _ _ rtype ip -> (rtype, ip))) with
-      | "AAAA", ip -> Some { fqdn = a.Dig.Value.fqdn; ip = "[" ^ ip ^ "]" }
-      | "A", ip -> Some { fqdn = a.Dig.Value.fqdn; ip }
+      | "AAAA", ip
+      | "A", ip -> Some { fqdn = dns.Dig.Value.fqdn; ip }
       | _, _ -> None
       | exception Scanf.Scan_failure _ -> None
       | exception End_of_file -> None)
