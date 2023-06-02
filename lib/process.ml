@@ -13,12 +13,6 @@ let pp_cmd f = function
   | "", args -> pp_args f args
   | bin, args -> Fmt.pf f "(%S, %a)" bin pp_args args
 
-let pp_signal f x =
-  let open Sys in
-  if x = sigkill then Fmt.string f "kill"
-  else if x = sigterm then Fmt.string f "term"
-  else Fmt.int f x
-
 let check_status pp_cmd cmd = function
   | Unix.WEXITED 0 -> Ok ()
   | Unix.WEXITED 127 ->
@@ -33,8 +27,8 @@ let check_status pp_cmd cmd = function
           (Option.get cmd_name)
       else failf "%t exited with status %d" pp_cmd 127
   | Unix.WEXITED x -> failf "%t exited with status %d" pp_cmd x
-  | Unix.WSIGNALED x -> failf "%t failed with signal %d" pp_cmd x
-  | Unix.WSTOPPED x -> failf "%t stopped with signal %a" pp_cmd pp_signal x
+  | Unix.WSIGNALED x -> failf "%t failed with signal %a" pp_cmd Fmt.Dump.signal x
+  | Unix.WSTOPPED x -> failf "%t stopped with signal %a" pp_cmd Fmt.Dump.signal x
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function
