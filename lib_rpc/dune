@@ -5,6 +5,8 @@
    capnp
    capnp-rpc
    capnp-rpc-lwt
+   lwt_eio
+   eio_main
    fmt
    fpath
    logs

@@ -7,6 +7,8 @@
    current_term
    current_incr
    duration
+   eio_main
+   lwt_eio
    fmt
    fpath
    logs

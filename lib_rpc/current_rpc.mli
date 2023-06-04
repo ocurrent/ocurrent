@@ -11,16 +11,16 @@ module Job : sig
     can_rebuild : bool;
   }
 
-  val log : start:int64 -> t -> (string * int64, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  val log : start:int64 -> t -> (string * int64, [> `Capnp of Capnp_rpc.Error.t]) result
   (** [log ~start t] returns bytes from the log starting at offset [start]. *)
 
-  val cancel : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
-  val status : t -> (status, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  val cancel : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result
+  val status : t -> (status, [> `Capnp of Capnp_rpc.Error.t]) result
 
   val rebuild : t -> t
   (** [rebuild t] requests a rebuild of [t] and returns the new job. *)
 
-  val approve_early_start : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  val approve_early_start : t -> (unit, [> `Capnp of Capnp_rpc.Error.t]) result
   (* Mark the job as approved to start even if the global confirmation threshold
      would otherwise prevent it. Calling this more than once has no effect. *)
 end
@@ -30,7 +30,7 @@ module Engine : sig
 
   type t = [`Engine_f0961466d2f9bbf5] Capnp_rpc_lwt.Capability.t
 
-  val active_jobs : t -> (Job.id list, [> `Capnp of Capnp_rpc.Error.t]) result Lwt.t
+  val active_jobs : t -> (Job.id list, [> `Capnp of Capnp_rpc.Error.t]) result
   (** [active_jobs t] lists the OCurrent jobs that are still being used in the pipeline.
       This includes completed jobs, as long as OCurrent is still ensuring they are up-to-date. *)
 

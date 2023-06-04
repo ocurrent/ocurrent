@@ -370,8 +370,8 @@ module Process : sig
     ?pp_cmd:(Format.formatter -> Lwt_process.command -> unit) ->
     ?pp_error_command:(Format.formatter -> unit) ->
     cancellable:bool ->
-    job:Job.t -> Lwt_process.command ->
-    unit or_error Lwt.t
+    job:Job.t -> string * string array ->
+    unit or_error
   (** [exec ~job cmd] uses [Lwt_process] to run [cmd], with output to [job]'s log.
       @param cwd Sets the current working directory for this command.
       @param cancellable Should the process be terminated if the job is cancelled?
@@ -385,11 +385,11 @@ module Process : sig
     ?pp_cmd:(Format.formatter -> Lwt_process.command -> unit) ->
     ?pp_error_command:(Format.formatter -> unit) ->
     cancellable:bool ->
-    job:Job.t -> Lwt_process.command ->
-    string or_error Lwt.t
+    job:Job.t -> string * string array ->
+    string or_error
   (** Like [exec], but return the child's stdout as a string rather than writing it to the log. *)
 
-  val with_tmpdir : ?prefix:string -> (Fpath.t -> 'a Lwt.t) -> 'a Lwt.t
+  val with_tmpdir : ?prefix:string -> (Fpath.t -> unit) -> unit
   (** [with_tmpdir fn] creates a temporary directory, runs [fn tmpdir], and then deletes the directory
       (recursively).
       @param prefix Allows giving the directory a more meaningful name (for debugging). *)

@@ -17,13 +17,13 @@ let log ~start t =
   let open Job.Log in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.start_set params start;
-  Capability.call_for_value t method_id request |> Lwt_result.map @@ fun x ->
+  Capability.call_for_value t method_id request |> Result.map @@ fun x ->
   (Results.log_get x, Results.next_get x)
 
 let status t =
   let open Job.Status in
   let request = Capability.Request.create_no_args () in
-  Capability.call_for_value t method_id request |> Lwt_result.map @@ fun x ->
+  Capability.call_for_value t method_id request |> Result.map @@ fun x ->
   {
     id = Results.id_get x;
     description = Results.description_get x;

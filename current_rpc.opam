@@ -18,6 +18,8 @@ depends: [
   "capnp" {>= "3.4.0"}
   "capnp-rpc" {>= "1.2.3"}
   "capnp-rpc-lwt" {>= "1.2.3"}
+  "eio_main" {>= "0.8.0"}
+  "lwt_eio" {>= "0.2"}
   "fmt" {>= "0.8.9"}
   "fpath"
   "logs" {>= "0.7.0"}

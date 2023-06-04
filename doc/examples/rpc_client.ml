@@ -28,21 +28,20 @@
    Rebuild scheduled
 *)
 
-open Lwt.Infix
 open Capnp_rpc_lwt
 
 let () = Prometheus_unix.Logging.init ~default_level:Logs.Warning ()
 
 let list_jobs engine =
-  Current_rpc.Engine.active_jobs engine |> Lwt_result.map @@ fun jobs ->
+  Current_rpc.Engine.active_jobs engine |> Result.map @@ fun jobs ->
   List.iter print_endline jobs
 
 let show_log job =
   let rec aux start =
-    Current_rpc.Job.log ~start job >>= function
-    | Error _ as e -> Lwt.return e
+    match Current_rpc.Job.log ~start job with
+    | Error _ as e -> e
     | Ok (data, next) ->
-      if data = "" then Lwt_result.return ()
+      if data = "" then Result.ok ()
       else (
         output_string stdout data;
         flush stdout;
@@ -52,7 +51,7 @@ let show_log job =
   aux 0L
 
 let show_status job =
-  Current_rpc.Job.status job |> Lwt_result.map @@
+  Current_rpc.Job.status job |> Result.map @@
   fun { Current_rpc.Job.id; description; can_cancel; can_rebuild } ->
   Fmt.pr "@[<v2>Job %S:@,\
           Description: @[%a@]@,\
@@ -64,12 +63,12 @@ let show_status job =
     can_rebuild
 
 let cancel job =
-  Current_rpc.Job.cancel job |> Lwt_result.map @@ fun () ->
+  Current_rpc.Job.cancel job |> Result.map @@ fun () ->
   Fmt.pr "Cancelled@."
 
 let start job =
-  Current_rpc.Job.approve_early_start job >>= function
-  | Error _ as e -> Lwt.return e
+  match Current_rpc.Job.approve_early_start job with
+  | Error _ as e -> e
   | Ok () ->
     Fmt.pr "Job is now approved to start without waiting for confirmation.@.";
     show_log job
@@ -79,23 +78,23 @@ let rebuild job =
   let new_job = Current_rpc.Job.rebuild job in
   show_log new_job
 
-let main ?job_id ~job_op engine_url =
-  let vat = Capnp_rpc_unix.client_only_vat () in
-  let sr = Capnp_rpc_unix.Vat.import_exn vat engine_url in
-  Sturdy_ref.connect_exn sr >>= fun engine ->
-  Lwt.finalize (fun () ->
-      match job_id with
-      | None -> list_jobs engine
-      | Some job_id ->
-        let job = Current_rpc.Engine.job engine job_id in
-        Lwt.finalize
-          (fun () -> job_op job)
-          (fun () -> Capability.dec_ref job; Lwt.return_unit)
-    )
-    (fun () ->
-       Capability.dec_ref engine;
-       Lwt.return_unit
-    )
+let main ~(env : Eio.Stdenv.t) ?job_id ~job_op engine_url =
+  Eio.Switch.run (fun sw ->
+    let vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
+    let sr = Capnp_rpc_unix.Vat.import_exn vat engine_url in
+    let engine = Sturdy_ref.connect_exn sr in
+    let res = Eio.Switch.run (fun _sw ->
+        match job_id with
+        | None -> list_jobs engine
+        | Some job_id ->
+          let job = Current_rpc.Engine.job engine job_id in
+          let res = Eio.Switch.run (fun _sw -> job_op job) in
+          Capability.dec_ref job;
+          res
+      ) in
+    Capability.dec_ref engine;
+    res
+  )
 
 (* Command-line parsing *)
 
@@ -144,7 +143,7 @@ let cmd =
   let doc = "Client for rpc_server.ml" in
   let main engine job_id job_op =
     let job_op = to_fn job_op in
-    match Lwt_main.run (main ?job_id ~job_op engine) with
+    match Eio_main.run (fun env -> main ~env ?job_id ~job_op engine) with
     | Error `Capnp ex -> Fmt.error_msg "%a" Capnp_rpc.Error.pp ex
     | Ok () | Error `Msg _ as x -> x
   in
