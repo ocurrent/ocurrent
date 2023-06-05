@@ -1,6 +1,4 @@
-open Lwt.Infix
-
-type t = string
+type t = string * Eio.Process.mgr
 
 let id = "ssh-run"
 
@@ -19,11 +17,11 @@ module Outcome = Current.Unit
 
 let command ~ssh_host args =
   let cmd = ["ssh"; ssh_host] @ args in
-  ("", Array.of_list cmd)
+  ("", cmd)
 
-let publish t job _key { Value.args } =
-  Current.Job.start job ~level:Current.Level.Above_average >>= fun () ->
-  Current.Process.exec ~cancellable:true ~job (command ~ssh_host:t args)
+let publish (t, proc) job _key { Value.args } =
+  Current.Job.start job ~level:Current.Level.Above_average;
+  Current.Process.exec ~cancellable:true ~job proc (command ~ssh_host:t args)
 
 let pp f (key, { Value.args }) = Fmt.pf f "%s: %s" key (String.concat " " args)
 

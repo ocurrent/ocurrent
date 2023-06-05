@@ -1,5 +1,7 @@
 open Current.Syntax    (* let*, let+, etc *)
 
+let () = Logs.set_level ~all:true (Some (Logs.Debug))
+
 module Git = Current_git_test
 module Docker = Current_docker_test
 module Opam = Current_opam_test
@@ -15,8 +17,8 @@ let engine_result =
   Alcotest.testable (Current_term.Output.pp Fmt.(const string "()")) (Current_term.Output.equal (=))
 
 let observe_result fmt =
-  Alcotest.testable 
-    (Current_term.Output.Blockable.pp fmt) 
+  Alcotest.testable
+    (Current_term.Output.Blockable.pp fmt)
     (Current_term.Output.Blockable.equal (=))
 
 let analyse ~lint src =
@@ -42,17 +44,19 @@ let with_commit v () =
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
    a PR on GitHub), this returns success if the tests pass on it. *)
-let v1 commit =
-  commit |> fetch |> build |> test
+let v1 ~sw commit =
+  commit |> fetch ~sw |> build |> test ~sw
 
-let test_v1 _switch () =
-  Driver.test ~name:"v1" (with_commit v1) @@ function
-  | 1 -> Git.complete_clone test_commit
+let test_v1 sw () =
+  Driver.test ~name:"v1" (with_commit (v1 ~sw)) @@ function
+  | 1 ->
+    Logs.debug (fun f -> f "Done!");
+    Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_v1_cancel _switch () =
-  Driver.test ~name:"v1c" (with_commit v1) @@ function
+let test_v1_cancel sw () =
+  Driver.test ~name:"v1c" (with_commit (v1 ~sw)) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\" (in-progress)"
   | _ -> raise Exit
@@ -60,14 +64,14 @@ let test_v1_cancel _switch () =
 (* Similar, but here the test step requires both the binary and
    the source (perhaps for the test cases). If the tests pass then
    it deploys the binary too. *)
-let v2 commit =
-  let src = fetch commit in
+let v2 ~sw commit =
+  let src = fetch ~sw commit in
   let bin = build src in
-  bin |> Current.gate ~on:(test bin) |> push ~tag:"foo/bar"
+  bin |> Current.gate ~on:(test ~sw bin) |> push ~sw ~tag:"foo/bar"
 
-let test_v2 _switch () =
+let test_v2 sw () =
   let config = Current.Config.v ~confirm:Current.Level.Dangerous () in
-  Driver.test ~config ~name:"v2" (with_commit v2) @@ function
+  Driver.test ~config ~name:"v2" (with_commit (v2 ~sw)) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | 3 -> Current.Config.set_confirm config None
@@ -75,19 +79,19 @@ let test_v2 _switch () =
 
 (* Build Linux, Mac and Windows binaries. If *all* tests pass (for
    all platforms) then deploy all binaries. *)
-let v3 commit =
+let v3 ~sw commit =
   let platforms = ["lin"; "mac"; "win"] in
-  let src = fetch commit in
+  let src = fetch ~sw commit in
   let binaries = List.map (fun p -> p, build ~on:p src) platforms in
-  let test (_p, x) = test x in
+  let test (_p, x) = test ~sw x in
   let tests = Current.all @@ List.map test binaries in
   let gated_deploy (p, x) =
     let tag = Fmt.str "foo/%s" p in
-    x |> Current.gate ~on:tests |> push ~tag
+    x |> Current.gate ~on:tests |> push ~sw ~tag
   in
   Current.all @@ List.map gated_deploy binaries
 
-let test_v3 _switch () =
+let test_v3 sw () =
   let final_stats =
     { Current_term.S.
       ok = 8;
@@ -98,7 +102,7 @@ let test_v3 _switch () =
       blocked = 3;
     }
   in
-  Driver.test ~name:"v3" (with_commit v3) ~final_stats @@ function
+  Driver.test ~name:"v3" (with_commit (v3 ~sw)) ~final_stats @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 ->
     Docker.complete "lin-image-src-123" ~cmd:["make"; "test"] @@ Ok ();
@@ -110,15 +114,15 @@ let test_v3 _switch () =
    The let** form allows you to name the box.
    The static analysis will only show what happens up to this step until
    it actually runs, after which it will show the whole pipeline. *)
-let v4 commit =
-  let src = fetch commit in
+let v4 ~sw commit =
+  let src = fetch ~sw commit in
   Current.component "custom-build" |>
   let** src = src in
-  if Fpath.to_string src = "src-123" then build (Current.return src) |> test
+  if Fpath.to_string src = "src-123" then build (Current.return src) |> test ~sw
   else Current.fail "Wrong hash!"
 
-let test_v4 _switch () =
-  Driver.test ~name:"v4" (with_commit v4) @@ function
+let test_v4 sw () =
+  Driver.test ~name:"v4" (with_commit (v4 ~sw)) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Error (`Msg "Failed")
   | _ -> raise Exit
@@ -128,15 +132,15 @@ let test_v4 _switch () =
    test each of them. Using [list_iter] here instead of a bind
    allows us to see the whole pipeline statically, before we've
    actually calculated the rev-deps. *)
-let v5 commit =
-  let src = fetch commit in
+let v5 ~sw commit =
+  let src = fetch ~sw commit in
   let bin = build src in
-  let ok = test bin in
+  let ok = test ~sw bin in
   Opam.revdeps src
   |> Current.gate ~on:ok
-  |> Current.list_iter (module Git.Commit) (fun s -> s |> fetch |> build |> test)
+  |> Current.list_iter (module Git.Commit) (fun s -> s |> fetch ~sw |> build |> test ~sw)
 
-let test_v5 _switch () =
+let test_v5 sw () =
   let final_stats =
     { Current_term.S.
       ok = 7;
@@ -147,12 +151,12 @@ let test_v5 _switch () =
       blocked = 4;
     }
   in
-  Driver.test ~name:"v5" ~final_stats (with_commit v5) @@ function
+  Driver.test ~name:"v5" ~final_stats (with_commit (v5 ~sw)) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_v5_nil _switch () =
+let test_v5_nil sw () =
   let final_stats =
     { Current_term.S.
       ok = 7;
@@ -164,18 +168,18 @@ let test_v5_nil _switch () =
     }
   in
   let test_commit = Git.Commit.v ~repo:"my/project" ~hash:"456" in
-  Driver.test ~name:"v5n" ~final_stats (with_commit v5) @@ function
+  Driver.test ~name:"v5n" ~final_stats (with_commit (v5 ~sw)) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_option ~case commit =
-  let src = fetch commit in
+let test_option ~sw ~case commit =
+  let src = fetch ~sw commit in
   analyse ~lint:case src
   |> Current.option_map (fun linter -> lint src ~linter)
   |> Current.ignore_value
 
-let test_option_some _switch () =
+let test_option_some sw () =
   let final_stats =
     { Current_term.S.
       ok = 6;
@@ -186,13 +190,13 @@ let test_option_some _switch () =
       blocked = 0;
     }
   in
-  test_option ~case:(Some "ocamlformat")
+  test_option ~sw ~case:(Some "ocamlformat")
   |> with_commit
   |> (fun c -> Driver.test ~final_stats ~name:"option-some" c @@ function
   | 1 -> Git.complete_clone test_commit
   | _ -> raise Exit)
 
-let test_option_none _switch () =
+let test_option_none sw () =
   let final_stats =
     { Current_term.S.
       ok = 5;
@@ -203,14 +207,14 @@ let test_option_none _switch () =
       blocked = 1;
     }
   in
-  test_option ~case:None
+  test_option ~sw ~case:None
   |> with_commit
   |> (fun c -> Driver.test ~final_stats ~name:"option-none" c @@ function
     | 1 -> Git.complete_clone test_commit
     | _ -> raise Exit)
 
 (* This is just to check the diagram when the state box is hidden. *)
-let test_state _switch () =
+let test_state _sw () =
   let pipeline () =
     Current.component "set-status" |>
     let** value = Current.state ~hidden:true (Current.active `Ready) in
@@ -274,13 +278,13 @@ let test_with base src =
   and> _src = src in
   Current.Primitive.const ()
 
-let latch commit =
-  let base = Docker.pull "alpine" in
-  let src = fetch commit in
+let latch ~sw commit =
+  let base = Docker.pull ~sw "alpine" in
+  let src = fetch ~sw commit in
   test_with base src
 
-let test_latch _switch () =
-  Driver.test ~name:"latch" (with_commit latch) @@ function
+let test_latch sw () =
+  Driver.test ~name:"latch" (with_commit (latch ~sw)) @@ function
   | 1 ->
     (* The "docker pull" box is orange as the image isn't available yet *)
     Git.complete_clone test_commit;
@@ -344,7 +348,7 @@ let test_observe _switch () =
   let pipeline () =
     let+ _ = ok
     and+ _ = failure
-    and+ _ = active 
+    and+ _ = active
     and+ _ = blocked
     in
     ()
@@ -353,17 +357,19 @@ let test_observe _switch () =
   | _ ->
     let observe_result = observe_result Fmt.string in
     Alcotest.(check observe_result) "OK" (Ok "a") (Current.observe ok);
-    Alcotest.(check observe_result) 
+    Alcotest.(check observe_result)
       "Failure" (Error (`Msg "oh no")) (Current.observe failure);
-    Alcotest.(check observe_result) 
+    Alcotest.(check observe_result)
       "Active" (Error (`Active `Running)) (Current.observe active);
-    Alcotest.(check observe_result) 
+    Alcotest.(check observe_result)
       "Blocked" (Error (`Blocked)) (Current.observe blocked);
     raise Exit
 
 let () =
-  Lwt_main.run begin
-    Alcotest_lwt.run "test" [
+  Eio_main.run @@ fun env ->
+  let proc = (Eio.Stdenv.process_mgr env :> Eio.Process.mgr) in
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _token ->
+    Alcotest.run "test" [
       "pipelines", [
         Driver.test_case_gc "v1"          test_v1;
         Driver.test_case_gc "v1-cancel"   test_v1_cancel;
@@ -380,13 +386,12 @@ let () =
         Driver.test_case_gc "context"     test_context;
       ];
       "terms", [
-        Alcotest_lwt.test_case_sync "all_labelled" `Quick test_all_labelled;
-        Alcotest_lwt.test_case_sync "metadata"     `Quick test_metadata;
-        Driver.test_case_gc         "observe"             test_observe;
+        Alcotest.test_case  "all_labelled" `Quick test_all_labelled;
+        Alcotest.test_case  "metadata"     `Quick test_metadata;
+        Driver.test_case_gc "observe"             test_observe;
       ];
       "cache", Test_cache.tests;
       "monitor", Test_monitor.tests;
-      "job", Test_job.tests;
+      "job", Test_job.tests ~proc;
       "log_matcher", Test_log_matcher.tests;
     ]
-  end

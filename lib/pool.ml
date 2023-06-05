@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 module Metrics = struct
   open Prometheus
 
@@ -34,7 +32,7 @@ type priority = [ `High | `Low ]
 
 type 'a t = {
   name : string;
-  get : priority:priority -> switch:Switch.t -> 'a Lwt.t * (unit -> unit Lwt.t);
+  get : sw:Eio.Switch.t -> priority:priority -> 'a Eio.Promise.or_exn * (unit -> unit);
 }
 
 module Local = struct
@@ -42,8 +40,8 @@ module Local = struct
     label : string;
     mutable used : int;
     capacity : int;
-    queue_low : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
-    queue_high : [`Use | `Cancel] Lwt.u Lwt_dllist.t;
+    queue_low : [`Use | `Cancel] Eio.Promise.u Lwt_dllist.t;
+    queue_high : [`Use | `Cancel] Eio.Promise.u Lwt_dllist.t;
   }
 
   let check t =
@@ -55,11 +53,11 @@ module Local = struct
       in
       next |> Option.iter @@ fun waiter ->
       t.used <- t.used + 1;
-      Lwt.wakeup_later waiter `Use
+      Eio.Promise.resolve waiter `Use
     )
 
-  let get t ~priority ~switch =
-    let ready, set_ready = Lwt.wait () in
+  let get t ~sw ~priority =
+    let ready, set_ready = Eio.Promise.create () in
     let queue =
       match priority with
       | `High -> t.queue_high
@@ -68,31 +66,32 @@ module Local = struct
     let node = Lwt_dllist.add_r set_ready queue in
     let cancel () =
         Lwt_dllist.remove node;
-        if Lwt.is_sleeping ready then Lwt.wakeup_later set_ready `Cancel;
-        Lwt.return_unit
+        if not (Eio.Promise.is_resolved ready) then Eio.Promise.resolve set_ready `Cancel
     in
     check t;
     let start_wait = Unix.gettimeofday () in
     Prometheus.Gauge.inc_one (Metrics.qlen t.label);
     let th =
-      Switch.add_hook_or_exec switch cancel >>= fun () ->
-      ready >|= fun ready ->
-      Prometheus.Gauge.dec_one (Metrics.qlen t.label);
-      match ready with
-      | `Cancel -> Fmt.failwith "Cancelled waiting for resource from pool %S" t.label
-      | `Use ->
-        let stop_wait = Unix.gettimeofday () in
-        Prometheus.Summary.observe (Metrics.wait_time t.label) (stop_wait -. start_wait);
-        Prometheus.Gauge.inc_one (Metrics.resources_in_use t.label);
-        Switch.add_hook_or_fail switch (fun _reason ->
+      (* XXX: Could this just be a thunk? *)
+      Eio.Fiber.fork_promise ~sw (fun () ->
+        (* Switch.add_hook_or_exec switch cancel; *)
+        let ready = Eio.Promise.await ready in
+        Prometheus.Gauge.dec_one (Metrics.qlen t.label);
+        match ready with
+        | `Cancel -> Fmt.failwith "Cancelled waiting for resource from pool %S" t.label
+        | `Use ->
+          let stop_wait = Unix.gettimeofday () in
+          Prometheus.Summary.observe (Metrics.wait_time t.label) (stop_wait -. start_wait);
+          Prometheus.Gauge.inc_one (Metrics.resources_in_use t.label);
+          Eio.Switch.on_release sw (fun _reason ->
             assert (t.used > 0);
             Prometheus.Gauge.dec_one (Metrics.resources_in_use t.label);
             t.used <- t.used - 1;
             let release_time = Unix.gettimeofday () in
             Prometheus.Summary.observe (Metrics.use_time t.label) (release_time -. stop_wait);
-            check t;
-            Lwt.return_unit
+            check t
           )
+      )
     in
     th, cancel
 

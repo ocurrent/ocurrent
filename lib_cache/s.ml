@@ -38,7 +38,7 @@ module type BUILDER = sig
 
   val build :
     t -> Current.Job.t -> Key.t ->
-    Value.t Current.or_error Lwt.t
+    Value.t Current.or_error
   (** [build t j k] builds [k].
       Call [Job.start j] once any required resources have been acquired.
       Log messages can be written to [j]. *)
@@ -64,7 +64,7 @@ module type PUBLISHER = sig
 
   val publish :
     t -> Current.Job.t -> Key.t -> Value.t ->
-    Outcome.t Current.or_error Lwt.t
+    Outcome.t Current.or_error
   (** [publish t j k v] sets output [k] to value [v].
       Call [Job.start j] once any required resources have been acquired.
       Log messages can be written to [j]. *)
@@ -99,7 +99,7 @@ module type GENERIC = sig
 
   val run :
     t -> Current.Job.t -> Key.t -> Value.t ->
-    Outcome.t Current.or_error Lwt.t
+    Outcome.t Current.or_error
   (** [run t j k v] performs the operation.
       Call [Job.start j] once any required resources have been acquired.
       Log messages can be written to [j]. *)

@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 open Current.Syntax
 
 let src = Logs.Src.create "test.git" ~doc:"OCurrent test git plugin"
@@ -7,7 +5,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module RepoMap = Map.Make(String)
 
-let state : (Fpath.t, [`Msg of string]) result Lwt.u RepoMap.t ref = ref RepoMap.empty
+let state : (Fpath.t, [`Msg of string]) result Eio.Promise.u RepoMap.t ref = ref RepoMap.empty
 
 module Commit = struct
   type t = {
@@ -30,7 +28,7 @@ let complete_clone {Commit.repo; hash} =
   | None -> Fmt.failwith "No clone started for %S!" repo
   | Some set ->
     let r = Fpath.v ("src-" ^ hash) in
-    Lwt.wakeup set (Ok r)
+    Eio.Promise.resolve set (Ok r)
 
 module Clone = struct
   type t = No_context
@@ -46,24 +44,25 @@ module Clone = struct
   let pp f key = Fmt.pf f "git clone %S" key.Commit.repo
 
   let build No_context job (key : Key.t) =
-    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-    let ready, set_ready = Lwt.wait () in
+    Current.Job.start job ~level:Current.Level.Average;
+    let ready, set_ready = Eio.Promise.create () in
     Current.Job.on_cancel job (fun _ ->
-        if Lwt.is_sleeping ready then
-          Lwt.wakeup_exn set_ready Lwt.Canceled; Lwt.return_unit
-      ) >>= fun () ->
+        if not (Eio.Promise.is_resolved ready) then begin
+          Eio.Promise.resolve_error set_ready (`Msg "Cancelled")
+        end
+      );
     state := RepoMap.add key.Commit.repo set_ready !state;
-    ready
+    Eio.Promise.await ready
 
   let auto_cancel = true
 end
 
 module C = Current_cache.Make(Clone)
 
-let fetch c =
+let fetch ~sw c =
   Current.component "fetch" |>
   let> c = c in
-  C.get Clone.No_context c
+  C.get ~sw Clone.No_context c
 
 let reset () =
   state := RepoMap.empty;

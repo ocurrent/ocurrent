@@ -23,6 +23,8 @@ module type DOCKER = sig
     ?label:string ->
     ?arch:string ->
     schedule:Current_cache.Schedule.t ->
+    proc:Eio.Process.mgr ->
+    sw:Eio.Switch.t ->
     string -> Image.t Current.t
   (** [pull ~schedule tag] ensures that the latest version of [tag] is cached locally, downloading it if not.
       @param arch Select a specific architecture from a multi-arch manifest.
@@ -34,6 +36,8 @@ module type DOCKER = sig
     ?label:string ->
     arch:string ->
     schedule:Current_cache.Schedule.t ->
+    proc:Eio.Process.mgr ->
+    sw:Eio.Switch.t ->
     string -> repo_id Current.t
   (** [peek ~schedule ~arch tag] gets the latest version of [tag] without actually pulling it.
       @param arch Select a specific architecture from a multi-arch manifest.
@@ -52,6 +56,9 @@ module type DOCKER = sig
     ?pool:unit Current.Pool.t ->
     ?build_args:string list ->
     pull:bool ->
+    fs:Eio.Fs.dir Eio.Path.t ->
+    proc:Eio.Process.mgr ->
+    sw:Eio.Switch.t ->
     source ->
     Image.t Current.t
   (** [build ~pull src] builds a Docker image from source.
@@ -68,7 +75,9 @@ module type DOCKER = sig
     ?label:string ->
     ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
+    proc:Eio.Process.mgr ->
     Image.t Current.t -> args:string list ->
+    sw:Eio.Switch.t ->
     unit Current.t
   (** [run image ~args] runs [image args] with Docker.
       @param run_args List of additional arguments to pass to the "docker
@@ -78,25 +87,27 @@ module type DOCKER = sig
     ?label:string ->
     ?pool:unit Current.Pool.t ->
     ?run_args:string list ->
+    proc:Eio.Process.mgr ->
     Image.t Current.t -> args:string list ->
+    sw:Eio.Switch.t ->
     string Current.t
   (** [pread image ~args] runs [image args] with Docker the same way than [run]
       does but returns its stdout as a string. *)
 
-  val tag : tag:string -> Image.t Current.t -> unit Current.t
+  val tag : tag:string -> sw:Eio.Switch.t -> proc:Eio.Process.mgr -> Image.t Current.t -> unit Current.t
   (** [tag image ~tag] does "docker tag image tag" *)
 
-  val push : ?auth:(string * string) -> tag:string -> Image.t Current.t -> repo_id Current.t
+  val push : ?auth:(string * string) -> tag:string -> sw:Eio.Switch.t -> proc:Eio.Process.mgr -> Image.t Current.t -> repo_id Current.t
   (** [push image ~tag] does "docker tag image tag && docker push tag".
       @param auth If give, do a "docker login" using this username/password pair before pushing. *)
 
-  val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
+  val service : name:string -> image:Image.t Current.t -> proc:Eio.Process.mgr -> sw:Eio.Switch.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
 
-  val compose : ?pull:bool -> name:string -> contents:string Current.t -> unit -> unit Current.t
-  (** [compose ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
+  val compose : ?pull:bool -> name:string -> contents:string Current.t -> proc:Eio.Process.mgr -> sw:Eio.Switch.t -> unit -> unit Current.t
+  (** [service ?pull ~name ~image ~contents ()] keeps a Docker Compose deployment up-to-date.
       [contents] contains the full Compose Yaml file.
-      @param pull Controls whether images are pulled by the compose command, the default is [true] 
+      @param pull Controls whether images are pulled by the compose command, the default is [true]
       This calls `docker-compose` version 1 which as of April 2022 is deprecated in favour of version 2 *)
 
   val compose_cli :
@@ -105,6 +116,7 @@ module type DOCKER = sig
     name:string ->
     detach:bool ->
     contents:string Current.t ->
+    proc:Eio.Process.mgr -> sw:Eio.Switch.t ->
     unit -> unit Current.t
   (** [compose_cli ~name ~image ~contents ()] keeps a Docker Compose Cli deployment up-to-date.
       [contents] contains the full Compose Yaml file.

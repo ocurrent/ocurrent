@@ -1,50 +1,51 @@
-(rule
- (target static.ml)
- (deps
-  (glob_files static/css/*)
-  (glob_files static/img/*)
-  (glob_files static/js/*))
- (action
-  (run ocaml-crunch --silent --mode=plain --output=%{target} static)))
+; Disabled for port to Eio
+; (rule
+;  (target static.ml)
+;  (deps
+;   (glob_files static/css/*)
+;   (glob_files static/img/*)
+;   (glob_files static/js/*))
+;  (action
+;   (run ocaml-crunch --silent --mode=plain --output=%{target} static)))
 
-(library
- (public_name current_web)
- (libraries
-   astring
-   base64
-   bos
-   cmdliner
-   cohttp-lwt-unix
-   conduit-lwt-unix
-   cstruct
-   current
-   current.cache
-   current.term
-   csv
-   ansi
-   fmt
-   fpath
-   logs
-   lwt
-   lwt.unix
-   mirage-crypto
-   mirage-crypto-rng
-   mirage-crypto-rng.unix
-   multipart_form-lwt
-   ppx_sexp_conv.runtime-lib
-   prometheus
-   prometheus-app
-   re
-   result
-   routes
-   session
-   session-cohttp-lwt
-   sexplib
-   sqlite3
-   tyxml
-   tyxml.functor
-   ppx_deriving_yojson.runtime
-   unix
-   yojson
-   uri)
- (preprocess (pps ppx_deriving.std ppx_deriving_yojson)))
+; (library
+;  (public_name current_web)
+;  (libraries
+;    astring
+;    base64
+;    bos
+;    cmdliner
+;    cohttp-lwt-unix
+;    conduit-lwt-unix
+;    cstruct
+;    current
+;    current.cache
+;    current.term
+;    csv
+;    ansi
+;    fmt
+;    fpath
+;    logs
+;    lwt
+;    lwt.unix
+;    mirage-crypto
+;    mirage-crypto-rng
+;    mirage-crypto-rng.unix
+;    multipart_form-lwt
+;    ppx_sexp_conv.runtime-lib
+;    prometheus
+;    prometheus-app
+;    re
+;    result
+;    routes
+;    session
+;    session-cohttp-lwt
+;    sexplib
+;    sqlite3
+;    tyxml
+;    tyxml.functor
+;    ppx_deriving_yojson.runtime
+;    unix
+;    yojson
+;    uri)
+;  (preprocess (pps ppx_deriving.std ppx_deriving_yojson)))

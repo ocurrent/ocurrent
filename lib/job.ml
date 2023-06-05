@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 module Metrics = struct
   open Prometheus
 
@@ -15,20 +13,20 @@ module Map = Map.Make(String)
 
 (* For unit-tests: *)
 let timestamp = ref Unix.gettimeofday
-let sleep = ref Lwt_unix.sleep
+let sleep = ref Eio_unix.sleep
 
 type t = {
-  switch : Switch.t;
+  switch : Eio.Switch.t;
   config : Config.t;
   id : string;
   priority : Pool.priority;
-  set_start_time : float Lwt.u;
-  start_time : float Lwt.t;
+  set_start_time : float Eio.Promise.u;
+  start_time : float Eio.Promise.t;
   mutable path : Fpath.t option;
-  log_cond : unit Lwt_condition.t;  (* Fires whenever log data is written, or log is closed. *)
-  explicit_confirm : unit Lwt.t;
-  set_explicit_confirm : unit Lwt.u; (* Resolve this to override the global confirmation threshold. *)
-  mutable cancel_hooks : [ `Hooks of (string -> unit Lwt.t) Lwt_dllist.t | `Cancelled of string ];
+  log_cond : Eio.Condition.t;  (* Fires whenever log data is written, or log is closed. *)
+  explicit_confirm : unit Eio.Promise.or_exn;
+  set_explicit_confirm : (unit, exn) result Eio.Promise.u; (* Resolve this to override the global confirmation threshold. *)
+  mutable cancel_hooks : [ `Hooks of (string -> unit) Lwt_dllist.t | `Cancelled of string ];
   mutable waiting_for_confirmation : bool;  (* Is calling [approve_early_start] useful? *)
 }
 
@@ -47,7 +45,7 @@ let write t msg =
       output_string ch msg;
       flush ch;
     );
-    Lwt_condition.broadcast t.log_cond ()
+    Eio.Condition.broadcast t.log_cond
 
 let log t fmt =
   let { Unix.tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _ } =
@@ -84,8 +82,8 @@ let id_of_path path =
 let run_cancel_hooks ~reason hooks =
   let rec aux () =
     match Lwt_dllist.take_opt_l hooks with
-    | None -> Lwt.return_unit
-    | Some fn -> fn reason >>= aux
+    | None -> ()
+    | Some fn -> fn reason; aux ()
   in
   aux ()
 
@@ -96,20 +94,17 @@ let cancel t reason =
   | `Hooks hooks ->
     t.cancel_hooks <- `Cancelled reason;
     log t "Cancelling: %s" reason;
-    Lwt.async (fun () ->
-        Lwt.catch
-          (fun () -> run_cancel_hooks ~reason hooks)
-          (fun ex -> match ex with
+    Eio.Fiber.fork ~sw:t.switch (fun () ->
+        try run_cancel_hooks ~reason hooks with
           | Unix.Unix_error(Unix.EPERM, "kill", _) ->
-            log t "cancel(%S, %S): permission denied when killing child process (job has used sudo?)" (id t) reason;
-            Lwt.return_unit
-          | _ ->
-            Fmt.failwith "Uncaught exception from cancel hook for %S: %a" (id t) Fmt.exn ex)
-      )
+            log t "cancel(%S, %S): permission denied when killing child process (job has used sudo?)" (id t) reason
+          | ex ->
+            Fmt.failwith "Uncaught exception from cancel hook for %S: %a" (id t) Fmt.exn ex
+        )
 
 
-let create ?(priority=`Low) ~switch ~label ~config () =
-  if not (Switch.is_on switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label;
+let create ?(priority=`Low) ~sw ~label ~config () =
+  (* if not (Eio.Switch. switch) then Fmt.failwith "Switch %a is not on! (%s)" Switch.pp switch label; *)
   let jobs_dir = Lazy.force jobs_dir in
   let time = !timestamp () |> Unix.gmtime in
   let date =
@@ -127,85 +122,88 @@ let create ?(priority=`Low) ~switch ~label ~config () =
     let path = temp_file ~dir:date_dir ~prefix ~suffix:".log" in
     Log.info (fun f -> f "Created new log file at@ %a" Fpath.pp path);
     let id = id_of_path path in
-    let start_time, set_start_time = Lwt.wait () in
-    let log_cond = Lwt_condition.create () in
-    let explicit_confirm, set_explicit_confirm = Lwt.wait () in
+    let start_time, set_start_time = Eio.Promise.create () in
+    let log_cond = Eio.Condition.create () in
+    let explicit_confirm, set_explicit_confirm = Eio.Promise.create () in
     let cancel_hooks = `Hooks (Lwt_dllist.create ()) in
-    let t = { switch; id; path = Some path; start_time; set_start_time; config; log_cond; cancel_hooks;
+    let t = { switch=sw; id; path = Some path; start_time; set_start_time; config; log_cond; cancel_hooks;
               explicit_confirm; set_explicit_confirm; waiting_for_confirmation = false; priority } in
     jobs := Map.add id t !jobs;
     Prometheus.Gauge.inc_one Metrics.active_jobs;
-    Switch.add_hook_or_fail switch (fun () ->
+    Eio.Switch.on_release sw (fun () ->
         begin match t.cancel_hooks with
           | `Hooks hooks ->
             let reason = "Job complete" in
             t.cancel_hooks <- `Cancelled reason;
             run_cancel_hooks ~reason hooks
-          | `Cancelled _ -> Lwt.return_unit
-        end >>= fun () ->
+          | `Cancelled _ -> ()
+        end;
         t.path <- None;
         jobs := Map.remove id !jobs;
         Prometheus.Gauge.dec_one Metrics.active_jobs;
-        Lwt_condition.broadcast t.log_cond ();
-        Lwt.return_unit
+        Eio.Condition.broadcast t.log_cond
       );
     t
 
 let pp_id = Fmt.string
 
-let is_running t = Lwt.state t.start_time <> Lwt.Sleep
+let is_running t = Eio.Promise.is_resolved t.start_time
 
 let on_cancel t fn =
   match t.cancel_hooks with
   | `Cancelled reason -> fn reason
   | `Hooks hooks ->
     let (_ : _ Lwt_dllist.node) = Lwt_dllist.add_r fn hooks in
-    Lwt.return_unit
+    ()
 
 let with_handler t ~on_cancel fn =
   match t.cancel_hooks with
   | `Cancelled reason ->
-    on_cancel reason >>= fn
+    on_cancel reason |> fn
   | `Hooks hooks ->
     let node = Lwt_dllist.add_r on_cancel hooks in
-    Lwt.finalize fn (fun () -> Lwt_dllist.remove node; Lwt.return_unit)
+    Fun.protect fn ~finally:(fun () -> Lwt_dllist.remove node)
 
-let use_pool ?(priority=`Low) ~switch t pool =
-  let th, cancel = Pool.get ~priority ~switch pool in
-  on_cancel t (fun _ -> cancel ()) >>= fun () ->
+let use_pool ?(priority=`Low) t pool =
+  let th, cancel = Pool.get ~sw:t.switch ~priority pool in
+  on_cancel t (fun _ -> cancel ());
   th
 
 let no_pool =
-  Pool.of_fn ~label:"no pool" (fun ~priority:_ ~switch:_ -> Lwt.return_unit, Lwt.return)
+  Pool.of_fn ~label:"no pool" (fun ~sw:_ ~priority:_ -> Eio.Promise.create_resolved (Ok ()), fun () -> ())
 
 let confirm t ~pool level =
-  let confirmed =
-    let confirmed = Config.confirmed level t.config in
-    on_cancel t (fun _ -> Lwt.cancel confirmed; Lwt.return_unit) >>= fun () ->
-    match Lwt.state confirmed with
-    | Lwt.Return () -> Lwt.return_unit
-    | _ ->
+  let confirmed () =
+    let confirmed, set_confirmed = Eio.Promise.create () in
+    Eio.Switch.run @@ fun sw ->
+    Eio.Fiber.fork ~sw (fun () -> Config.confirmed level t.config; Eio.Promise.resolve_ok set_confirmed ());
+    on_cancel t (fun _ -> if not (Eio.Promise.is_resolved confirmed) then Eio.Promise.resolve_error set_confirmed (Failure "Cancelled"));
+    match Eio.Promise.is_resolved confirmed with
+    | true -> ()
+    | false ->
       log t "Waiting for confirm-threshold > %a" Level.pp level;
       Log.info (fun f -> f "Waiting for confirm-threshold > %a" Level.pp level);
       t.waiting_for_confirmation <- true;
-      Lwt.choose [confirmed; t.explicit_confirm] >>= fun () ->
+      Eio.Fiber.any [
+        (fun () -> Eio.Promise.await_exn confirmed);
+        (fun () -> Eio.Promise.await_exn t.explicit_confirm)
+      ];
       t.waiting_for_confirmation <- false;
-      if Lwt.state confirmed <> Lwt.Sleep then (
+      if Eio.Promise.is_resolved confirmed then (
         log t "Confirm-threshold now > %a" Level.pp level;
         Log.info (fun f -> f "Confirm-threshold now > %a" Level.pp level)
       );
-      if Lwt.state t.explicit_confirm <> Lwt.Sleep then (
+      if Eio.Promise.is_resolved t.explicit_confirm then (
         log t "Explicit approval received for this job"
-      );
-      Lwt.return_unit
+      )
   in
-  confirmed >>= fun () ->
-  let res = use_pool t ~priority:t.priority ~switch:t.switch pool in
-  if Lwt.is_sleeping res then (
+  confirmed ();
+  let res = use_pool t ~priority:t.priority pool in
+  if not (Eio.Promise.is_resolved res) then (
     log t "Waiting for resource in pool %a" Pool.pp pool;
-    res >|= fun r ->
+    let r = Eio.Promise.await res in
     log t "Got resource from pool %a" Pool.pp pool;
-    r
+    Eio.Promise.create_resolved r
   ) else res
 
 let pp_duration f d =
@@ -215,38 +213,38 @@ let pp_duration f d =
   else Fmt.pf f "%f seconds" d
 
 let start_with ?timeout ~pool ~level t =
-  confirm t ~pool level >|= fun r ->
+  let r = Eio.Promise.await_exn @@ confirm t ~pool level in
   if is_running t then (
     Log.warn (fun f -> f "start called, but job %s is already running!" t.id);
     Fmt.failwith "Job.start called twice!"
   );
-  Lwt.wakeup t.set_start_time (!timestamp ());
+  Eio.Promise.resolve t.set_start_time (!timestamp ());
   timeout |> Option.iter (fun duration ->
       (* We could be smarter about this and cancel the timeout when the switch is turned off. *)
-      Lwt.async (fun () ->
-          Lwt_unix.sleep (Duration.to_f duration) >|= fun () ->
-          match t.cancel_hooks with
-          | `Cancelled _ -> ()
-          | `Hooks _ -> cancel t (Fmt.str "Timeout (%a)" pp_duration duration)
-        )
-    );
+    Eio.Fiber.fork ~sw:t.switch (fun () ->
+      Eio_unix.sleep (Duration.to_f duration);
+      match t.cancel_hooks with
+      | `Cancelled _ -> ()
+      | `Hooks _ -> cancel t (Fmt.str "Timeout (%a)" pp_duration duration)
+    )
+  );
   r
 
 let start ?timeout ?(pool=no_pool) = start_with ?timeout ~pool
 
 let start_time t = t.start_time
 
-let wait_for_log_data t = Lwt_condition.wait t.log_cond
+let wait_for_log_data t = Eio.Condition.await_no_mutex t.log_cond
 
 let lookup_running id = Map.find_opt id !jobs
 
 let is_waiting_for_confirmation t = t.waiting_for_confirmation
 
 let approve_early_start t =
-  match Lwt.state t.explicit_confirm with
-  | Lwt.Sleep -> Lwt.wakeup t.set_explicit_confirm ()
-  | Lwt.Return () -> ()
-  | Lwt.Fail ex -> raise ex
+  match Eio.Promise.peek t.explicit_confirm with
+  | None -> Eio.Promise.resolve_ok t.set_explicit_confirm ()
+  | Some (Ok ()) -> ()
+  | Some (Error ex) -> raise ex
 
 let cancelled_state t =
   match t.cancel_hooks with

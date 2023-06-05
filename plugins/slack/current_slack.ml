@@ -2,10 +2,10 @@ open Current.Syntax
 
 module PC = Current_cache.Output(Post)
 
-type channel = Post.t
+type channel = Post.channel
 let channel uri = uri
 
-let post channel ~key message =
+let post ~sw net channel ~key message =
   Current.component "post" |>
   let> message = message in
-  PC.set channel key message
+  PC.set ~sw (channel, net) key message

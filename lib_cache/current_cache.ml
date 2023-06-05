@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 module Job = Current.Job
 
 module Metrics = struct
@@ -102,6 +100,7 @@ module Generic(Op : S.GENERIC) = struct
       mutable expires : (float * (unit -> unit)) option;  (* Time and cancel function. *)
       notify : unit Current_incr.var;       (* Async thread sets this to update results. *)
       release : unit -> unit;               (* Remove [t] from cache (call when inactive and ref-count = 0). *)
+      sw : Eio.Switch.t;
     }
 
     (* State model:
@@ -203,9 +202,9 @@ module Generic(Op : S.GENERIC) = struct
          wait until the job starts before doing this): *)
       t.current <- None;
       let ctx = t.ctx in
-      let switch = Current.Switch.create ~label:Op.id () in
+      (* let switch = Current.Switch.create ~label:Op.id () in *)
       let priority = if latched = None then `High else `Low in
-      let job = Job.create ~priority ~switch ~label:Op.id ~config () in
+      let job = Job.create ~sw:t.sw ~priority ~label:Op.id ~config () in
       let job_id = Job.id job in
       t.job_id <- Some job_id;
       let op = { value = t.desired; job; autocancelled = false } in
@@ -213,24 +212,24 @@ module Generic(Op : S.GENERIC) = struct
       t.op <- `Active (op, latched);
       let pp_op f = pp_op f (t.key, op.value) in
       Job.log job "New job: %t" pp_op;
-      Lwt.async
+      Eio.Fiber.fork ~sw:t.sw
         (fun () ->
-           Job.start_time job >>= fun _ ->
-           Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
+           let _ : float = Eio.Promise.await @@ Job.start_time job in
+           Eio.Fiber.yield (); (* Ensure we're outside any propagate *)
            notify t
         );
       let key_digest = Op.Key.digest t.key in
       Hashtbl.add key_of_job_id job_id (Op.id, key_digest);
       Hashtbl.add job_id_of_key (Op.id, key_digest) job_id;
-      Lwt.async
+      Eio.Fiber.fork ~sw:t.sw
         (fun () ->
-           Lwt.finalize
+           Fun.protect
              (fun () ->
-                Lwt.catch
-                  (fun () -> Op.run ctx job t.key (Value.value op.value))
-                  (fun ex -> Lwt.return (Error (`Msg (Printexc.to_string ex))))
-                >>= fun outcome ->
-                Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
+                let outcome =
+                  try Op.run ctx job t.key (Value.value op.value)
+                  with ex -> Error (`Msg (Printexc.to_string ex))
+                in
+                Eio.Fiber.yield (); (* Ensure we're outside any propagate *)
                 let end_time = Unix.gmtime @@ !Job.timestamp () in
                 if op.autocancelled then (
                   t.op <- `Retry latched;
@@ -238,9 +237,9 @@ module Generic(Op : S.GENERIC) = struct
                 ) else (
                   (* Record the result *)
                   let running =
-                    match Lwt.state (Job.start_time job) with
-                    | Lwt.Return x -> Some (Unix.gmtime x)
-                    | Lwt.Sleep when Stdlib.Result.is_ok outcome -> Fmt.failwith "Job.start not called!";
+                    match Eio.Promise.peek (Job.start_time job) with
+                    | Some x -> Some (Unix.gmtime x)
+                    | None when Stdlib.Result.is_ok outcome -> Fmt.failwith "Job.start not called!";
                     | _ -> None
                   in
                   let outcome =
@@ -278,10 +277,10 @@ module Generic(Op : S.GENERIC) = struct
                     )
                 )
              )
-             (fun () ->
+             ~finally:(fun () ->
                 Hashtbl.remove key_of_job_id (Job.id job);
                 Hashtbl.remove job_id_of_key (Op.id, key_digest);
-                Current.Switch.turn_off switch >|= fun () ->
+                (* Switch. switch; *)
                 (* While we were working, we might have decided we wanted something else.
                    If so, start that now. *)
                 if t.ref_count > 0 then maybe_restart ~config t
@@ -292,40 +291,39 @@ module Generic(Op : S.GENERIC) = struct
     let limit_expires t time =
       let set () =
         let remaining_time = time -. !Job.timestamp () in
-        let sleep_thread = if remaining_time > 0.0 then !Job.sleep remaining_time else Lwt.return_unit in
+        let sleep_thread, sleep_resolver =
+          let p, r = Eio.Promise.create () in
+          Eio.Fiber.fork ~sw:t.sw (fun () ->
+          (if remaining_time > 0.0 then !Job.sleep remaining_time else ());
+          Eio.Promise.resolve_ok r ());
+          p, r
+        in
         let cancelled = ref false in
-        Lwt.async
+        Eio.Fiber.fork ~sw:t.sw
           (fun () ->
-             Lwt.try_bind
-               (fun () -> sleep_thread)
-               (fun () ->
-                  Lwt.pause () >|= fun () ->        (* Ensure we're outside any propagate *)
-                  if not !cancelled then (
-                    t.expires <- None;
-                    Log.info (fun f -> f "Result for %a has expired" pp_desired t);
-                    let latched =
-                      match t.op with
-                      | `Finished x -> Some x
-                      | `Retry x -> x
-                      | _ -> None
-                    in
-                    t.op <- `Retry latched;
-                    t.current <- None;
-                    match Current_incr.observe Current.Config.now with
-                    | Some config -> maybe_restart ~config t
-                    | None -> Log.warn (fun f -> f "Can't trigger restart as config is now None (shutting down?)")
-                  )
-               )
-               (function
-                 | Lwt.Canceled ->
-                   Lwt.return_unit
-                 | ex ->
-                   Log.err (fun f -> f "Expiry thread failed: %a" Fmt.exn ex);
-                   Lwt.return_unit
-               );
+            match Eio.Promise.await_exn sleep_thread with
+            | () ->
+              Eio.Fiber.yield (); (* Ensure we're outside any propagate *)
+              if not !cancelled then (
+                t.expires <- None;
+                Log.info (fun f -> f "Result for %a has expired" pp_desired t);
+                let latched =
+                  match t.op with
+                  | `Finished x -> Some x
+                  | `Retry x -> x
+                  | _ -> None
+                in
+                t.op <- `Retry latched;
+                t.current <- None;
+                match Current_incr.observe Current.Config.now with
+                | Some config -> maybe_restart ~config t
+                | None -> Log.warn (fun f -> f "Can't trigger restart as config is now None (shutting down?)")
+              )
+            | exception Eio.Cancel.Cancelled _ -> ()
+            | exception ex -> Log.err (fun f -> f "Expiry thread failed: %a" Fmt.exn ex)
           );
         let cancel () =
-          Lwt.cancel sleep_thread;
+          Eio.Promise.resolve_error sleep_resolver (Eio.Cancel.Cancelled (Failure "Cancelled"));
           cancelled := true
         in
         t.expires <- Some (time, cancel)
@@ -341,7 +339,7 @@ module Generic(Op : S.GENERIC) = struct
       | None -> ()
 
     (* Create a new in-memory instance, initialising it from the database. *)
-    let load ~release ctx key desired =
+    let load ~release ~sw ctx key desired =
       let step_id = Current.Engine.Step.now () in
       let current, job_id, op, mtime, build_number =
         match Db.lookup ~op:Op.id (Op.Key.digest key) with
@@ -363,7 +361,7 @@ module Generic(Op : S.GENERIC) = struct
         | None -> None, None, `Retry None, Unix.gettimeofday (), 0L
       in
       let notify = Current_incr.var () in
-      { key; current; desired; ctx; op; job_id; last_set = step_id;
+      { key; current; desired; ctx; op; job_id; last_set = step_id; sw;
         ref_count = 0; release; mtime; build_number; notify; expires = None }
 
     (* Register the actions for a resolved (non-active) instance.
@@ -469,13 +467,12 @@ module Generic(Op : S.GENERIC) = struct
         | `Active (op, latched) ->
           let a =
             let started = Job.start_time op.job in
-            if Lwt.state started = Lwt.Sleep then
+            if not (Eio.Promise.is_resolved started) then
               if Job.is_waiting_for_confirmation op.job then
                 `Waiting_for_confirmation
               else
                 `Ready
-            else
-              `Running
+            else `Running
           in
           match latched with
           | None -> Error (`Active a), None
@@ -500,7 +497,7 @@ module Generic(Op : S.GENERIC) = struct
     | None ->
       Db.invalidate ~op:Op.id key
 
-  let run ?(schedule=Schedule.default) ctx key value =
+  let run ?(schedule=Schedule.default) ~sw ctx key value =
     Current_incr.of_cc begin
       Current_incr.read Current.Config.now @@ function
       | None -> Current_incr.write (Error (`Active `Ready), None)
@@ -523,7 +520,7 @@ module Generic(Op : S.GENERIC) = struct
               instances := Instances.remove key_digest !instances;
               Prometheus.Gauge.dec_one (Metrics.memory_cache_items Op.id)
             in
-            let i = Instance.load ~release ctx key value in
+            let i = Instance.load ~sw ~release ctx key value in
             instances := Instances.add key_digest i !instances;
             Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
             i
@@ -561,8 +558,8 @@ module Make(B : S.BUILDER) = struct
 
   include Generic(Adaptor)
 
-  let get ?schedule ctx key =
-    run ?schedule ctx key ()
+  let get ?schedule ~sw ctx key =
+    run ?schedule ~sw ctx key ()
 end
 
 module Output(P : S.PUBLISHER) = struct
@@ -574,8 +571,8 @@ module Output(P : S.PUBLISHER) = struct
 
   include Generic(Adaptor)
 
-  let set ?schedule ctx key value =
-    run ?schedule ctx key value
+  let set ?schedule ~sw ctx key value =
+    run ?schedule ~sw ctx key value
 end
 
 module S = S

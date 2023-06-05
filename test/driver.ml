@@ -1,4 +1,3 @@
-open Lwt.Infix
 open Current.Syntax
 
 let () =
@@ -95,7 +94,7 @@ let test ?config ?final_stats ~name v actions =
     let { Current.Engine.value = x; _} = step_result in
     Logs.info (fun f -> f "--> %a" (Current_term.Output.pp (Fmt.any "()")) x);
     begin
-      if Lwt.state next <> Lwt.Sleep then Fmt.failwith "Already ready, and nothing changed yet!";
+      if Eio.Promise.is_resolved next then Fmt.failwith "Already ready, and nothing changed yet!";
       try actions !step with
       | Exit ->
         final_stats |> Option.iter (fun expected ->
@@ -109,31 +108,37 @@ let test ?config ?final_stats ~name v actions =
     let rec wait i =
       match i with
       | 0 -> failwith "No inputs ready (tests stuck)!"
-      | i when Lwt.state next = Lwt.Sleep ->
-        Lwt.pause () >>= fun () ->
+      | i when not (Eio.Promise.is_resolved next) ->
+        Eio.Fiber.yield ();
         wait (i - 1)
-      | _ -> Lwt.return_unit
+      | _ -> ()
     in
-    wait 3      (* Wait a few turns for things to become ready *)
+    (* XXX: Why did I have to make this much higher, just scheduler differences? *)
+    wait 10 (* Wait a few turns for things to become ready *)
   in
-  let engine = Current.Engine.create ?config ~trace (fun () -> test_pipeline) in
-  Lwt.catch
-    (fun () -> Current.Engine.thread engine)
-    (function
-      | Exit -> Docker.assert_finished (); Lwt.return_unit
-      | ex -> Lwt.fail ex
-    )
+  try 
+    Eio.Switch.run @@ fun sw ->
+    let engine = Current.Engine.create ?config ~trace ~sw (fun () -> test_pipeline) in
+    try Eio.Promise.await_exn @@ Current.Engine.thread engine with
+      | Exit -> 
+        Docker.assert_finished ();
+        Eio.Switch.fail sw Exit
+      | ex -> raise ex
+  with Exit -> ()
 
 let test_case_gc name fn =
-  Alcotest_lwt.test_case name `Quick (fun switch () ->
+  Alcotest.test_case name `Quick (fun () ->
+    try 
+      Eio.Switch.run @@ fun sw ->
       let old_errors = Logs.err_count () in
-      fn switch () >>= fun () ->
+      fn sw ();
       SVar.set selected (Error (`Msg "no-test"));
       Current_incr.propagate ();
-      Lwt.pause () >>= fun () ->
+      Eio.Fiber.yield ();
       Gc.full_major ();
       Alcotest.(check int) "No errors logged" 0 @@ Logs.err_count () - old_errors;
-      Prometheus.CollectorRegistry.(collect default) >|= fun data ->
+      (* XXX: Todo use eio port of prometheus! *)
+      let data = Lwt_eio.Promise.await_lwt @@ Prometheus.CollectorRegistry.(collect default) in
       Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data
       |> String.split_on_char '\n'
       |> List.iter (fun line ->
@@ -146,4 +151,7 @@ let test_case_gc name fn =
                 Fmt.failwith "Non-zero metric after test: %s=%s" key value
           )
         );
+      (* XXX: There are some async things that should probably shut themselves down... *)
+      Eio.Switch.fail sw Stdlib.Exit
+    with Stdlib.Exit -> ()
     )

@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 type 'a or_error = ('a, [`Msg of string]) result
 
 module Config = Config
@@ -74,7 +72,7 @@ module Engine = struct
   }
 
   type t = {
-    thread : 'a. 'a Lwt.t;
+    thread : 'a. 'a Eio.Promise.or_exn;
     last_result : results ref;
     pipeline : unit term Lazy.t;
     config : Config.t;
@@ -95,26 +93,24 @@ module Engine = struct
       fn ();
       flush_release_queue ()
 
-  let propagate = Lwt_condition.create ()
+  let propagate = Eio.Condition.create ()
 
   let update () =
-    Lwt_condition.broadcast propagate ()
+    Eio.Condition.broadcast propagate
 
   let booting = {
     value = Error (`Active `Running);
     jobs = Job.Map.empty;
   }
 
-  let default_trace ~next:_ _ =
-    Lwt.return_unit
+  let default_trace ~next:_ _ = ()
 
   let pipeline t = Lazy.force t.pipeline
 
-  let create ?(config=Config.default) ?(trace=default_trace) f =
+  let create ?(config=Config.default) ?(trace=default_trace) ~sw f =
     let last_result = ref booting in
     let rec aux outcome =
-      let next = Lwt_condition.wait propagate in
-      Log.debug (fun f -> f "Evaluating...");
+      let next = Eio.Fiber.fork_promise ~sw (fun () -> Eio.Condition.await_no_mutex propagate) in
       let t0 = Unix.gettimeofday () in
       Current_incr.propagate ();
       let t1 = Unix.gettimeofday () in
@@ -128,37 +124,36 @@ module Engine = struct
         value = r;
         jobs = Job.Map.map List.hd !active_jobs;
       };
-      trace ~next !last_result >>= fun () ->
+      trace ~next !last_result;
       Log.debug (fun f -> f "Waiting for an external event...");
-      next >>= fun () ->
-      Lwt.pause () >>= fun () ->
+      Eio.Promise.await_exn next;
+      Eio.Fiber.yield ();
       Step.advance ();
       aux outcome
     in
     let pipeline = lazy (f ()) in
     let thread =
+      Eio.Fiber.fork_promise ~sw (fun () ->
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)
-      Lwt.pause () >>= fun () ->
+      Eio.Fiber.yield ();
       if Current_incr.observe Config.now <> None then
         failwith "Engine is already running (Config.now already set)!";
       Current_incr.change Config.active_config (Some config);
-      Lwt.finalize
+      Fun.protect
         (fun () ->
-           Lwt.catch
-             (fun () ->
-                aux (Executor.run (Lazy.force pipeline))
-             )
-             (fun ex ->
-                if ex = Exit then (
-                  (* Clean up, for unit-tests *)
-                  Current_incr.propagate ();
-                  flush_release_queue ();
-                );
-                Lwt.fail ex
-             )
+          try aux (Executor.run (Lazy.force pipeline))
+          with ex -> (
+            if ex = Exit then (
+              (* Clean up, for unit-tests *)
+              Current_incr.propagate ();
+              flush_release_queue ();
+            );
+            raise ex
+          )
         )
-        (fun () -> Current_incr.change Config.active_config None; Lwt.return_unit)
+        ~finally:(fun () -> Current_incr.change Config.active_config None)
+      )
     in
     { thread; last_result; config; pipeline }
 
@@ -215,34 +210,33 @@ end
 
 module Monitor = struct
   type 'a t = {
-    read : unit -> 'a or_error Lwt.t;
-    watch : (unit -> unit) -> (unit -> unit Lwt.t) Lwt.t;
+    sw : Eio.Switch.t;
+    read : unit -> 'a or_error Eio.Promise.t;
+    watch : (unit -> unit) -> (unit -> unit);
     pp : Format.formatter -> unit;
     value : 'a Current_term.Output.t Current_incr.var;
     reading : bool Current_incr.var;      (* Is a read operation in progress? *)
     mutable ref_count : int;              (* Number of terms using this monitor *)
     mutable need_refresh : bool;          (* Update detected after current read started *)
     mutable active : bool;                (* Monitor thread is running *)
-    cond : unit Lwt_condition.t;          (* Maybe time to leave the "wait" state *)
+    cond : Eio.Condition.t;          (* Maybe time to leave the "wait" state *)
   }
 
-  let catch t fn =
-    Lwt.catch fn
-      (fun ex ->
-         Log.warn (fun f -> f "Uncaught exception in monitor %t: %a" t.pp Fmt.exn ex);
-         Lwt_result.fail (`Msg (Printexc.to_string ex))
-      )
+  let catch t (fn : unit -> 'a or_error Eio.Promise.t) : 'a or_error =
+    try ((Eio.Promise.await @@ fn ()) :> 'a or_error) with ex ->
+      Log.warn (fun f -> f "Uncaught exception in monitor %t: %a" t.pp Fmt.exn ex);
+      Error (`Msg (Printexc.to_string ex))
 
   let refresh t () =
     t.need_refresh <- true;
-    Lwt_condition.broadcast t.cond ()
+    Eio.Condition.broadcast t.cond
 
   let rec enable t =
-    t.watch (refresh t) >>= fun unwatch ->
+    let unwatch = t.watch (refresh t) in
     if t.ref_count = 0 then disable ~unwatch t
     else get_value t ~unwatch
   and disable ~unwatch t =
-    unwatch () >>= fun () ->
+    unwatch ();
     if t.ref_count > 0 then enable t
     else (
       assert t.active;
@@ -250,13 +244,13 @@ module Monitor = struct
       (* Clear the saved value, so that if we get activated again then we don't
          start by serving up the previous value, which could be quite stale by then. *)
       Current_incr.change t.value @@ Error (`Active `Running);
-      Lwt.return `Finished
+      `Finished
     )
   and get_value ~unwatch t =
     t.need_refresh <- false;
     Current_incr.change t.reading true;
     Engine.update ();
-    catch t t.read >>= fun v ->
+    let v = catch t t.read in
     Current_incr.change t.reading false;
     Current_incr.change t.value @@ (v :> _ Current_term.Output.t);
     Engine.update ();
@@ -264,7 +258,10 @@ module Monitor = struct
   and wait ~unwatch t =
     if t.ref_count = 0 then disable ~unwatch t
     else if t.need_refresh then get_value ~unwatch t
-    else Lwt_condition.wait t.cond >>= fun () -> wait ~unwatch t
+    else begin
+      Eio.Condition.await_no_mutex t.cond;
+      wait ~unwatch t
+    end
 
   let get t =
     Current_incr.of_cc begin
@@ -272,14 +269,14 @@ module Monitor = struct
       Engine.on_disable (fun () ->
           assert (t.ref_count > 0);
           t.ref_count <- t.ref_count - 1;
-          if t.ref_count = 0 then Lwt_condition.broadcast t.cond ()
+          if t.ref_count = 0 then Eio.Condition.broadcast t.cond
         );
       if not t.active then (
         t.active <- true;
-        Lwt.async (fun () ->
+        Eio.Fiber.fork ~sw:t.sw (fun () ->
             (* [pause] to ensure we're outside of any existing propagate here. *)
-            Lwt.pause () >>= fun () ->
-            enable t >|= fun `Finished -> ()
+            Eio.Fiber.yield ();
+            enable t |> fun `Finished -> ()
           )
       );  (* (else the previous thread will check [ref_count] before exiting) *)
       Current_incr.read (Current_incr.of_var t.value) @@ fun value ->
@@ -289,9 +286,10 @@ module Monitor = struct
       Current_incr.write (value, Some metadata)
     end
 
-  let create ~read ~watch ~pp =
-    let cond = Lwt_condition.create () in
+  let create ~sw ~read ~watch ~pp =
+    let cond = Eio.Condition.create () in
     {
+      sw;
       ref_count = 0;
       active = false;
       need_refresh = true;
@@ -330,7 +328,6 @@ let state_dir = Disk_store.state_dir
 
 module Db = Db
 module Process = Process
-module Switch = Switch
 module Pool = Pool
 module Log_matcher = Log_matcher
 

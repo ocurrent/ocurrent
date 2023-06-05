@@ -1,16 +1,14 @@
-open Lwt.Infix
-
 type auth = Push.auth
 
-type t = auth option
+type t = (auth option * Eio.Fs.dir Eio.Path.t * Eio.Process.mgr)
 
-let ( >>!= ) = Lwt_result.bind
+let ( >>!= ) = Result.bind
 
 let id = "docker-push-manifest"
 
 (* Pushing can fail with "malformed MIME header line: Too Many Requests (HAP429)",
    so limit to one at a time. *)
-let push_mutex = Lwt_mutex.create ()
+let push_mutex = Eio.Mutex.create ()
 
 module Key = Current.String
 
@@ -43,21 +41,21 @@ let or_fail = function
   | Ok x -> x
   | Error (`Msg x) -> failwith x
 
-let publish auth job tag value =
-  Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  Current.Process.with_tmpdir ~prefix:"push-manifest" @@ fun config ->
-  Bos.OS.File.write Fpath.(config / "config.json") {|{"experimental": "enabled"}|} |> or_fail;
+let publish (auth, fs, proc) job tag value =
+  Current.Job.start job ~level:Current.Level.Dangerous;
+  Current.Process.with_tmpdir ~prefix:"push-manifest" fs @@ fun config ->
+  Eio.Path.(save ~create:(`If_missing 0o644) (config / "config.json") {|{"experimental": "enabled"}|});
   begin match auth with
-    | None -> Lwt.return (Ok ())
+    | None -> Ok ()
     | Some (user, password) ->
       let cmd = Cmd.login ~config ~docker_context:None user in
-      Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
+      Current.Process.exec ~cancellable:true ~job ~stdin:password proc cmd
   end >>!= fun () ->
-  Current.Process.exec ~cancellable:true ~job (create_cmd ~config ~tag value) >>= function
-  | Error _ as e -> Lwt.return e
+  match Current.Process.exec ~cancellable:true ~job proc (create_cmd ~config ~tag value) with
+  | Error _ as e -> e
   | Ok () ->
-    Lwt_mutex.with_lock push_mutex @@ fun () ->
-    Current.Process.check_output ~cancellable:true ~job (push_cmd ~config tag) >>!= fun output ->
+    Eio.Mutex.use_ro push_mutex @@ fun () ->
+    Current.Process.check_output ~cancellable:true ~job proc (push_cmd ~config tag) >>!= fun output ->
     (* docker-manifest is still experimental and doesn't have a sensible output format yet. *)
     Current.Job.write job output;
     let output = String.trim output in
@@ -68,7 +66,7 @@ let publish auth job tag value =
     in
     let repo_id = Printf.sprintf "%s@%s" tag hash in
     Current.Job.log job "--> %S" repo_id;
-    Lwt_result.return repo_id
+    Ok repo_id
 
 let pp f (tag, value) =
   Fmt.pf f "push %s = %s" tag (Value.digest value)

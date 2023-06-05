@@ -1,4 +1,3 @@
-open Lwt.Infix
 open Current.Syntax
 
 let src = Logs.Src.create "test.docker" ~doc:"OCurrent test docker plugin"
@@ -44,7 +43,7 @@ let build ?on src =
 
 module Containers = Map.Make(Key)
 
-let containers : (unit, [`Msg of string]) result Lwt.u Containers.t ref = ref Containers.empty
+let containers : (((unit, [`Msg of string]) result), exn) result Eio.Promise.u Containers.t ref = ref Containers.empty
 
 module Run = struct
   type t = No_context
@@ -56,33 +55,29 @@ module Run = struct
   let pp = Key.pp
 
   let build No_context job (key : Key.t) =
-    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-    let ready, set_ready = Lwt.wait () in
+    Current.Job.start job ~level:Current.Level.Average;
+    let ready, set_ready = Eio.Promise.create () in
     containers := Containers.add key set_ready !containers;
     Current.Job.on_cancel job (fun m ->
-        if Lwt.state ready = Lwt.Sleep then (
-          Lwt.wakeup set_ready @@ Error (`Msg m);
-        );
-        Lwt.return_unit
-      )
-    >>= fun () ->
-    ready
+        if not (Eio.Promise.is_resolved ready) then Eio.Promise.resolve set_ready @@ Ok (Error (`Msg m));
+    );
+    Eio.Promise.await_exn ready
 
   let auto_cancel = true
 end
 
 module Run_cache = Current_cache.Make(Run)
 
-let run image ~cmd =
+let run ~sw image ~cmd =
   Current.component "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let> image = image in
   let key = { Key.image; cmd } in
-  Run_cache.get No_context key
+  Run_cache.get ~sw No_context key
 
 let complete image ~cmd r =
   let key = { Key.image; cmd } in
   match Containers.find_opt key !containers with
-  | Some s -> Lwt.wakeup s r
+  | Some s -> Eio.Promise.resolve_ok s r
   | None -> Fmt.failwith "Container %a not running!" Key.pp key
 
 module Push = struct
@@ -95,64 +90,69 @@ module Push = struct
   let pp f k = Fmt.pf f "docker push %a" Key.pp k
 
   let build No_context job _key =
-    Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-    Lwt.return (Ok ())
+    Current.Job.start job ~level:Current.Level.Dangerous;
+    Ok ()
 
   let auto_cancel = false
 end
 
 module Push_cache = Current_cache.Make(Push)
 
-let push image ~tag =
+let push ~sw image ~tag =
   Current.component "docker push %s" tag |>
   let> image = image in
-  Push_cache.get No_context image
+  Push_cache.get ~sw No_context image
 
-let image_pulls = Hashtbl.create 5
+let image_pulls : (string, 'a Current.or_error Eio.Promise.t * 'a Current.or_error Eio.Promise.u) Hashtbl.t = Hashtbl.create 5
 let image_monitors = Hashtbl.create 5
-let pulls_cond = Lwt_condition.create ()
+let pulls_cond = Eio.Condition.create ()
 
 let get_pull tag =
   match Hashtbl.find_opt image_pulls tag with
   | Some x -> x
   | None ->
-    let x = Lwt.wait () in
+    let x = Eio.Promise.create () in
     Hashtbl.add image_pulls tag x;
     x
 
-let image_monitor tag =
+let image_monitor ~sw tag =
   match Hashtbl.find_opt image_monitors tag with
   | Some x -> x
   | None ->
     let read () = fst @@ get_pull tag in
     let watch refresh =
       let rec aux () =
-        Lwt_condition.wait pulls_cond >>= fun () ->
+        Eio.Condition.await_no_mutex pulls_cond;
         refresh ();
         aux ()
       in
-      let thread = aux () in
-      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+      let cancel_cond = Eio.Condition.create () in
+      let cancel () =
+        Eio.Condition.await_no_mutex cancel_cond;
+        raise (Eio.Cancel.Cancelled (Failure "Stopping monitor"))
+      in
+      Eio.Fiber.fork ~sw (fun () -> try Eio.Fiber.both aux cancel with Eio.Cancel.Cancelled _ -> ());
+      (fun () -> Eio.Condition.broadcast cancel_cond)
     in
     let pp f = Fmt.string f "docker pull" in
-    let x = Current.Monitor.create ~read ~watch ~pp in
+    let x = Current.Monitor.create ~sw ~read ~watch ~pp in
     Hashtbl.add image_monitors tag x;
     x
 
-let pull tag =
+let pull ~sw tag =
   Current.component "docker pull %s" tag |>
   let> () = Current.return () in
-  Current.Monitor.get (image_monitor tag)
+  Current.Monitor.get (image_monitor ~sw tag)
 
-let complete_pull tag image =
+let complete_pull tag (image : Image.t Current.or_error) =
   match Hashtbl.find_opt image_pulls tag with
   | None -> Fmt.failwith "Image %S isn't being pulled!" tag
-  | Some (_, set_image) -> Lwt.wakeup set_image image
+  | Some (_, set_image) -> Eio.Promise.resolve set_image image
 
 let update_pull tag =
   Hashtbl.remove image_pulls tag;
   ignore @@ get_pull tag;
-  Lwt_condition.broadcast pulls_cond ()
+  Eio.Condition.broadcast pulls_cond
 
 let reset () =
   containers := Containers.empty;
@@ -164,6 +164,6 @@ let reset () =
 let assert_finished () =
   !containers |> Containers.iter (fun key s ->
       let ex = Failure (Fmt.str "Container %a still running!" Key.pp key) in
-      try Lwt.wakeup_exn s ex; raise ex
+      try Eio.Promise.resolve_error s ex; raise ex
       with Invalid_argument _ -> () (* Already resolved - good! *)
     )

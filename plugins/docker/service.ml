@@ -1,6 +1,4 @@
-open Lwt.Infix
-
-type t = No_context
+type t = Eio.Process.mgr
 
 let id = "docker-service"
 
@@ -29,9 +27,9 @@ module Outcome = Current.Unit
 let cmd { Key.name; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["service"; "update"; "--image"; Image.hash image; name]
 
-let publish No_context job key value =
-  Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  Current.Process.exec ~cancellable:true ~job (cmd key value)
+let publish mgr job key value =
+  Current.Job.start job ~level:Current.Level.Dangerous;
+  Current.Process.exec ~cancellable:true ~job mgr (cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (cmd key value)
