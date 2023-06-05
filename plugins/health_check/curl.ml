@@ -12,7 +12,9 @@ module Outcome = Current.Unit
 
 let publish No_context job key _ =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  let ip = if String.contains key.Key.ip ':' then "[" ^ key.Key.ip ^ "]" else key.Key.ip in
+  let ip = match key.Key.ver with
+        | V6 -> "[" ^ key.Key.ip ^ "]"
+        | V4 -> key.Key.ip in
   Current.Process.exec ~cancellable:true ~job ("", [| "curl"; "-L"; "--resolve"; key.Key.fqdn ^ ":443:" ^ ip; "https://" ^ key.Key.fqdn |])
 
 let pp f (_, _) =
