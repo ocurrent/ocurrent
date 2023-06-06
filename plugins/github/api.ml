@@ -362,6 +362,7 @@ type monitors = Repo_key.elt Monitors.t
 type t = {
   account : string;          (* Prometheus label used to report points. *)
   get_token : unit -> token Lwt.t;
+  sw : Eio.Switch.t;
   app_id : string option;
   webhook_secret : string; (* Shared secret for validating webhooks from GitHub *)
   token_lock : Lwt_mutex.t;
@@ -380,10 +381,10 @@ let default_ref t = t.default_ref
 
 let all_refs t = t.all_refs
 
-let v ~get_token ?app_id ~account ~webhook_secret () =
+let v ~sw ~get_token ?app_id ~account ~webhook_secret () =
   let monitors = Monitors.empty in
   let token_lock = Lwt_mutex.create () in
-  { get_token; token_lock; token = no_token; monitors; account; app_id; webhook_secret }
+  { get_token; sw; token_lock; token = no_token; monitors; account; app_id; webhook_secret }
 
 let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
@@ -493,9 +494,12 @@ module Monitor (Query : GRAPHQL_QUERY) = struct
 
   let make_monitor t repo =
     let read () =
-      Lwt.catch
-        (fun () -> exec t repo >|= fun c -> Ok c)
-        (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query %s for %a failed: %a" Query.name Repo_id.pp repo Fmt.exn ex))
+      let run_lwt () =
+        Lwt.catch
+          (fun () -> exec t repo >|= fun c -> Ok c)
+          (fun ex -> Lwt_result.fail @@ `Msg (Fmt.str "GitHub query %s for %a failed: %a" Query.name Repo_id.pp repo Fmt.exn ex))
+      in
+      Eio.Promise.create_resolved (Lwt_eio.Promise.await_lwt @@ run_lwt ())
     in
     let watch refresh =
       let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
@@ -516,18 +520,18 @@ module Monitor (Query : GRAPHQL_QUERY) = struct
             | ex -> Log.err (fun f -> f "%s thread failed: %a" Query.name Fmt.exn ex); Lwt.return_unit
           )
       in
-      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+      (fun () -> Lwt.cancel thread)
     in
     let pp f = Fmt.pf f "Watch %a %s" Repo_id.pp repo Query.name in
     Current.Monitor.create ~read ~watch ~pp
 
-  let get t repo =
+  let get (t : t) repo =
     let monitor =
       let key = (Key, repo) in
       match Monitors.find_opt key t.monitors with
       | Some (Value i) -> i
       | _ ->
-        let i = make_monitor t repo in
+        let i = make_monitor ~sw:t.sw t repo in
         t.monitors <- Monitors.add key (Value i) t.monitors;
         i
     in
@@ -766,54 +770,57 @@ module CheckRun = struct
         Value.pp status
 
     let publish t job key status =
-      Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
-      get_token t >>= function
-      | Error (`Msg m) -> Lwt.fail_with m
-      | Ok token ->
-         let token = Github.Token.of_string token in
-         let owner = key.Key.commit.owner in
-         let repo = key.Key.commit.repo in
-         let sha = key.Key.commit.hash in
-         let app_id = t.app_id in
-         let check_name = key.Key.check_name in
+      Current.Job.start job ~pool ~level:Current.Level.Above_average;
+      let run_lwt () =
+        get_token t >>= function
+        | Error (`Msg m) -> Lwt.fail_with m
+        | Ok token ->
+          let token = Github.Token.of_string token in
+          let owner = key.Key.commit.owner in
+          let repo = key.Key.commit.repo in
+          let sha = key.Key.commit.hash in
+          let app_id = t.app_id in
+          let check_name = key.Key.check_name in
 
-         let create_check () =
-           let open Github in
-           let body = `Assoc (("name", `String check_name)
-                              :: ("head_sha", `String key.Key.commit.hash)
-                              :: Value.json_items status) |> Yojson.Safe.to_string in
-           Log.debug (fun f -> f "create_check: %s" body);
-           Check.create_check_run ~token ~owner ~repo ~body () in
+          let create_check () =
+            let open Github in
+            let body = `Assoc (("name", `String check_name)
+                                :: ("head_sha", `String key.Key.commit.hash)
+                                :: Value.json_items status) |> Yojson.Safe.to_string in
+            Log.debug (fun f -> f "create_check: %s" body);
+            Check.create_check_run ~token ~owner ~repo ~body () in
 
-         let fetch_check_run () =
-           let open Github in
-           let open Monad in
-           (* Assuming a single check_run per app/sha/check_name hence the `List.nth_opt`. *)
-           Check.list_check_runs_for_ref ~token ~owner ~repo ~sha ?app_id ~check_name () >>~
-           fun l -> return @@ List.nth_opt l.check_runs 0 in
+          let fetch_check_run () =
+            let open Github in
+            let open Monad in
+            (* Assuming a single check_run per app/sha/check_name hence the `List.nth_opt`. *)
+            Check.list_check_runs_for_ref ~token ~owner ~repo ~sha ?app_id ~check_name () >>~
+            fun l -> return @@ List.nth_opt l.check_runs 0 in
 
-         let update_check_run check_run () =
-           let open Github in
-           let check_run_id = Int64.to_string check_run.Github_j.check_run_id in
-           let body = `Assoc (Value.json_items status) |> Yojson.Safe.to_string in
-           Log.debug (fun f -> f "update_check: %s" body);
-           Check.update_check_run ~token ~owner ~repo ~check_run_id ~body () in
+          let update_check_run check_run () =
+            let open Github in
+            let check_run_id = Int64.to_string check_run.Github_j.check_run_id in
+            let body = `Assoc (Value.json_items status) |> Yojson.Safe.to_string in
+            Log.debug (fun f -> f "update_check: %s" body);
+            Check.update_check_run ~token ~owner ~repo ~check_run_id ~body () in
 
-         Lwt.try_bind ( fun () ->
-             let open Github in
-             let open Monad in
-             run (
-               fetch_check_run () >>= function
-               | None -> create_check ()
-               | Some check_run -> update_check_run check_run ()))
+          Lwt.try_bind ( fun () ->
+              let open Github in
+              let open Monad in
+              run (
+                fetch_check_run () >>= function
+                | None -> create_check ()
+                | Some check_run -> update_check_run check_run ()))
 
-           (* Ignore the response and return unit. *)
-           (fun (_ : Github_j.check_run Github.Response.t) -> Lwt_result.return ())
-           (fun ex ->
-             Log.info (fun f -> f "@[<v2>%a failed: %a@]"
-                                  pp (key, status)
-                                  Fmt.exn ex);
-             Lwt_result.fail (`Msg "Failed to set GitHub status"))
+            (* Ignore the response and return unit. *)
+            (fun (_ : Github_j.check_run Github.Response.t) -> Lwt_result.return ())
+            (fun ex ->
+              Log.info (fun f -> f "@[<v2>%a failed: %a@]"
+                                    pp (key, status)
+                                    Fmt.exn ex);
+              Lwt_result.fail (`Msg "Failed to set GitHub status"))
+    in
+    Lwt_eio.Promise.await_lwt (run_lwt ())
 
   end
 
@@ -825,7 +832,7 @@ module CheckRun = struct
     Current.component "set_check_run_status" |>
     let> (t, commit) = commit
     and> status = status in
-    Set_status_cache.set t {Set_status.Key.commit; check_name} status
+    Set_status_cache.set ~sw:t.sw t {Set_status.Key.commit; check_name} status
 end
 
 
@@ -863,42 +870,45 @@ module Commit = struct
         Value.pp status
 
     let publish t job key status =
-      Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
-      let {Key.commit; context} = key in
-      let body = `Assoc (("context", `String context) :: Value.json_items status) in
-      get_token t >>= function
-      | Error (`Msg m) -> Lwt.fail_with m
-      | Ok token ->
-        let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
-        let uri = status_endpoint
-            ~owner_name:(Commit_id.owner_name commit)
-            ~commit:commit.Commit_id.hash
-        in
-        Current.Job.log job "@[<v2>POST %a:@,%a@]"
-          Uri.pp uri
-          (Yojson.Safe.pretty_print ~std:true) body;
-        let body = body |> Yojson.Safe.to_string |> Cohttp_lwt.Body.of_string in
-        Lwt.try_bind
-          (fun () ->
-             Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
-             Cohttp_lwt.Body.to_string body >|= fun body -> (resp, body)
-          )
-          (fun (resp, body) ->
-             match Cohttp.Response.status resp with
-             | `Created -> Lwt_result.return ()
-             | err ->
-               Log.warn (fun f -> f "@[<v2>%a failed: %s@,%s@]"
-                            pp (key, status)
-                            (Cohttp.Code.string_of_status err)
-                            body);
-               Lwt_result.fail (`Msg "Failed to set GitHub status")
-          )
-          (fun ex ->
-               Log.warn (fun f -> f "@[<v2>%a failed: %a@]"
-                            pp (key, status)
-                            Fmt.exn ex);
-               Lwt_result.fail (`Msg "Failed to set GitHub status")
-          )
+      Current.Job.start job ~pool ~level:Current.Level.Above_average;
+      let run_lwt () =
+        let {Key.commit; context} = key in
+        let body = `Assoc (("context", `String context) :: Value.json_items status) in
+        get_token t >>= function
+        | Error (`Msg m) -> Lwt.fail_with m
+        | Ok token ->
+          let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
+          let uri = status_endpoint
+              ~owner_name:(Commit_id.owner_name commit)
+              ~commit:commit.Commit_id.hash
+          in
+          Current.Job.log job "@[<v2>POST %a:@,%a@]"
+            Uri.pp uri
+            (Yojson.Safe.pretty_print ~std:true) body;
+          let body = body |> Yojson.Safe.to_string |> Cohttp_lwt.Body.of_string in
+          Lwt.try_bind
+            (fun () ->
+              Cohttp_lwt_unix.Client.post ~headers ~body uri >>= fun (resp, body) ->
+              Cohttp_lwt.Body.to_string body >|= fun body -> (resp, body)
+            )
+            (fun (resp, body) ->
+              match Cohttp.Response.status resp with
+              | `Created -> Lwt_result.return ()
+              | err ->
+                Log.warn (fun f -> f "@[<v2>%a failed: %s@,%s@]"
+                              pp (key, status)
+                              (Cohttp.Code.string_of_status err)
+                              body);
+                Lwt_result.fail (`Msg "Failed to set GitHub status")
+            )
+            (fun ex ->
+                Log.warn (fun f -> f "@[<v2>%a failed: %a@]"
+                              pp (key, status)
+                              Fmt.exn ex);
+                Lwt_result.fail (`Msg "Failed to set GitHub status")
+            )
+    in
+    Lwt_eio.Promise.await_lwt (run_lwt ())
   end
 
   module Set_status_cache = Current_cache.Output(Set_status)
@@ -932,7 +942,7 @@ module Commit = struct
     Current.component "set_status" |>
     let> (t, commit) = commit
     and> status = status in
-    Set_status_cache.set t {Set_status.Key.commit; context} status
+    Set_status_cache.set ~sw:t.sw t {Set_status.Key.commit; context} status
 
   let pr_name (_, id) = Commit_id.pr_name id
 
@@ -983,19 +993,22 @@ module Anonymous = struct
                (Cohttp.Code.string_of_status err)
                body
 
-  let head_of (repo : Repo_id.t) gref =
+  let head_of ~sw (repo : Repo_id.t) gref =
     let owner_name = Printf.sprintf "%s/%s" repo.owner repo.name in
     let read () =
-      Lwt.try_bind
-        (fun () -> query_head repo gref)
-        (fun hash ->
-          let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = ""; message = "" } in
-          Lwt_result.return (Commit_id.to_git id)
-        )
-        (fun ex ->
-           Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);
-           Lwt_result.fail (`Msg (Fmt.str "Failed to get head of %a:%a" Repo_id.pp repo Ref.pp gref))
-        )
+      let run_lwt () =
+        Lwt.try_bind
+          (fun () -> query_head repo gref)
+          (fun hash ->
+            let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = ""; message = "" } in
+            Lwt_result.return (Commit_id.to_git id)
+          )
+          (fun ex ->
+            Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);
+            Lwt_result.fail (`Msg (Fmt.str "Failed to get head of %a:%a" Repo_id.pp repo Ref.pp gref))
+          )
+      in
+      Eio.Promise.create_resolved (Lwt_eio.Promise.await_lwt (run_lwt ()))
     in
     let watch refresh =
       let rec aux x =
@@ -1014,10 +1027,10 @@ module Anonymous = struct
             | ex -> Log.err (fun f -> f "Anonymous.head thread failed: %a" Fmt.exn ex); Lwt.return_unit
           )
       in
-      Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit)
+      (fun () -> Lwt.cancel thread)
     in
     let pp f = Fmt.pf f "Query head of %a:%a" Repo_id.pp repo Ref.pp gref in
-    let monitor = Current.Monitor.create ~read ~watch ~pp in
+    let monitor = Current.Monitor.create ~sw ~read ~watch ~pp in
     Current.component "%a:%a" Repo_id.pp repo Ref.pp gref |>
     let> () = Current.return () in
     Current.Monitor.get monitor
@@ -1045,11 +1058,11 @@ let make_config webhook_secret_file token_file =
   let webhook_secret = String.trim (read_file webhook_secret_file) in
   of_oauth ~token ~webhook_secret
 
-let make_config_opt webhook_secret_file token_file =
-  Option.map (make_config webhook_secret_file) token_file
+let make_config_opt ~sw webhook_secret_file token_file =
+  Option.map (make_config ~sw webhook_secret_file) token_file
 
-let cmdliner =
-  Term.(const make_config $ webhook_secret_file $ Arg.required token_file)
+let cmdliner sw =
+  Term.(const (make_config ~sw) $ webhook_secret_file $ Arg.required token_file)
 
-let cmdliner_opt =
-  Term.(const make_config_opt $ webhook_secret_file $ Arg.value token_file)
+let cmdliner_opt sw =
+  Term.(const (make_config_opt ~sw) $ webhook_secret_file $ Arg.value token_file)

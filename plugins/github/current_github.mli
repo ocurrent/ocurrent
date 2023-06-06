@@ -171,7 +171,7 @@ module Api : sig
 
   module Ref_map : Map.S with type key = Ref.t
 
-  val of_oauth : token:string -> webhook_secret:string -> t
+  val of_oauth : token:string -> webhook_secret:string -> sw:Eio.Switch.t -> t
   (** [of_oauth ~token ~webhook_secret] is a configuration that authenticates to GitHub using [token]. *)
 
   val exec_graphql : ?variables:(string * Yojson.Safe.t) list -> t -> string -> Yojson.Safe.t Lwt.t
@@ -240,16 +240,16 @@ module Api : sig
 
   (** Perform Anonymous request to GitHub. *)
   module Anonymous : sig
-    val head_of : Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
+    val head_of : sw:Eio.Switch.t -> Repo_id.t -> Ref.t -> Current_git.Commit_id.t Current.t
     (** [head_of repo ref] is the head commit of [repo]/[ref]. No API token is used to access this,
         so it only works for public repositories. You are responsible for adding a web-hook so
         that [input_webhook] gets called whenever the commit changes. *)
   end
 
-  val cmdliner : t Cmdliner.Term.t
+  val cmdliner : Eio.Switch.t -> t Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)
 
-  val cmdliner_opt : t option Cmdliner.Term.t
+  val cmdliner_opt : Eio.Switch.t -> t option Cmdliner.Term.t
   (** Like [cmdliner], but the argument is optional. *)
 end
 
@@ -284,10 +284,10 @@ module App : sig
   val webhook_secret : t -> string
   (** Webhook secret to validate payloads from GitHub. *)
 
-  val cmdliner : t Cmdliner.Term.t
+  val cmdliner : Eio.Switch.t -> t Cmdliner.Term.t
   (** Command-line options to generate a GitHub app configuration. *)
 
-  val cmdliner_opt : t option Cmdliner.Term.t
+  val cmdliner_opt : Eio.Switch.t -> t option Cmdliner.Term.t
   (** Like [cmdliner], but the arguments are all optional. *)
 
   val installation : t -> account:string -> int -> Installation.t

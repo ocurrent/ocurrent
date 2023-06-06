@@ -49,6 +49,7 @@ end
 
 type t = {
   app_id : string;
+  sw : Eio.Switch.t;
   key : Mirage_crypto_pk.Rsa.priv;
   allowlist : Allowlist.t;      (* Accounts which can use this app. *)
   installations : Installs.t;
@@ -136,8 +137,8 @@ let get_installations app =
     )
 
 let installation t ~account iid =
-  let api = Api.v ~get_token:(fun () -> get_token t iid) ~account:("i-" ^ account) ~app_id:t.app_id ~webhook_secret:t.webhook_secret () in
-  Installation.v ~api ~account ~iid
+  let api = Api.v ~sw:t.sw ~get_token:(fun () -> get_token t iid) ~account:("i-" ^ account) ~app_id:t.app_id ~webhook_secret:t.webhook_secret () in
+  Installation.v ~sw:t.sw ~api ~account ~iid
 
 module Int_set = Set.Make(Int)
 
@@ -176,7 +177,7 @@ let installations t =
 
 (* Command-line options *)
 
-let make_config app_id private_key_file allowlist webhook_secret_file =
+let make_config ~sw app_id private_key_file allowlist webhook_secret_file =
   let allowlist = Allowlist.of_list allowlist in
   let data = Api.read_file private_key_file in
   let webhook_secret = Api.read_file webhook_secret_file in
@@ -184,17 +185,17 @@ let make_config app_id private_key_file allowlist webhook_secret_file =
     | Error (`Msg msg) -> Fmt.failwith "Failed to parse secret key!@ %s" msg
     | Ok (`RSA key) ->
       let installations = Installs.create ~name:"installations" (Error (`Active `Running)) in
-      let t = { app_id; key; allowlist; installations; webhook_secret } in
+      let t = { sw; app_id; key; allowlist; installations; webhook_secret } in
       Lwt.async (monitor_installations t);
       t
     | Ok _ -> Fmt.failwith "Unsupported private key type" [@@warning "-11"]
 
 open Cmdliner
 
-let make_config_opt app_id private_key_file allowlist webhook_secret : t option Term.ret =
+let make_config_opt ~sw app_id private_key_file allowlist webhook_secret : t option Term.ret =
   match app_id, private_key_file, allowlist with
   | None, None, _ -> `Ok None
-  | Some app_id, Some private_key_file, Some allowlist -> `Ok (Some (make_config app_id private_key_file allowlist webhook_secret))
+  | Some app_id, Some private_key_file, Some allowlist -> `Ok (Some (make_config ~sw app_id private_key_file allowlist webhook_secret))
   | Some _, Some _, None -> `Error (true, "--github-account-allowlist is required with --github-app-id")
   | Some _, None, _ -> `Error (true, "--github-private-key-file is required with --github-app-id")
   | None, Some _, _ -> `Error (true, "--github-app-id is required with --github-private-key-file")
@@ -220,8 +221,8 @@ let allowlist =
     ~docv:"ACCOUNTS"
     ["github-account-allowlist"]
 
-let cmdliner =
-  Term.(const make_config $ Arg.required app_id $ Arg.required private_key_file $ Arg.required allowlist $ Api.webhook_secret_file)
+let cmdliner sw =
+  Term.(const (make_config ~sw) $ Arg.required app_id $ Arg.required private_key_file $ Arg.required allowlist $ Api.webhook_secret_file)
 
-let cmdliner_opt =
-  Term.(ret (const make_config_opt $ Arg.value app_id $ Arg.value private_key_file $ Arg.value allowlist $ Api.webhook_secret_file))
+let cmdliner_opt sw =
+  Term.(ret (const (make_config_opt ~sw) $ Arg.value app_id $ Arg.value private_key_file $ Arg.value allowlist $ Api.webhook_secret_file))

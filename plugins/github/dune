@@ -1,34 +1,34 @@
 ; Disabled for port to Eio
-; (library
-;  (public_name current_github)
-;  (libraries
-;    astring
-;    base64
-;    cmdliner
-;    cohttp-lwt-unix
-;    cstruct
-;    current
-;    current.cache
-;    current.term
-;    current_git
-;    current_web
-;    github-unix
-;    duration
-;    ptime
-;    fmt
-;    logs
-;    lwt
-;    lwt.unix
-;    mirage-crypto
-;    mirage-crypto-pk
-;    hex
-;    prometheus
-;    result
-;    rresult
-;    uri
-;    x509
-;    tyxml
-;    unix
-;    tyxml.functor
-;    yojson)
-;  (preprocess (pps ppx_deriving_yojson)))
+(library
+ (public_name current_github)
+ (libraries
+   astring
+   base64
+   cmdliner
+   cohttp-lwt-unix
+   cstruct
+   current
+   current.cache
+   current.term
+   current_git
+   current_web
+   github-unix
+   duration
+   ptime
+   fmt
+   logs
+   lwt
+   lwt.unix
+   mirage-crypto
+   mirage-crypto-pk
+   hex
+   prometheus
+   result
+   rresult
+   uri
+   x509
+   tyxml
+   unix
+   tyxml.functor
+   yojson)
+ (preprocess (pps ppx_deriving_yojson)))
