@@ -42,3 +42,13 @@
 ;    ppx_deriving_yojson.runtime
 ;    yojson)
 ;  (preprocess (pps ppx_deriving.std ppx_deriving_yojson)))
+
+(executable
+ (name github)
+ (libraries
+   current_git
+   current_github
+   current_docker
+   current_web
+   dockerfile
+   prometheus-app.unix))

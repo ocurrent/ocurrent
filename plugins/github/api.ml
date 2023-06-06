@@ -1058,11 +1058,11 @@ let make_config webhook_secret_file token_file =
   let webhook_secret = String.trim (read_file webhook_secret_file) in
   of_oauth ~token ~webhook_secret
 
-let make_config_opt ~sw webhook_secret_file token_file =
+let make_config_opt webhook_secret_file token_file ~sw =
   Option.map (make_config ~sw webhook_secret_file) token_file
 
-let cmdliner sw =
-  Term.(const (make_config ~sw) $ webhook_secret_file $ Arg.required token_file)
+let cmdliner =
+  Term.(const make_config $ webhook_secret_file $ Arg.required token_file)
 
-let cmdliner_opt sw =
-  Term.(const (make_config_opt ~sw) $ webhook_secret_file $ Arg.value token_file)
+let cmdliner_opt =
+  Term.(const make_config_opt $ webhook_secret_file $ Arg.value token_file)

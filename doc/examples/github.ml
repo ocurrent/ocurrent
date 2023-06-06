@@ -41,34 +41,49 @@ let github_status_of_state = function
   | Error (`Active _) -> Github.Api.Status.v ~url `Pending
   | Error (`Msg m)    -> Github.Api.Status.v ~url `Failure ~description:m
 
-let pipeline ~github ~repo () =
+let pipeline ~sw ~fs ~proc ~github ~repo () =
   let head = Github.Api.head_commit github repo in
-  let src = Git.fetch (Current.map Github.Api.Commit.id head) in
+  let src = Git.fetch ~sw proc (Current.map Github.Api.Commit.id head) in
   let dockerfile =
-    let+ base = Docker.pull ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
+    let+ base = Docker.pull ~sw ~proc ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
-  Docker.build ~pull:false ~dockerfile (`Git src)
+  Docker.build ~fs ~proc ~sw ~pull:false ~dockerfile (`Git src)
   |> Current.state
   |> Current.map github_status_of_state
   |> Github.Api.Commit.set_status head "ocurrent"
 
+let or_raise = function
+  | Ok v -> Ok v
+  | Error (`Msg m) -> Error (Failure m)
+
 let main config mode github repo =
-  let has_role = Current_web.Site.allow_all in
-  let engine = Current.Engine.create ~config (pipeline ~github ~repo) in
-  (* this example does not have support for looking up job_ids for a commit *)
-  let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
-  let routes =
-    Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~get_job_ids ~webhook_secret:(Github.Api.webhook_secret github)) ::
-    Current_web.routes engine
+  let main fs proc =
+    let has_role = Current_web.Site.allow_all in
+    Eio.Switch.run @@ fun sw ->
+    (* TODO: A pipeline always runs in the context of some engine, perhaps we should
+      provide an Engine.global_switch hook to get the engines switch instead of passing
+      it into every current plugin. *)
+    let github = github ~sw in
+    let engine = Current.Engine.create ~sw ~config (pipeline ~fs ~proc ~sw ~github ~repo) in
+    (* this example does not have support for looking up job_ids for a commit *)
+    let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
+    let routes =
+      Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~get_job_ids ~webhook_secret:(Github.Api.webhook_secret github)) ::
+      Current_web.routes engine
+    in
+    let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
+    Eio.Fiber.first
+      (fun () -> Eio.Promise.await @@ Current.Engine.thread engine)
+      (fun () -> or_raise @@ Lwt_eio.Promise.await_lwt @@ Current_web.run ~mode site)
   in
-  let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
-  Lwt_main.run begin
-    Lwt.choose [
-      Current.Engine.thread engine;
-      Current_web.run ~mode site;
-    ]
-  end
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  let fs = Eio.Stdenv.fs env in
+  let proc = (Eio.Stdenv.process_mgr env :> Eio.Process.mgr) in
+  match main fs proc with
+  | Ok _ as v -> v
+  | Error exn -> Error (`Msg (Printexc.to_string exn))
 
 (* Command-line parsing *)
 

@@ -246,10 +246,10 @@ module Api : sig
         that [input_webhook] gets called whenever the commit changes. *)
   end
 
-  val cmdliner : Eio.Switch.t -> t Cmdliner.Term.t
+  val cmdliner : (sw:Eio.Switch.t -> t) Cmdliner.Term.t
   (** Command-line options to generate a GitHub configuration. *)
 
-  val cmdliner_opt : Eio.Switch.t -> t option Cmdliner.Term.t
+  val cmdliner_opt : (sw:Eio.Switch.t -> t option) Cmdliner.Term.t
   (** Like [cmdliner], but the argument is optional. *)
 end
 
