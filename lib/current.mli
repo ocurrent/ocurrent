@@ -285,6 +285,10 @@ module Engine : sig
       The engine will evaluate [t]'s pipeline immediately, and again whenever
       one of its inputs changes. *)
 
+  val switch : unit -> Eio.Switch.t
+  (** The engine's switch which can be retrieved by anything running inside the engine.
+      If not available, this call will raise [Not_found]. *)
+
   val update : unit -> unit
   (** Primitives should call this after using {!Current_incr.change} to run
       another step of the engine loop. This will (asynchronously) call

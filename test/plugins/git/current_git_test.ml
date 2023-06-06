@@ -59,10 +59,10 @@ end
 
 module C = Current_cache.Make(Clone)
 
-let fetch ~sw c =
+let fetch c =
   Current.component "fetch" |>
   let> c = c in
-  C.get ~sw Clone.No_context c
+  C.get Clone.No_context c
 
 let reset () =
   state := RepoMap.empty;

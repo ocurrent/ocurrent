@@ -26,12 +26,14 @@ module Fetch = struct
     in
     Current.Job.start job ~level;
     Eio.Mutex.use_ro (Clone.repo_lock remote_repo) @@ fun () ->
+    Current.Job.write job "Fetching...\n";
     let local_repo = Cmd.local_copy remote_repo in
     (* Ensure we have a local clone of the repository. *)
     begin
       if Cmd.dir_exists local_repo then Ok ()
       else Cmd.git_clone ~cancellable:true ~job ~src:remote_repo proc local_repo
     end >>!= fun () ->
+    Current.Job.write job "Past clone...\n";
     let commit = { Commit.repo = local_repo; id = key } in
     (* Fetch the commit (if missing). *)
     begin
@@ -65,17 +67,17 @@ end
 
 module Fetch_cache = Current_cache.Make(Fetch)
 
-let fetch ~sw proc cid =
+let fetch proc cid =
   Current.component "fetch" |>
   let> cid = cid in
-  Fetch_cache.get ~sw proc cid
+  Fetch_cache.get proc cid
 
 module Clone_cache = Current_cache.Make(Clone)
 
-let clone ~schedule ~sw ?(gref="master") proc repo =
+let clone ~schedule ?(gref="master") proc repo =
   Current.component "clone@ %s@ %s" repo gref |>
   let> () = Current.return () in
-  Clone_cache.get ~sw ~schedule proc { Clone.Key.repo; gref }
+  Clone_cache.get ~schedule proc { Clone.Key.repo; gref }
 
 let with_checkout ?pool ~job ~fs proc commit fn =
   let { Commit.repo; id } = commit in
@@ -119,7 +121,6 @@ module Local = struct
       id
 
   type t = {
-    sw : Eio.Switch.t;
     proc : Eio.Process.mgr;
     repo : Fpath.t;
     head : [`Ref of string | `Commit of Commit_id.t] Current.Monitor.t;
@@ -174,7 +175,7 @@ module Local = struct
     match Ref_map.find_opt gref t.heads with
     | Some i -> i
     | None ->
-      let i = make_monitor ~sw:t.sw t gref in
+      let i = make_monitor ~sw:(Current.Engine.switch ()) t gref in
       t.heads <- Ref_map.add gref i t.heads;
       i
 
@@ -209,7 +210,7 @@ module Local = struct
       | [_;r]  -> Ok (`Ref r)
       | _      -> Error (`Msg (Fmt.str "Can't parse HEAD %S" contents))
 
-  let make_head ~sw repo =
+  let make_head repo =
     let dot_git = Fpath.(repo / ".git") in
     let read () = Eio.Promise.create_resolved @@ read_head repo in
     let watch refresh =
@@ -233,11 +234,11 @@ module Local = struct
     let pp f =
       Fmt.pf f "HEAD(%a)" Fpath.pp repo
     in
-    Current.Monitor.create ~sw ~read ~watch ~pp
+    Current.Monitor.create ~sw:(Current.Engine.switch ()) ~read ~watch ~pp
 
-  let v ~sw proc repo =
+  let v proc repo =
     let repo = Fpath.normalize @@ Fpath.append (Fpath.v (Sys.getcwd ())) repo in
-    let head = make_head ~sw repo in
+    let head = make_head repo in
     let heads = Ref_map.empty in
-    { sw; proc; repo; head; heads }
+    { proc; repo; head; heads }
 end

@@ -44,19 +44,19 @@ let with_commit v () =
 
 (* A very simple linear pipeline. Given a commit (e.g. the head of
    a PR on GitHub), this returns success if the tests pass on it. *)
-let v1 ~sw commit =
-  commit |> fetch ~sw |> build |> test ~sw
+let v1 commit =
+  commit |> fetch |> build |> test
 
-let test_v1 sw () =
-  Driver.test ~name:"v1" (with_commit (v1 ~sw)) @@ function
+let test_v1 _sw () =
+  Driver.test ~name:"v1" (with_commit v1) @@ function
   | 1 ->
     Logs.debug (fun f -> f "Done!");
     Git.complete_clone test_commit
   | 2 -> Docker.complete "image-src-123" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_v1_cancel sw () =
-  Driver.test ~name:"v1c" (with_commit (v1 ~sw)) @@ function
+let test_v1_cancel _sw () =
+  Driver.test ~name:"v1c" (with_commit v1) @@ function
   | 1 -> Git.complete_clone test_commit
   | 2 -> Driver.cancel "docker run \"image-src-123\" \"make\" \"test\" (in-progress)"
   | _ -> raise Exit
@@ -64,10 +64,10 @@ let test_v1_cancel sw () =
 (* Similar, but here the test step requires both the binary and
    the source (perhaps for the test cases). If the tests pass then
    it deploys the binary too. *)
-let v2 ~sw commit =
-  let src = fetch ~sw commit in
+let v2 ~sw:_ commit =
+  let src = fetch commit in
   let bin = build src in
-  bin |> Current.gate ~on:(test ~sw bin) |> push ~sw ~tag:"foo/bar"
+  bin |> Current.gate ~on:(test bin) |> push ~tag:"foo/bar"
 
 let test_v2 sw () =
   let config = Current.Config.v ~confirm:Current.Level.Dangerous () in
@@ -79,15 +79,15 @@ let test_v2 sw () =
 
 (* Build Linux, Mac and Windows binaries. If *all* tests pass (for
    all platforms) then deploy all binaries. *)
-let v3 ~sw commit =
+let v3 ~sw:_ commit =
   let platforms = ["lin"; "mac"; "win"] in
-  let src = fetch ~sw commit in
+  let src = fetch commit in
   let binaries = List.map (fun p -> p, build ~on:p src) platforms in
-  let test (_p, x) = test ~sw x in
+  let test (_p, x) = test x in
   let tests = Current.all @@ List.map test binaries in
   let gated_deploy (p, x) =
     let tag = Fmt.str "foo/%s" p in
-    x |> Current.gate ~on:tests |> push ~sw ~tag
+    x |> Current.gate ~on:tests |> push ~tag
   in
   Current.all @@ List.map gated_deploy binaries
 
@@ -114,11 +114,11 @@ let test_v3 sw () =
    The let** form allows you to name the box.
    The static analysis will only show what happens up to this step until
    it actually runs, after which it will show the whole pipeline. *)
-let v4 ~sw commit =
-  let src = fetch ~sw commit in
+let v4 ~sw:_ commit =
+  let src = fetch commit in
   Current.component "custom-build" |>
   let** src = src in
-  if Fpath.to_string src = "src-123" then build (Current.return src) |> test ~sw
+  if Fpath.to_string src = "src-123" then build (Current.return src) |> test
   else Current.fail "Wrong hash!"
 
 let test_v4 sw () =
@@ -132,13 +132,13 @@ let test_v4 sw () =
    test each of them. Using [list_iter] here instead of a bind
    allows us to see the whole pipeline statically, before we've
    actually calculated the rev-deps. *)
-let v5 ~sw commit =
-  let src = fetch ~sw commit in
+let v5 ~sw:_ commit =
+  let src = fetch commit in
   let bin = build src in
-  let ok = test ~sw bin in
+  let ok = test bin in
   Opam.revdeps src
   |> Current.gate ~on:ok
-  |> Current.list_iter (module Git.Commit) (fun s -> s |> fetch ~sw |> build |> test ~sw)
+  |> Current.list_iter (module Git.Commit) (fun s -> s |> fetch |> build |> test)
 
 let test_v5 sw () =
   let final_stats =
@@ -173,8 +173,8 @@ let test_v5_nil sw () =
   | 2 -> Docker.complete "image-src-456" ~cmd:["make"; "test"] @@ Ok ()
   | _ -> raise Exit
 
-let test_option ~sw ~case commit =
-  let src = fetch ~sw commit in
+let test_option ~sw:_ ~case commit =
+  let src = fetch commit in
   analyse ~lint:case src
   |> Current.option_map (fun linter -> lint src ~linter)
   |> Current.ignore_value
@@ -280,7 +280,7 @@ let test_with base src =
 
 let latch ~sw commit =
   let base = Docker.pull ~sw "alpine" in
-  let src = fetch ~sw commit in
+  let src = fetch commit in
   test_with base src
 
 let test_latch sw () =

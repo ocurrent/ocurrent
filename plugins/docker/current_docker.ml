@@ -9,24 +9,24 @@ module Raw = struct
 
   module PullC = Current_cache.Make(Pull)
 
-  let pull ~docker_context ~schedule ~proc ~sw ?arch ?auth tag =
-    PullC.get ~sw ~schedule (auth, proc) { Pull.Key.docker_context; tag; arch }
+  let pull ~docker_context ~schedule ~proc ?arch ?auth tag =
+    PullC.get ~schedule (auth, proc) { Pull.Key.docker_context; tag; arch }
 
   module PeekC = Current_cache.Make(Peek)
 
-  let peek ~docker_context ~schedule ~arch ~proc ~sw tag =
-    PeekC.get ~sw ~schedule proc { Peek.Key.docker_context; tag; arch }
+  let peek ~docker_context ~schedule ~arch ~proc tag =
+    PeekC.get ~schedule proc { Peek.Key.docker_context; tag; arch }
 
   module BC = Current_cache.Make(Build)
 
-  let build ~docker_context ?level ?schedule ?timeout ?(squash=false) ?(buildx = false) ?dockerfile ?path ?pool ?(build_args=[]) ~pull ~fs ~proc ~sw commit =
+  let build ~docker_context ?level ?schedule ?timeout ?(squash=false) ?(buildx = false) ?dockerfile ?path ?pool ?(build_args=[]) ~pull ~fs ~proc commit =
     let dockerfile =
       match dockerfile with
       | None -> `File (Fpath.v "Dockerfile")
       | Some (`File _ as f) -> f
       | Some (`Contents c) -> `Contents c
     in
-    BC.get ~sw ?schedule ({ Build.pull; pool; timeout; level }, fs, proc)
+    BC.get ?schedule ({ Build.pull; pool; timeout; level }, fs, proc)
     { Build.Key.commit; dockerfile; docker_context; squash; buildx; build_args; path }
 
   module RC = Current_cache.Make(Run)
@@ -41,28 +41,28 @@ module Raw = struct
 
   module TC = Current_cache.Output(Tag)
 
-  let tag ~docker_context ~tag ~proc ~sw image =
-    TC.set ~sw proc { Tag.Key.tag; docker_context } { Tag.Value.image }
+  let tag ~docker_context ~tag ~proc image =
+    TC.set proc { Tag.Key.tag; docker_context } { Tag.Value.image }
 
   module Push_cache = Current_cache.Output(Push)
 
-  let push ~docker_context ?auth ~tag ~proc ~sw image =
-    Push_cache.set ~sw (auth, proc) { Push.Key.tag; docker_context } { Push.Value.image }
+  let push ~docker_context ?auth ~tag ~proc image =
+    Push_cache.set (auth, proc) { Push.Key.tag; docker_context } { Push.Value.image }
 
   module SC = Current_cache.Output(Service)
 
-  let service ~docker_context ~name ~image ~proc ~sw () =
-    SC.set ~sw proc { Service.Key.name; docker_context } { Service.Value.image }
+  let service ~docker_context ~name ~image ~proc () =
+    SC.set proc { Service.Key.name; docker_context } { Service.Value.image }
 
   module CC = Current_cache.Output(Compose)
 
-  let compose ?(pull=true) ~docker_context ~name ~contents ~proc ~sw () =
-    CC.set ~sw Compose.{ pull; proc } { Compose.Key.name; docker_context } { Compose.Value.contents }
+  let compose ?(pull=true) ~docker_context ~name ~contents ~proc () =
+    CC.set Compose.{ pull; proc } { Compose.Key.name; docker_context } { Compose.Value.contents }
 
   module CCC = Current_cache.Output(Compose_cli)
 
-  let compose_cli ?(pull=true) ?(up_args = []) ~docker_context ~name ~detach ~contents ~proc ~sw () =
-     CCC.set ~sw Compose_cli.{ pull; proc } { Compose_cli.Key.name; docker_context; detach ; up_args } { Compose_cli.Value.contents }
+  let compose_cli ?(pull=true) ?(up_args = []) ~docker_context ~name ~detach ~contents ~proc () =
+     CCC.set Compose_cli.{ pull; proc } { Compose_cli.Key.name; docker_context; detach ; up_args } { Compose_cli.Value.contents }
 
   module Cmd = struct
 
@@ -122,17 +122,17 @@ module Make (Host : S.HOST) = struct
     | None -> ()
     | Some arch -> Fmt.pf f "@,%s" arch
 
-  let pull ?auth ?label ?arch ~schedule ~proc ~sw tag =
+  let pull ?auth ?label ?arch ~schedule ~proc tag =
     let label = Option.value label ~default:tag in
     Current.component "pull %s%a" label pp_opt_arch arch |>
     let> () = Current.return () in
-    Raw.pull ~sw ~docker_context ~schedule ?arch ?auth ~proc tag
+    Raw.pull ~docker_context ~schedule ?arch ?auth ~proc tag
 
-  let peek ?label ~arch ~schedule ~proc ~sw tag =
+  let peek ?label ~arch ~schedule ~proc tag =
     let label = Option.value label ~default:tag in
     Current.component "peek %s@,%s" label arch |>
     let> () = Current.return () in
-    Raw.peek ~sw ~docker_context ~schedule ~arch ~proc tag
+    Raw.peek ~docker_context ~schedule ~arch ~proc tag
 
   let pp_sp_label = Fmt.(option (sp ++ string))
 
@@ -141,46 +141,46 @@ module Make (Host : S.HOST) = struct
     | `Git commit -> Current.map (fun x -> `Git x) commit
     | `Dir path -> Current.map (fun path -> `Dir path) path
 
-  let build ?level ?schedule ?timeout ?squash ?buildx ?label ?dockerfile ?path ?pool ?build_args ~pull ~fs ~proc ~sw src =
+  let build ?level ?schedule ?timeout ?squash ?buildx ?label ?dockerfile ?path ?pool ?build_args ~pull ~fs ~proc src =
     Current.component "build%a" pp_sp_label label |>
     let> commit = get_build_context src
     and> dockerfile = Current.option_seq dockerfile in
-    Raw.build ~fs ~sw ~docker_context ?level ?schedule ?timeout ?squash ?buildx ?dockerfile ?path ?pool ?build_args ~pull ~proc commit
+    Raw.build ~fs ~docker_context ?level ?schedule ?timeout ?squash ?buildx ?dockerfile ?path ?pool ?build_args ~pull ~proc commit
 
-  let run ?label ?pool ?run_args ~proc image ~args ~sw =
+  let run ?label ?pool ?run_args ~proc image ~args =
     Current.component "run%a" pp_sp_label label |>
     let> image = image in
-    Raw.run ~sw ~docker_context ?pool ?run_args ~proc image ~args
+    Raw.run ~docker_context ?pool ?run_args ~proc image ~args
 
-  let pread ?label ?pool ?run_args ~proc image ~args ~sw =
+  let pread ?label ?pool ?run_args ~proc image ~args =
     Current.component "pread%a" pp_sp_label label |>
     let> image = image in
-    Raw.pread ~sw ~docker_context ?pool ?run_args ~proc image ~args
+    Raw.pread ~docker_context ?pool ?run_args ~proc image ~args
 
-  let tag ~tag ~sw ~proc image =
+  let tag ~tag ~proc image =
     Current.component "docker-tag@,%a" pp_tag tag |>
     let> image = image in
-    Raw.tag ~sw ~docker_context ~tag ~proc image
+    Raw.tag ~docker_context ~tag ~proc image
 
-  let push ?auth ~tag ~sw ~proc image =
+  let push ?auth ~tag ~proc image =
     Current.component "docker-push@,%a" pp_tag tag |>
     let> image = image in
-    Raw.push ~sw ~docker_context ?auth ~tag ~proc image
+    Raw.push ~docker_context ?auth ~tag ~proc image
 
-  let service ~name ~image ~proc ~sw () =
+  let service ~name ~image ~proc () =
     Current.component "docker-service@,%s" name |>
     let> image = image in
-    Raw.service ~sw ~docker_context ~name ~image ~proc ()
+    Raw.service ~docker_context ~name ~image ~proc ()
 
-  let compose ?pull ~name ~contents ~proc ~sw () =
+  let compose ?pull ~name ~contents ~proc () =
     Current.component "docker-compose@,%s" name |>
     let> contents = contents in
-    Raw.compose ~sw ?pull ~docker_context ~name ~contents ~proc ()
+    Raw.compose ?pull ~docker_context ~name ~contents ~proc ()
 
-  let compose_cli ?pull ?up_args ~name ~detach ~contents ~proc ~sw () =
+  let compose_cli ?pull ?up_args ~name ~detach ~contents ~proc () =
     Current.component "docker-compose-cli@,%s" name |>
     let> contents = contents in
-    Raw.compose_cli ~sw ?pull ?up_args ~docker_context ~name ~detach ~contents ~proc ()
+    Raw.compose_cli ?pull ?up_args ~docker_context ~name ~detach ~contents ~proc ()
 end
 
 module Default = Make(struct
@@ -189,7 +189,7 @@ module Default = Make(struct
 
 module MC = Current_cache.Output(Push_manifest)
 
-let push_manifest ?auth ~tag ~fs ~proc ~sw manifests =
+let push_manifest ?auth ~tag ~fs ~proc manifests =
   Current.component "docker-push-manifest@,%a" pp_tag tag |>
   let> manifests = Current.list_seq manifests in
-  MC.set ~sw (auth, fs, proc) tag { Push_manifest.Value.manifests }
+  MC.set (auth, fs, proc) tag { Push_manifest.Value.manifests }

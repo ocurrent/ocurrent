@@ -39,10 +39,10 @@ module Commit : sig
   val unmarshal : string -> t
 end
 
-val clone : schedule:Current_cache.Schedule.t -> sw:Eio.Switch.t -> ?gref:string -> Eio.Process.mgr -> string -> Commit.t Current.t
+val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> Eio.Process.mgr -> string -> Commit.t Current.t
 (** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master"). *)
 
-val fetch : sw:Eio.Switch.t -> Eio.Process.mgr -> Commit_id.t Current.t -> Commit.t Current.t
+val fetch : Eio.Process.mgr -> Commit_id.t Current.t -> Commit.t Current.t
 
 val with_checkout :
   ?pool:unit Current.Pool.t ->
@@ -60,7 +60,7 @@ module Local : sig
   type t
   (** A local Git repository. *)
 
-  val v : sw:Eio.Switch.t -> Eio.Process.mgr -> Fpath.t -> t
+  val v : Eio.Process.mgr -> Fpath.t -> t
   (** [v path] is the local Git repository at [path]. *)
 
   val head : t -> [`Commit of Commit_id.t | `Ref of string ] Current.t

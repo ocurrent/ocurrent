@@ -80,7 +80,7 @@ let copy_to_log ~job src =
   let buf = Cstruct.create 4096 in
   let rec aux () =
     match Flow.single_read src buf with
-    | 0 | exception End_of_file -> ()
+    | exception End_of_file -> ()
     | n -> Job.write job (Cstruct.sub buf 0 n |> Cstruct.to_string); aux ()
   in
   aux ()
@@ -109,16 +109,24 @@ let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let r, w = Eio.Process.pipe proc ~sw:job.switch in
-  let child = Process.spawn ?cwd ~stdin:(Flow.string_source stdin) ~stdout:w ~stderr:w ~sw:job.switch proc (snd cmd) in
-  add_shutdown_hooks ~cancellable ~job ~cmd child;
-  Flow.close w;
-  copy_to_log ~job r;
-  Flow.close r;
-  let status = Process.await child in
-  match check_status pp_error_command cmd status with
-  | Ok () -> Ok ()
-  | Error _ as e -> e
+  try
+    let r, w = Eio.Process.pipe proc ~sw:job.switch in
+    let child = Process.spawn ?cwd ~stdin:(Flow.string_source stdin) ~stdout:w ~stderr:w ~sw:job.switch proc (snd cmd) in
+    add_shutdown_hooks ~cancellable ~job ~cmd child;
+    Flow.close w;
+    let output = Buf_read.parse_exn Buf_read.take_all r ~max_size:max_int in
+    Job.log job "%s" output;
+    Flow.close r;
+    Process.signal child Sys.sigkill;
+    let status = Process.await child in
+    match check_status pp_error_command cmd status with
+    | Ok () ->
+      Job.log job "Done...\n";
+      Ok ()
+    | Error _ as e -> e
+  with Exn.Io _ as ex ->
+    let bt = Printexc.get_raw_backtrace () in
+    Eio.Exn.reraise_with_context ex bt "running command: %a" Eio.Process.pp_args (snd cmd)
 
 let check_output ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job proc cmd =
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in

@@ -497,7 +497,7 @@ module Generic(Op : S.GENERIC) = struct
     | None ->
       Db.invalidate ~op:Op.id key
 
-  let run ?(schedule=Schedule.default) ~sw ctx key value =
+  let run ?(schedule=Schedule.default) ctx key value =
     Current_incr.of_cc begin
       Current_incr.read Current.Config.now @@ function
       | None -> Current_incr.write (Error (`Active `Ready), None)
@@ -520,7 +520,7 @@ module Generic(Op : S.GENERIC) = struct
               instances := Instances.remove key_digest !instances;
               Prometheus.Gauge.dec_one (Metrics.memory_cache_items Op.id)
             in
-            let i = Instance.load ~sw ~release ctx key value in
+            let i = Instance.load ~sw:(Current.Engine.switch ()) ~release ctx key value in
             instances := Instances.add key_digest i !instances;
             Prometheus.Gauge.inc_one (Metrics.memory_cache_items Op.id);
             i
@@ -558,8 +558,8 @@ module Make(B : S.BUILDER) = struct
 
   include Generic(Adaptor)
 
-  let get ?schedule ~sw ctx key =
-    run ?schedule ~sw ctx key ()
+  let get ?schedule ctx key =
+    run ?schedule ctx key ()
 end
 
 module Output(P : S.PUBLISHER) = struct
@@ -571,8 +571,8 @@ module Output(P : S.PUBLISHER) = struct
 
   include Generic(Adaptor)
 
-  let set ?schedule ~sw ctx key value =
-    run ?schedule ~sw ctx key value
+  let set ?schedule ctx key value =
+    run ?schedule ctx key value
 end
 
 module S = S

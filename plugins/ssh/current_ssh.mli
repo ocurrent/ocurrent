@@ -1,5 +1,4 @@
 val run :
-    sw:Eio.Switch.t ->
     schedule:Current_cache.Schedule.t ->
     key:string ->
     proc:Eio.Process.mgr ->

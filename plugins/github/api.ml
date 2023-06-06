@@ -832,7 +832,7 @@ module CheckRun = struct
     Current.component "set_check_run_status" |>
     let> (t, commit) = commit
     and> status = status in
-    Set_status_cache.set ~sw:t.sw t {Set_status.Key.commit; check_name} status
+    Set_status_cache.set t {Set_status.Key.commit; check_name} status
 end
 
 
@@ -942,7 +942,7 @@ module Commit = struct
     Current.component "set_status" |>
     let> (t, commit) = commit
     and> status = status in
-    Set_status_cache.set ~sw:t.sw t {Set_status.Key.commit; context} status
+    Set_status_cache.set t {Set_status.Key.commit; context} status
 
   let pr_name (_, id) = Commit_id.pr_name id
 

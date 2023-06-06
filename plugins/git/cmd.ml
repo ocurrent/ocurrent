@@ -43,7 +43,7 @@ let git ~cancellable ~job ?cwd ?config p args =
     Cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_clone ~cancellable ~job ~src p dst =
     let config = [ "protocol.file.allow=always" ] in
-    git ~config ~cancellable ~job p ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
+    git ~config ~cancellable ~job p ["clone"; "--recursive"; "--verbose"; src; Fpath.to_string dst]
 
 let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst p gref =
   let flags =

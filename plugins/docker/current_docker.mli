@@ -13,7 +13,6 @@ val push_manifest :
   tag:string ->
   fs:Eio.Fs.dir Eio.Path.t ->
   proc:Eio.Process.mgr ->
-  sw:Eio.Switch.t ->
   S.repo_id Current.t list -> S.repo_id Current.t
 (** [push_manifest images ~tag] pushes a manifest containing [images] as [tag].
     @param auth If give, do a "docker login" using this username/password pair before pushing. *)
@@ -31,7 +30,6 @@ module Raw : sig
     docker_context:string option ->
     schedule:Current_cache.Schedule.t ->
     proc:Eio.Process.mgr ->
-    sw:Eio.Switch.t ->
     ?arch:string ->
     ?auth:(string * string) ->
     string -> Image.t Current.Primitive.t
@@ -39,7 +37,7 @@ module Raw : sig
   val peek :
     docker_context:string option ->
     schedule:Current_cache.Schedule.t ->
-    arch:string -> proc:Eio.Process.mgr -> sw:Eio.Switch.t -> string -> S.repo_id Current.Primitive.t
+    arch:string -> proc:Eio.Process.mgr -> string -> S.repo_id Current.Primitive.t
 
   val build :
     docker_context:string option ->
@@ -55,7 +53,6 @@ module Raw : sig
     pull:bool ->
     fs:Eio.Fs.dir Eio.Path.t ->
     proc:Eio.Process.mgr ->
-    sw:Eio.Switch.t ->
     [ `Git of Current_git.Commit.t | `Dir of Fpath.t | `No_context ] ->
     Image.t Current.Primitive.t
 
@@ -65,7 +62,6 @@ module Raw : sig
     ?run_args:string list ->
     proc:Eio.Process.mgr ->
     Image.t -> args:string list ->
-    sw:Eio.Switch.t ->
     unit Current.Primitive.t
 
   val pread :
@@ -74,22 +70,21 @@ module Raw : sig
     ?run_args:string list ->
     proc:Eio.Process.mgr ->
     Image.t -> args:string list ->
-    sw:Eio.Switch.t ->
     string Current.Primitive.t
 
   val tag :
     docker_context:string option ->
     tag:string ->
     proc:Eio.Process.mgr ->
-    sw:Eio.Switch.t -> Image.t -> unit Current.Primitive.t
+    Image.t -> unit Current.Primitive.t
 
   val push :
     docker_context:string option ->
-    ?auth:(string * string) -> tag:string -> proc:Eio.Process.mgr -> sw:Eio.Switch.t ->Image.t -> S.repo_id Current.Primitive.t
+    ?auth:(string * string) -> tag:string -> proc:Eio.Process.mgr -> Image.t -> S.repo_id Current.Primitive.t
 
   val service :
     docker_context:string option ->
-    name:string -> image:Image.t -> proc:Eio.Process.mgr -> sw:Eio.Switch.t -> unit -> unit Current.Primitive.t
+    name:string -> image:Image.t -> proc:Eio.Process.mgr -> unit -> unit Current.Primitive.t
 
   val compose :
     ?pull:bool ->
@@ -97,7 +92,7 @@ module Raw : sig
     name:string ->
     contents:string ->
     proc:Eio.Process.mgr ->
-    sw:Eio.Switch.t ->unit -> unit Current.Primitive.t
+    unit -> unit Current.Primitive.t
 
   val compose_cli :
     ?pull:bool ->
@@ -107,7 +102,7 @@ module Raw : sig
     detach:bool ->
     contents:string ->
     proc:Eio.Process.mgr ->
-    sw:Eio.Switch.t -> unit -> unit Current.Primitive.t
+    unit -> unit Current.Primitive.t
 
   (** Building Docker commands. *)
   module Cmd : sig

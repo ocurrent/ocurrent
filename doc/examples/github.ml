@@ -16,6 +16,7 @@ module Github = Current_github
 module Docker = Current_docker.Default
 
 let () = Prometheus_unix.Logging.init ()
+let () = Logs.set_level (Some Logs.Debug)
 
 (* Link for GitHub statuses. *)
 let url = Uri.of_string "http://localhost:8080"
@@ -41,14 +42,14 @@ let github_status_of_state = function
   | Error (`Active _) -> Github.Api.Status.v ~url `Pending
   | Error (`Msg m)    -> Github.Api.Status.v ~url `Failure ~description:m
 
-let pipeline ~sw ~fs ~proc ~github ~repo () =
+let pipeline ~fs ~proc ~github ~repo () =
   let head = Github.Api.head_commit github repo in
-  let src = Git.fetch ~sw proc (Current.map Github.Api.Commit.id head) in
+  let src = Git.fetch proc (Current.map Github.Api.Commit.id head) in
   let dockerfile =
-    let+ base = Docker.pull ~sw ~proc ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
+    let+ base = Docker.pull ~proc ~schedule:weekly "ocaml/opam:alpine-3.13-ocaml-4.13" in
     `Contents (dockerfile ~base)
   in
-  Docker.build ~fs ~proc ~sw ~pull:false ~dockerfile (`Git src)
+  Docker.build ~fs ~proc ~pull:false ~dockerfile (`Git src)
   |> Current.state
   |> Current.map github_status_of_state
   |> Github.Api.Commit.set_status head "ocurrent"
@@ -65,7 +66,7 @@ let main config mode github repo =
       provide an Engine.global_switch hook to get the engines switch instead of passing
       it into every current plugin. *)
     let github = github ~sw in
-    let engine = Current.Engine.create ~sw ~config (pipeline ~fs ~proc ~sw ~github ~repo) in
+    let engine = Current.Engine.create ~sw ~config (pipeline ~fs ~proc ~github ~repo) in
     (* this example does not have support for looking up job_ids for a commit *)
     let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
     let routes =

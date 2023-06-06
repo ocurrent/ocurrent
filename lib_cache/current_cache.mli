@@ -16,7 +16,7 @@ end
 
 (** Perform builds with caching. *)
 module Make (B : S.BUILDER) : sig
-  val get : ?schedule:Schedule.t -> sw:Eio.Switch.t -> B.t -> B.Key.t -> B.Value.t Current.Primitive.t
+  val get : ?schedule:Schedule.t -> B.t -> B.Key.t -> B.Value.t Current.Primitive.t
   (** [get b k] is a term for the result of building [k]. *)
 
   val invalidate : B.Key.t -> unit
@@ -29,7 +29,7 @@ end
 
 (** Publish outputs with caching. *)
 module Output (P : S.PUBLISHER) : sig
-  val set : ?schedule:Schedule.t -> sw:Eio.Switch.t -> P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Primitive.t
+  val set : ?schedule:Schedule.t -> P.t -> P.Key.t -> P.Value.t -> P.Outcome.t Current.Primitive.t
   (** [set p k v] is a term for the result of setting [k] to [v]. *)
 
   val reset : db:bool -> unit
@@ -39,7 +39,7 @@ end
 
 (** The most general API. {!Make} and {!Output} just specialise this for particular uses. *)
 module Generic (Op : S.GENERIC) : sig
-  val run : ?schedule:Schedule.t -> sw:Eio.Switch.t -> Op.t -> Op.Key.t -> Op.Value.t -> Op.Outcome.t Current.Primitive.t
+  val run : ?schedule:Schedule.t -> Op.t -> Op.Key.t -> Op.Value.t -> Op.Outcome.t Current.Primitive.t
   (** [run t k v] is a term for the result of processing [(k, v)]. *)
 
   val reset : db:bool -> unit

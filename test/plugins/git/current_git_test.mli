@@ -15,5 +15,5 @@ val complete_clone : Commit.t -> unit
 val reset : unit -> unit
 (** Reset all repositories to uncloned. *)
 
-val fetch : sw:Eio.Switch.t -> Commit.t Current.t -> Fpath.t Current.t
+val fetch : Commit.t Current.t -> Fpath.t Current.t
 (** [fetch commit] pulls [commit] to a local Git repository. *)

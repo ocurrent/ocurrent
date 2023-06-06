@@ -32,6 +32,7 @@ let id = "git-clone"
 let build process_mgr job { Key.repo; gref } =
   Eio.Mutex.use_ro (repo_lock repo) @@ fun () ->
   Current.Job.start job ~level:Current.Level.Mostly_harmless;
+  Current.Job.write job "Writing to log";
   let local_repo = Cmd.local_copy repo in
   (* Ensure we have a local clone of the repository. *)
   begin

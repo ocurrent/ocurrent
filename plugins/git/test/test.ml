@@ -40,23 +40,23 @@ end
 
 module SF = Current_cache.Make(Show_files)
 
-let show_files ~sw fs commit =
+let show_files fs commit =
   Current.component "show_files" |>
   let> commit = commit in
-  SF.get ~sw fs commit
+  SF.get fs commit
 
-let repo ~sw proc = Current_git.Local.v ~sw proc (Fpath.v "./main")
+let repo proc = Current_git.Local.v proc (Fpath.v "./main")
 
-let pipeline ~ctx sw () =
-    let remote_commit = Current_git.Local.head_commit (repo ~sw (snd ctx)) in
+let pipeline ~ctx () =
+    let remote_commit = Current_git.Local.head_commit (repo (snd ctx)) in
     let id = Current.map Current_git.Commit.id remote_commit in
-    let clone = Current_git.fetch ~sw (snd ctx) id in
-    let+ result = Current.catch (show_files ~sw ctx clone) in
+    let clone = Current_git.fetch (snd ctx) id in
+    let+ result = Current.catch (show_files ctx clone) in
     match result with
     | Ok () -> ()
     | Error (`Msg m) -> push_result (Some [m])
 
-let engine ~ctx sw = Current.Engine.create ~sw (pipeline ~ctx sw)
+let engine ~ctx sw = Current.Engine.create ~sw (pipeline ~ctx)
 
 let () =
   Eio_main.run @@ fun env ->

@@ -107,6 +107,17 @@ module Engine = struct
 
   let pipeline t = Lazy.force t.pipeline
 
+  let switch_key : Eio.Switch.t Eio.Fiber.key = Eio.Fiber.create_key ()
+
+  let switch () =
+    match Eio.Fiber.get switch_key with
+    | Some sw ->
+      Log.debug (fun f -> f "Found engine switch");
+      sw
+    | None ->
+      Log.err (fun f -> f "No engine switch found");
+      raise Not_found
+
   let create ?(config=Config.default) ?(trace=default_trace) ~sw f =
     let last_result = ref booting in
     let rec aux outcome =
@@ -133,6 +144,7 @@ module Engine = struct
     in
     let pipeline = lazy (f ()) in
     let thread =
+      Eio.Fiber.with_binding switch_key sw @@ fun () ->
       Eio.Fiber.fork_promise ~sw (fun () ->
       (* The pause lets us start the web-server before the first evaluation,
          and also frees us from handling an initial exception specially. *)

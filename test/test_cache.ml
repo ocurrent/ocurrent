@@ -30,10 +30,10 @@ end
 
 module BC = Current_cache.Make (Build)
 
-let get ?schedule ~sw builds x =
+let get ?schedule builds x =
   Current.component "get %s" x |>
   let> () = Current.return () in
-  BC.get ~sw ?schedule builds x
+  BC.get ?schedule builds x
 
 let pp_error f (`Msg m) = Fmt.string f m
 
@@ -78,10 +78,10 @@ module Clock = struct
     Eio.Condition.broadcast t.cond
 end
 
-let basic sw () =
+let basic _sw () =
   let result = ref "none" in
   let pipeline builds () =
-    let+ x = get ~sw builds "a" in
+    let+ x = get builds "a" in
     result := x
   in
   BC.reset ~db:true;
@@ -113,14 +113,14 @@ let result_t =
     (Current_term.Output.pp Fmt.string)
     (Current_term.Output.equal (=))
 
-let expires sw () =
+let expires _sw () =
   let result = ref (Error (`Msg ("uninitialised"))) in
   let five_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 5) () in
   let ten_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 10) () in
   let pipeline builds () =
     Current.state (
-      let+ x = get ~sw ~schedule:ten_s builds "a"
-      and+ y = get ~sw ~schedule:five_s builds "a"
+      let+ x = get ~schedule:ten_s builds "a"
+      and+ y = get ~schedule:five_s builds "a"
       in
       Fmt.str "%s,%s" x y
     )
@@ -154,13 +154,13 @@ let expires sw () =
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)
 let wanted = Bool_var.create ~name:"wanted" (Ok true)
 
-let autocancel sw () =
+let autocancel _sw () =
   let result = ref "none" in
   let builds = Build.create () in
   let pipeline () =
     let* wanted = Bool_var.get wanted in
     let+ r =
-      if wanted then get ~sw builds "a"
+      if wanted then get builds "a"
       else Current.return "unwanted"
     in
     result := r
@@ -251,16 +251,16 @@ let input = V.create ~name:"input" @@ Ok "bar"
 
 module OC = Current_cache.Output(Publish)
 
-let set ~sw p k v =
+let set p k v =
   Current.component "set" |>
   let> v = v in
-  OC.set ~sw p k v
+  OC.set p k v
 
-let output sw () =
+let output _sw () =
   V.set input @@ Ok "bar";
   OC.reset ~db:true;
   let p = Publish.create () in
-  let pipeline () = V.get input |> set ~sw p "foo" in
+  let pipeline () = V.get input |> set p "foo" in
   Driver.test ~name:"cache.output" pipeline @@ function
   | 1 ->
     Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
@@ -291,16 +291,16 @@ end
 
 module OC2 = Current_cache.Output(Publish2)
 
-let set2 ~sw p k v =
+let set2 p k v =
   Current.component "set2" |>
   let> v = v in
-  OC2.set ~sw p k v
+  OC2.set p k v
 
-let output_autocancel sw () =
+let output_autocancel _sw () =
   V.set input @@ Ok "bar";
   OC2.reset ~db:true;
   let p = Publish2.create () in
-  let pipeline () = V.get input |> set2 ~sw p "foo" in
+  let pipeline () = V.get input |> set2 p "foo" in
   Driver.test ~name:"cache.output_autocancel" pipeline @@ function
   | 1 ->
     Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
@@ -330,10 +330,10 @@ let output_autocancel sw () =
   | _ ->
     assert false
 
-let output_retry sw () =
+let output_retry _sw () =
   OC2.reset ~db:true;
   let p = Publish2.create () in
-  let pipeline () = set2 ~sw p "foo" (Current.return "value") in
+  let pipeline () = set2 p "foo" (Current.return "value") in
   Driver.test ~name:"cache.output_retry" pipeline @@ function
   | 1 ->
     Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
@@ -349,11 +349,11 @@ let output_retry sw () =
   | _ ->
     assert false
 
-let output_retry_new sw () =
+let output_retry_new _sw () =
   OC.reset ~db:true;
   let p = Publish.create () in
   V.set input @@ Ok "1";
-  let pipeline () = set ~sw p "foo" (V.get input) in
+  let pipeline () = set p "foo" (V.get input) in
   Driver.test ~name:"cache.output_retry_new" pipeline @@ function
   | 1 ->
     Alcotest.(check string) "Publish has started" "init-changing" p.Publish.state;
@@ -401,23 +401,23 @@ end
 
 module LC = Current_cache.Generic(Latched)
 
-let build ~sw p commit base =
+let build p commit base =
   Current.component "build" |>
   let> commit = commit
   and> base = base in
-  LC.run ~sw p commit base
+  LC.run p commit base
 
 let commit = V.create ~name:"commit" @@ Error (`Msg "(init)")
 let base = V.create ~name:"base" @@ Error (`Msg "(init)")
 
-let latched sw () =
+let latched _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "alpine:3.10";
   V.set commit @@ Ok "r1";
   let result = ref (Error (`Msg ("uninitialised"))) in
   let pipeline () =
-    let+ st = Current.state @@ build ~sw p (V.get commit) (V.get base) in
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
     result := st
   in
   Driver.test ~name:"cache.latched" pipeline @@ function
@@ -447,14 +447,14 @@ let latched sw () =
   | _ ->
     assert false
 
-let latched_autocancel sw () =
+let latched_autocancel _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "alpine:3.10";
   V.set commit @@ Ok "r1";
   let result = ref (Error (`Msg ("uninitialised"))) in
   let pipeline () =
-    let+ st = Current.state @@ build ~sw p (V.get commit) (V.get base) in
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
     result := st
   in
   Driver.test ~name:"cache.latched-autocancel" pipeline @@ function
@@ -483,14 +483,14 @@ let latched_autocancel sw () =
   | _ ->
     assert false
 
-let clear_error sw () =
+let clear_error _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "";
   V.set commit @@ Ok "r1";
   let result = ref (Error (`Msg ("uninitialised"))) in
   let pipeline () =
-    let+ st = Current.state @@ build ~sw p (V.get commit) (V.get base) in
+    let+ st = Current.state @@ build p (V.get commit) (V.get base) in
     result := st
   in
   Driver.test ~name:"cache.clear_error" pipeline @@ function

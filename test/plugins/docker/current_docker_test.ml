@@ -68,11 +68,11 @@ end
 
 module Run_cache = Current_cache.Make(Run)
 
-let run ~sw image ~cmd =
+let run image ~cmd =
   Current.component "docker run @[%a@]" Fmt.(list ~sep:sp string) cmd |>
   let> image = image in
   let key = { Key.image; cmd } in
-  Run_cache.get ~sw No_context key
+  Run_cache.get No_context key
 
 let complete image ~cmd r =
   let key = { Key.image; cmd } in
@@ -98,10 +98,10 @@ end
 
 module Push_cache = Current_cache.Make(Push)
 
-let push ~sw image ~tag =
+let push image ~tag =
   Current.component "docker push %s" tag |>
   let> image = image in
-  Push_cache.get ~sw No_context image
+  Push_cache.get No_context image
 
 let image_pulls : (string, 'a Current.or_error Eio.Promise.t * 'a Current.or_error Eio.Promise.u) Hashtbl.t = Hashtbl.create 5
 let image_monitors = Hashtbl.create 5
