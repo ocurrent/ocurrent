@@ -1,10 +1,7 @@
-open Lwt.Infix
-
 type auth = Push.auth
 
-type t = auth option
-
-let ( >>!= ) = Lwt_result.bind
+type t = auth option * Eio.Process.mgr
+let ( >>!= ) = Result.bind
 
 let id = "docker-pull"
 
@@ -39,33 +36,33 @@ let get_digest_from_manifest manifest arch =
         Fmt.exn ex
         (Yojson.Basic.pretty_print ~std:true) json
 
-let build auth job key =
-  Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
+let build (auth, proc) job key =
+  Current.Job.start job ~level:Current.Level.Mostly_harmless;
   let { Key.docker_context; tag; arch } = key in
   begin match auth with
-    | None -> Lwt.return (Ok ())
+    | None -> Ok ()
     | Some (user, password) ->
         let cmd = Cmd.login ~docker_context user in
-        Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
+        Current.Process.exec ~cancellable:true ~job ~stdin:password proc cmd
   end >>!= fun () ->
   match arch with
   | None -> begin
-      Current.Process.exec ~cancellable:true ~job (Key.cmd key) >>!= fun () ->
+      Current.Process.exec ~cancellable:true ~job proc (Key.cmd key) >>!= fun () ->
       let cmd = Cmd.docker ~docker_context ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
-      Current.Process.check_output ~cancellable:false ~job cmd >>!= fun id ->
+      Current.Process.check_output ~cancellable:false ~job proc cmd >>!= fun id ->
       let id = String.trim id in
       Current.Job.log job "Pulled %S -> %S" tag id;
-      Lwt_result.return (Image.of_hash id)
+      Ok (Image.of_hash id)
     end
   | Some arch -> begin
       let cmd = Cmd.docker ~docker_context ["manifest"; "inspect"; tag ] in
-      Current.Process.check_output ~cancellable:true ~job cmd >>!= fun manifest ->
+      Current.Process.check_output ~cancellable:true ~job proc cmd >>!= fun manifest ->
       match get_digest_from_manifest manifest arch with
-      | Error _ as e -> Lwt.return e
+      | Error _ as e -> e
       | Ok hash ->
         let full_tag = tag ^ "@" ^ hash in
-        Current.Process.exec ~cancellable:true ~job (Key.cmd {key with Key.tag=full_tag}) >>!= fun () ->
-        Lwt_result.return (Image.of_hash full_tag)
+        Current.Process.exec ~cancellable:true ~job proc (Key.cmd {key with Key.tag=full_tag}) >>!= fun () ->
+        Ok (Image.of_hash full_tag)
     end
 
 let pp f key = Cmd.pp f (Key.cmd key)

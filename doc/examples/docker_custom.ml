@@ -49,11 +49,11 @@ module Test = struct
   let test_command = ["curl"; "-Ss"; "--fail"; "http://localhost/"]
 
   let build No_context job { Key.docker_context; image } =
-    Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
+    Current.Job.start job ~level:Current.Level.Mostly_harmless;
     (* Start the container running: *)
     Raw.Cmd.with_container ~docker_context ~job ~kill_on_cancel:true (run image ~docker_context) @@ fun id ->
     Current.Job.log job "Waiting 1 second to let HTTP server start...";
-    Lwt_unix.sleep 1.0 >>= fun () ->
+    Eio_unix.sleep 1.0;
     (* Test the container's service: *)
     Current.Process.exec ~cancellable:true ~job (exec id test_command ~docker_context)
 

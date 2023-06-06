@@ -2,12 +2,22 @@
 ;  (deps (package current_git))
 ;  (package current_git))
 
-(test
- (name git_test)
- (package current_git)
- (libraries
-   alcotest
-   alcotest-lwt
-   current
-   current_git
-   lwt))
+; Disbaled for the eio port
+
+; (test
+;  (name git_test)
+;  (package current_git)
+;  (libraries
+;    alcotest
+;    alcotest-lwt
+;    current
+;    current_git
+;    lwt))
+
+; (mdx
+;  (packages current_git)
+;  (package current_git))
+
+(executable
+ (name test)
+ (libraries current_git))

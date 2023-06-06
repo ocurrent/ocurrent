@@ -5,10 +5,10 @@ module Job = Current.Job
 let render_row (id, job) =
   let url = Fmt.str "/job/%s" id in
   let start_time =
-    match Lwt.state (Job.start_time job) with
-    | Lwt.Sleep -> "(ready to start)"
-    | Lwt.Return t -> Utils.string_of_timestamp (Unix.gmtime t)
-    | Lwt.Fail f -> Printexc.to_string f
+    match Eio.Promise.peek (Job.start_time job) with
+    | None -> "(ready to start)"
+    | Some t -> Utils.string_of_timestamp (Unix.gmtime t)
+    (* | Lwt.Fail f -> Printexc.to_string f *)
   in
   tr [
     td [ a ~a:[a_href url] [txt id] ];

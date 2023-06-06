@@ -1,3 +1,4 @@
+; Disabled for port to Eio
 (library
  (public_name current_github)
  (libraries

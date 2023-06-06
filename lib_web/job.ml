@@ -1,7 +1,5 @@
 open Tyxml.Html
 open Astring
-open Lwt.Infix
-
 let sep = "@@LOG@@"
 
 let max_log_chunk_size = 102400L  (* 100K at a time *)
@@ -98,7 +96,7 @@ let render ctx ~actions ~job_id ~log:path =
                 | "", _ ->
                   begin match Current.Job.lookup_running job_id with
                     | None -> i := `Done; Lwt.return_some post
-                    | Some job -> Current.Job.wait_for_log_data job >>= aux
+                    | Some job -> Current.Job.wait_for_log_data job |> aux
                   end
                 | (data, next) ->
                   i := `Log next;

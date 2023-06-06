@@ -1,3 +1,4 @@
+; Disabled for port to Eio
 (rule
  (target static.ml)
  (deps

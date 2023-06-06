@@ -25,10 +25,10 @@ let pp = Fmt.using hash Fmt.string
 let pp_short f t =
   Fmt.string f @@ Astring.String.with_range ~len:6 (hash t)
 
-let check_cached t =
+let check_cached t p =
   let hash = hash t in
   let branch = Fmt.str "fetch-%s" hash in
-  Cmd.git ~cwd:t.repo ["branch"; "-f"; branch; hash]
+  Cmd.git ~cwd:t.repo p ["branch"; "-f"; branch; hash]
 
 let marshal t = to_yojson t |> Yojson.Safe.to_string
 let unmarshal s =

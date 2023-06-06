@@ -1,33 +1,37 @@
-open Lwt.Infix
-
 type t = {
   mutable confirm : Level.t option;
-  level_cond : unit Lwt_condition.t;
+  level_cond : Eio.Condition.t;
 }
 
 let set_confirm t level =
   Log.info (fun f -> f "Confirmation threshold is now %a" (Fmt.Dump.option Level.pp) level);
   t.confirm <- level;
-  Lwt_condition.broadcast t.level_cond ()
+  Eio.Condition.broadcast t.level_cond
 
 let get_confirm t = t.confirm
 
 (* If the level isn't changed manually within [duration], remove limiter. *)
-let slow_start_thread t duration =
-  Lwt.async
+let slow_start_thread ~sw t duration =
+  Eio.Fiber.fork ~sw
     (fun () ->
-       let changed = Lwt_condition.wait t.level_cond in
-       Lwt.choose [Lwt_unix.sleep (Duration.to_f duration); changed] >|= fun () ->
-       if Lwt.state changed = Lwt.Sleep then (
+       let changed = ref false in
+       Eio.Fiber.any [
+        (fun () -> Eio_unix.sleep (Duration.to_f duration));
+        (fun () -> Eio.Condition.await_no_mutex t.level_cond; changed := true)
+       ];
+       if !changed = false then (
          Log.info (fun f -> f "Slow start period over; removing limiter");
          set_confirm t None;
        )
     )
 
 let v ?auto_release ?confirm () =
-  let level_cond = Lwt_condition.create () in
+  (* XXX: Hmm, because of the default value and the use of fibers :/ *)
+  Eio_main.run @@ fun _ ->
+  let level_cond = Eio.Condition.create () in
   let t = { confirm; level_cond } in
-  Option.iter (slow_start_thread t) auto_release;
+  Eio.Switch.run @@ fun sw ->
+  Option.iter (slow_start_thread ~sw t) auto_release;
   t
 
 let default = v ()
@@ -39,10 +43,9 @@ let now = Current_incr.of_var active_config
 let rec confirmed l t =
   match t.confirm with
   | Some threshold when Level.compare l threshold >= 0 ->
-    Lwt_condition.wait t.level_cond >>= fun () ->
+    Eio.Condition.await_no_mutex t.level_cond;
     confirmed l t
-  | _ ->
-    Lwt.return_unit
+  | _ -> ()
 
 open Cmdliner
 

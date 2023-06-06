@@ -1,5 +1,4 @@
 open Current.Syntax
-open Lwt.Infix
 
 let () = Driver.init_logging ()
 
@@ -9,7 +8,7 @@ module Build = struct
   module Key = Current.String
   module Value = Current.String
 
-  type waker = string Current.or_error Lwt.u
+  type waker = string Current.or_error Eio.Promise.u
 
   type t = waker Builds.t ref
 
@@ -20,16 +19,16 @@ module Build = struct
   let pp = Fmt.string
 
   let build t job key =
-    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
+    Current.Job.start job ~level:Current.Level.Average;
     if Builds.mem key !t then Fmt.failwith "Already building %s!" key;
-    let finished, set_finished = Lwt.wait () in
+    let finished, set_finished = Eio.Promise.create () in
     t := Builds.add key set_finished !t;
-    finished
+    Eio.Promise.await finished
 
   let auto_cancel = true
 end
 
-module BC = Current_cache.Make(Build)
+module BC = Current_cache.Make (Build)
 
 let get ?schedule builds x =
   Current.component "get %s" x |>
@@ -52,19 +51,23 @@ let database = Alcotest.(list string)
 module Clock = struct
   type t = {
     mutable now : float;
-    cond : unit Lwt_condition.t;
+    cond : Eio.Condition.t;
   }
 
   let create () =
-    let cond = Lwt_condition.create () in
-    let t = {now = 0.0; cond} in
+    let cond = Eio.Condition.create () in
+    let t = {now = 0.0; cond;} in
     Current.Job.timestamp := (fun () -> t.now);
     Current.Job.sleep := (fun d ->
+        Logs.info (fun f -> f "Sleep called");
         let end_time = d +. t.now in
         let rec aux () =
           Logs.info (fun f -> f "sleep checking if %.0f >= %.0f yet" t.now end_time);
-          if t.now >= end_time then Lwt.return_unit
-          else Lwt_condition.wait cond >>= aux
+          if t.now >= end_time then ()
+          else begin
+            Eio.Condition.await_no_mutex cond;
+            aux ()
+          end
         in
         aux ()
       );
@@ -72,10 +75,10 @@ module Clock = struct
 
   let set t now =
     t.now <- now;
-    Lwt_condition.broadcast t.cond ()
+    Eio.Condition.broadcast t.cond
 end
 
-let basic _switch () =
+let basic _sw () =
   let result = ref "none" in
   let pipeline builds () =
     let+ x = get builds "a" in
@@ -90,7 +93,7 @@ let basic _switch () =
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
-    Lwt.wakeup b @@ Ok "done"
+    Eio.Promise.resolve b @@ Ok "done"
   | 2 ->
     Alcotest.(check string) "Result correct" "done" !result;
     Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
@@ -98,7 +101,7 @@ let basic _switch () =
   | 3 ->
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
-    Lwt.wakeup b @@ Ok "rebuild"
+    Eio.Promise.resolve b @@ Ok "rebuild"
   | 4 ->
     Alcotest.(check string) "Rebuild result" "rebuild" !result;
     raise Exit
@@ -110,7 +113,7 @@ let result_t =
     (Current_term.Output.pp Fmt.string)
     (Current_term.Output.equal (=))
 
-let expires _switch () =
+let expires _sw () =
   let result = ref (Error (`Msg ("uninitialised"))) in
   let five_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 5) () in
   let ten_s = Current_cache.Schedule.v ~valid_for:(Duration.of_sec 10) () in
@@ -132,7 +135,7 @@ let expires _switch () =
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
     Clock.set clock 1.0;
-    Lwt.wakeup b @@ Ok "done"
+    Eio.Promise.resolve b @@ Ok "done"
   | 2 ->
     Alcotest.check database "Result stored" ["done 0/0/1 +0"] @@ disk_cache ();
     Alcotest.(check result_t) "Result correct" (Ok "done,done") !result;
@@ -142,7 +145,7 @@ let expires _switch () =
     let b = Builds.find "a" !builds in
     Clock.set clock 8.0;
     Alcotest.check database "Disk store not invalidated" ["done 0/0/1 +0"] @@ disk_cache ();
-    Lwt.wakeup b @@ Ok "rebuild"
+    Eio.Promise.resolve b @@ Ok "rebuild"
   | _ ->
     Alcotest.check database "Result stored" ["done 0/0/1 +0"; "rebuild 7/7/8 +1"] @@ disk_cache ();
     Alcotest.(check result_t) "Result correct" (Ok "rebuild,rebuild") !result;
@@ -151,7 +154,7 @@ let expires _switch () =
 module Bool_var = Current.Var(struct type t = bool let pp = Fmt.bool let equal = (=) end)
 let wanted = Bool_var.create ~name:"wanted" (Ok true)
 
-let autocancel _switch () =
+let autocancel _sw () =
   let result = ref "none" in
   let builds = Build.create () in
   let pipeline () =
@@ -180,14 +183,14 @@ let autocancel _switch () =
     Clock.set clock 1.0;
     (* The original build completes, but we ignore it as cancelled and start a replacement
        build. *)
-    Lwt.wakeup b @@ Ok "old-build"
+    Eio.Promise.resolve b @@ Ok "old-build"
   | 4 ->
     Alcotest.(check string) "No update yet" "unwanted" !result;
     let b = Builds.find "a" !builds in
     builds := Builds.remove "a" !builds;
     Clock.set clock 2.0;
     (* The replacement build completes. *)
-    Lwt.wakeup b @@ Ok "new-build"
+    Eio.Promise.resolve b @@ Ok "new-build"
   | 5 ->
     Alcotest.(check string) "Rebuild done" "new-build" !result;
     raise Exit
@@ -202,7 +205,7 @@ module Publish = struct
   type t = {
     mutable state : string;
     mutable next : string;
-    mutable set_finished : unit Current.or_error Lwt.u option;
+    mutable set_finished : unit Current.or_error Eio.Promise.u option;
   }
 
   let id = "publish"
@@ -214,24 +217,23 @@ module Publish = struct
       t.set_finished <- None;
       if v = Ok () then t.state <- t.next;
       t.next <- "unset";
-      Lwt.wakeup set_finished v
+      Eio.Promise.resolve set_finished v
 
   let publish t job key value =
     Logs.info (fun f -> f "test_cache.publish");
     assert (key = "foo");
     assert (t.set_finished = None);
-    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-    let finished, set_finished = Lwt.wait () in
+    Current.Job.start job ~level:Current.Level.Average;
+    let finished, set_finished = Eio.Promise.create () in
     t.set_finished <- Some set_finished;
     t.state <- t.state ^ "-changing";
     t.next <- value;
     Current.Job.with_handler job
-      (fun () -> finished)
+      (fun () -> Eio.Promise.await finished)
       ~on_cancel:(fun reason ->
         Logs.info (fun f -> f "Cancelling: %s" reason);
         t.state <- "cancelled";
-        complete t (Error (`Msg reason));
-        Lwt.return_unit
+        complete t (Error (`Msg reason))
       )
 
   let pp f (k, v) =
@@ -254,7 +256,7 @@ let set p k v =
   let> v = v in
   OC.set p k v
 
-let output _switch () =
+let output _sw () =
   V.set input @@ Ok "bar";
   OC.reset ~db:true;
   let p = Publish.create () in
@@ -294,7 +296,7 @@ let set2 p k v =
   let> v = v in
   OC2.set p k v
 
-let output_autocancel _switch () =
+let output_autocancel _sw () =
   V.set input @@ Ok "bar";
   OC2.reset ~db:true;
   let p = Publish2.create () in
@@ -328,7 +330,7 @@ let output_autocancel _switch () =
   | _ ->
     assert false
 
-let output_retry _switch () =
+let output_retry _sw () =
   OC2.reset ~db:true;
   let p = Publish2.create () in
   let pipeline () = set2 p "foo" (Current.return "value") in
@@ -347,7 +349,7 @@ let output_retry _switch () =
   | _ ->
     assert false
 
-let output_retry_new _switch () =
+let output_retry_new _sw () =
   OC.reset ~db:true;
   let p = Publish.create () in
   V.set input @@ Ok "1";
@@ -376,13 +378,13 @@ module Latched = struct
 
   type t = (string, string) Hashtbl.t
 
-  let cond = Lwt_condition.create ()
+  let cond = Eio.Condition.create ()
 
   let id = "latched"
 
   let run t job key value =
-    Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-    Lwt_condition.wait cond >|= fun () ->
+    Current.Job.start job ~level:Current.Level.Average;
+    Eio.Condition.await_no_mutex cond;
     Hashtbl.replace t key (value ^ "-done");
     if value = "" then Error (`Msg "bad-base")
     else Ok (value ^ "-outcome")
@@ -408,7 +410,7 @@ let build p commit base =
 let commit = V.create ~name:"commit" @@ Error (`Msg "(init)")
 let base = V.create ~name:"base" @@ Error (`Msg "(init)")
 
-let latched _switch () =
+let latched _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "alpine:3.10";
@@ -421,7 +423,7 @@ let latched _switch () =
   Driver.test ~name:"cache.latched" pipeline @@ function
   | 1 ->
     Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 2 ->
     Alcotest.(check result_t) "3.10 ready" (Ok "alpine:3.10-outcome") !result;
     Alcotest.(check (option string)) "3.10 result" (Some "alpine:3.10-done") (Hashtbl.find_opt p "r1");
@@ -429,7 +431,7 @@ let latched _switch () =
     (* Changing the base latches the result *)
   | 3 ->
     Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 4 ->
     Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
     Alcotest.(check (option string)) "3.11 result" (Some "alpine:3.11-done") (Hashtbl.find_opt p "r1");
@@ -438,14 +440,14 @@ let latched _switch () =
   | 5 ->
     Alcotest.(check result_t) "Not latched" (Error (`Active `Running)) !result;
     Alcotest.(check (option string)) "No r2 result yet" None (Hashtbl.find_opt p "r2");
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 6 ->
     Alcotest.(check (option string)) "3.11 result" (Some "alpine:3.11-done") (Hashtbl.find_opt p "r2");
     raise Exit
   | _ ->
     assert false
 
-let latched_autocancel _switch () =
+let latched_autocancel _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "alpine:3.10";
@@ -458,7 +460,7 @@ let latched_autocancel _switch () =
   Driver.test ~name:"cache.latched-autocancel" pipeline @@ function
   | 1 ->
     Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 2 ->
     Alcotest.(check result_t) "3.10 ready" (Ok "alpine:3.10-outcome") !result;
     Alcotest.(check (option string)) "3.10 result" (Some "alpine:3.10-done") (Hashtbl.find_opt p "r1");
@@ -470,10 +472,10 @@ let latched_autocancel _switch () =
     (* Changing the base again auto-cancels, still latching the result *)
   | 4 ->
     Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
-    Lwt_condition.broadcast Latched.cond ();    (* Cancel takes effect *)
+    Eio.Condition.broadcast Latched.cond;    (* Cancel takes effect *)
   | 5 ->
     Alcotest.(check result_t) "3.10 latched" (Ok "alpine:3.10-outcome") !result;
-    Lwt_condition.broadcast Latched.cond ();    (* Second update completes *)
+    Eio.Condition.broadcast Latched.cond;    (* Second update completes *)
   | 6 ->
     Alcotest.(check result_t) "3.12 ready" (Ok "alpine:3.12-outcome") !result;
     Alcotest.(check (option string)) "3.12 result" (Some "alpine:3.12-done") (Hashtbl.find_opt p "r1");
@@ -481,7 +483,7 @@ let latched_autocancel _switch () =
   | _ ->
     assert false
 
-let clear_error _switch () =
+let clear_error _sw () =
   LC.reset ~db:true;
   let p = Latched.create () in
   V.set base @@ Ok "";
@@ -494,21 +496,21 @@ let clear_error _switch () =
   Driver.test ~name:"cache.clear_error" pipeline @@ function
   | 1 ->
     Alcotest.(check result_t) "Op has started" (Error (`Active `Running)) !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 2 ->
     Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
     V.set base @@ Ok "alpine:3.11";
     (* Changing the base latches the result *)
   | 3 ->
     Alcotest.(check result_t) "Failure latched" (Error (`Msg "bad-base")) !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 4 ->
     Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
     V.set base @@ Ok "";
     (* Generate the error state again *)
   | 5 ->
     Alcotest.(check result_t) "3.11 still ready" (Ok "alpine:3.11-outcome") !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 6 ->
     Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
     (* This time, reset the cache (simulating a restart of the service). *)
@@ -517,7 +519,7 @@ let clear_error _switch () =
   | 7 ->
     (* Failure is latched, but a rebuild is in progress: *)
     Alcotest.(check result_t) "Bad base failed" (Error (`Msg "bad-base")) !result;
-    Lwt_condition.broadcast Latched.cond ();
+    Eio.Condition.broadcast Latched.cond;
   | 8 ->
     Alcotest.(check result_t) "3.11 ready" (Ok "alpine:3.11-outcome") !result;
     raise Exit

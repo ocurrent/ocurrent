@@ -1,7 +1,6 @@
-open Lwt.Infix
-
 type t = {
   pool : unit Current.Pool.t option;
+  proc : Eio.Process.mgr;
 }
 
 let id = "docker-pread"
@@ -32,9 +31,9 @@ end
 
 module Value = Current.String
 
-let build { pool } job key =
-  Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-  Current.Process.check_output ~cancellable:true ~job (Key.cmd key)
+let build { pool; proc } job key =
+  Current.Job.start job ?pool ~level:Current.Level.Average;
+  Current.Process.check_output ~cancellable:true ~job proc (Key.cmd key)
 
 let pp = Key.pp
 

@@ -1,20 +1,20 @@
-(library
- (public_name current_gitlab)
- (libraries
-   cmdliner
-   current
-   current.cache
-   current.term
-   current_git
-   current_web
-   gitlab-unix
-   fmt
-   logs
-   lwt
-   lwt.unix
-   ptime
-   prometheus
-   result
-   rresult
-   yojson)
- (preprocess (pps ppx_deriving_yojson)))
+; Disabled for port to Eio
+; (library
+;  (public_name current_gitlab)
+;  (libraries
+;    cmdliner
+;    current
+;    current.cache
+;    current.term
+;    current_git
+;    current_web
+;    gitlab-unix
+;    fmt
+;    logs
+;    lwt
+;    lwt.unix
+;    prometheus
+;    result
+;    rresult
+;    yojson)
+;  (preprocess (pps ppx_deriving_yojson)))

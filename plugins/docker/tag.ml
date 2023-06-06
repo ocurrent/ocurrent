@@ -1,8 +1,6 @@
-open Lwt.Infix
-
 let ( >>!= ) = Lwt_result.bind
 
-type t = No_context
+type t = Eio.Process.mgr
 
 let id = "docker-tag"
 
@@ -31,9 +29,9 @@ module Outcome = Current.Unit
 let tag_cmd { Key.tag; docker_context } { Value.image } =
   Cmd.docker ~docker_context ["tag"; Image.hash image; tag]
 
-let publish No_context job key value =
-  Current.Job.start job ~level:Current.Level.Average >>= fun () ->
-  Current.Process.exec ~cancellable:true ~job (tag_cmd key value)
+let publish mgr job key value =
+  Current.Job.start job ~level:Current.Level.Average;
+  Current.Process.exec ~cancellable:true ~job mgr (tag_cmd key value)
 
 let pp f (key, value) =
   Cmd.pp f (tag_cmd key value)

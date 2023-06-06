@@ -2,13 +2,14 @@
  (public_name current_slack)
  (name current_slack)
  (libraries
-   cohttp-lwt-unix
+   eio
+   cohttp-eio
+   mirage-crypto-rng.unix
+   tls-eio
    current
    current.cache
    current.term
    fmt
    logs
-   lwt
-   lwt.unix
    uri
    yojson))

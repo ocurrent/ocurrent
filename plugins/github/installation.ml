@@ -81,19 +81,22 @@ let list_repositories ~api ~token ~account =
   Prometheus.Gauge.set (Metrics.repositories_total account) (float_of_int (List.length repos));
   repos
 
-let v ~iid ~account ~api =
+let v ~sw ~iid ~account ~api =
   let read () =
-    Api.get_token api >>= function
-    | Error (`Msg m) -> Lwt.fail_with m
-    | Ok token ->
-      Lwt.try_bind
-        (fun () -> list_repositories ~api ~token ~account)
-        Lwt_result.return
-        (fun ex ->
-           Log.warn (fun f -> f "Error reading GitHub installations (will retry in 30s): %a" Fmt.exn ex);
-           Lwt_unix.sleep 30.0 >>= fun () ->
-           list_repositories ~api ~token ~account >|= Stdlib.Result.ok
-        )
+    let read_lwt () =
+      Api.get_token api >>= function
+      | Error (`Msg m) -> Lwt.fail_with m
+      | Ok token ->
+        Lwt.try_bind
+          (fun () -> list_repositories ~api ~token ~account)
+          Lwt_result.return
+          (fun ex ->
+            Log.warn (fun f -> f "Error reading GitHub installations (will retry in 30s): %a" Fmt.exn ex);
+            Eio_unix.sleep 30.0;
+            list_repositories ~api ~token ~account >|= Stdlib.Result.ok
+          )
+    in
+    Eio.Promise.create_resolved (Lwt_eio.Promise.await_lwt @@ read_lwt ())
   in
   let watch refresh =
     let rec aux event =
@@ -103,9 +106,10 @@ let v ~iid ~account ~api =
       aux event
     in
     let thread = aux (Lwt_condition.wait installation_repositories_cond) in
-    Lwt.return (fun () -> Lwt.cancel thread; Lwt.return_unit) in
+    (fun () -> Lwt.cancel thread; ())
+  in
   let pp f = Fmt.string f account in
-  let repos = Current.Monitor.create ~read ~watch ~pp in
+  let repos = Current.Monitor.create ~sw ~read ~watch ~pp in
   { iid; account; api; repos }
 
 let api t = t.api

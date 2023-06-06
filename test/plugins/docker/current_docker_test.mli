@@ -16,7 +16,7 @@ val complete : string -> cmd:string list -> (unit, [`Msg of string]) result -> u
 val push : Image.t Current.t -> tag:string -> unit Current.t
 (** [push x ~tag] publishes [x] on Docker Hub as [tag]. *)
 
-val pull : string -> Image.t Current.t
+val pull : sw:Eio.Switch.t -> string -> Image.t Current.t
 (** [pull tag] pulls [tag] from Docker Hub. *)
 
 val complete_pull : string -> Image.t Current.or_error -> unit

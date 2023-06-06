@@ -1,1 +1,1 @@
-val tests : unit Alcotest_lwt.test_case list
+val tests : proc:Eio.Process.mgr -> unit Alcotest.test_case list

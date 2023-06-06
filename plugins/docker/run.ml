@@ -1,6 +1,5 @@
-open Lwt.Infix
-
 type t = {
+  proc : Eio.Process.mgr;
   pool : unit Current.Pool.t option;
 }
 
@@ -32,9 +31,9 @@ end
 
 module Value = Current.Unit
 
-let build { pool } job key =
-  Current.Job.start job ?pool ~level:Current.Level.Average >>= fun () ->
-  Current.Process.exec ~cancellable:true ~job (Key.cmd key)
+let build { pool; proc } job key =
+  Current.Job.start job ?pool ~level:Current.Level.Average;
+  Current.Process.exec ~cancellable:true ~job proc (Key.cmd key)
 
 let pp = Key.pp
 
