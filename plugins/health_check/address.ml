@@ -21,9 +21,9 @@ type t = {
 let equal = (=)
 let compare = compare
 let hash t = t.fqdn ^ "=" ^ t.ip
-let digest { fqdn; ip } = Fmt.str "%s=%s" fqdn ip
+let digest { fqdn; ip; _ } = Fmt.str "%s=%s" fqdn ip
 
-let pp f { fqdn = _; ip } = Fmt.pf f "%s" ip
+let pp f { fqdn = _; ip; ver = _ } = Fmt.pf f "%s" ip
 
 let pp_short f t =
   Fmt.string f @@ Astring.String.with_range ~len:6 (hash t)
