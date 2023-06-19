@@ -1,5 +1,16 @@
 open Lwt.Infix
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "docker"
+
+  let docker_pull_events =
+    let help = "Incoming docker pull events" in
+    Counter.v ~help ~namespace ~subsystem "docker_pull_events"
+end
+
 type auth = Push.auth
 
 type t = auth option
@@ -51,6 +62,7 @@ let build auth job key =
   match arch with
   | None -> begin
       Current.Process.exec ~cancellable:true ~job (Key.cmd key) >>!= fun () ->
+      Prometheus.Counter.inc_one Metrics.docker_pull_events;
       let cmd = Cmd.docker ~docker_context ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in
       Current.Process.check_output ~cancellable:false ~job cmd >>!= fun id ->
       let id = String.trim id in
@@ -65,6 +77,7 @@ let build auth job key =
       | Ok hash ->
         let full_tag = tag ^ "@" ^ hash in
         Current.Process.exec ~cancellable:true ~job (Key.cmd {key with Key.tag=full_tag}) >>!= fun () ->
+        Prometheus.Counter.inc_one Metrics.docker_pull_events;
         Lwt_result.return (Image.of_hash full_tag)
     end
 

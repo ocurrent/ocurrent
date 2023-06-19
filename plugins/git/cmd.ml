@@ -1,5 +1,16 @@
 open Lwt.Infix
 
+module Metrics = struct
+  open Prometheus
+
+  let namespace = "ocurrent"
+  let subsystem = "git"
+
+  let download_events =
+    let help = "Incoming download events" in
+    Counter.v_label ~label_name:"event" ~help ~namespace ~subsystem "download_events"
+end
+
 let dir_exists d =
   match Bos.OS.Dir.exists d with
   | Ok x -> x
@@ -44,10 +55,12 @@ let git ~cancellable ~job ?cwd ?config args =
 
     Cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_clone ~cancellable ~job ~src dst =
+    Prometheus.Counter.inc_one (Metrics.download_events "clone");
     let config = [ "protocol.file.allow=always" ] in
     git ~config ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
 
 let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
+  Prometheus.Counter.inc_one (Metrics.download_events "fetch");
   let flags =
     match recurse_submodules with
     | None -> []
@@ -85,6 +98,7 @@ let git_submodule_deinit ~cancellable ~job ~repo ~force ~all =
 
     cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
 let git_submodule_update ~cancellable ~job ~repo ~init ~fetch =
+  Prometheus.Counter.inc_one (Metrics.download_events "submodule update");
   let config = [ "protocol.file.allow=always" ] in
   let flags = List.concat [
       (if init then ["--init"] else []);
