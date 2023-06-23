@@ -1,21 +1,22 @@
 (library
  (public_name current)
  (libraries
-   astring
-   bos
-   cmdliner
-   current_term
-   current_incr
-   duration
-   fmt
-   fpath
-   logs
-   lwt
-   lwt-dllist
-   lwt.unix
-   prometheus
-   re
-   result
-   unix
-   sqlite3)
- (preprocess (pps ppx_deriving.std)))
+  astring
+  bos
+  cmdliner
+  current_term
+  current_incr
+  duration
+  fmt
+  fpath
+  logs
+  lwt
+  lwt-dllist
+  lwt.unix
+  prometheus
+  re
+  result
+  unix
+  sqlite3)
+ (preprocess
+  (pps ppx_deriving.std)))

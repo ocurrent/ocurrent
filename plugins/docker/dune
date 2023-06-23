@@ -1,18 +1,19 @@
 (library
  (public_name current_docker)
  (libraries
-   astring
-   bos
-   current
-   current.cache
-   current.term
-   current_git
-   duration
-   fmt
-   fpath
-   logs
-   lwt
-   lwt.unix
-   ppx_deriving_yojson.runtime
-   result)
- (preprocess (pps ppx_deriving.std ppx_deriving_yojson)))
+  astring
+  bos
+  current
+  current.cache
+  current.term
+  current_git
+  duration
+  fmt
+  fpath
+  logs
+  lwt
+  lwt.unix
+  ppx_deriving_yojson.runtime
+  result)
+ (preprocess
+  (pps ppx_deriving.std ppx_deriving_yojson)))

@@ -7,8 +7,36 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 This package provides a basic web UI for service administrators.
 It shows the current pipeline visually and allows viewing job
 logs and configuring the log analyser."""
-maintainer: ["Thomas Leonard <talex5@gmail.com>"]
-authors: ["Thomas Leonard <talex5@gmail.com>"]
+maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+authors: [
+  "Thomas Leonard <talex5@gmail.com>"
+  "Antonin Décimo <antonin@tarides.com>"
+  "Tim McGilchrist <timmcgil@gmail.com>"
+  "Craig Ferguson <me@craigfe.io>"
+  "Etienne MARAIS <etienne@maiste.fr>"
+  "Anil Madhavapeddy <anil@recoil.org>"
+  "David Allsopp <david.allsopp@metastack.com>"
+  "Ewan Mellor <ewan@tarides.com>"
+  "Kate <kit.ty.kate@disroot.org>"
+  "Mark Elvers <mark.elvers@tunbury.org>"
+  "Puneeth Chaganti <punchagan@muse-amuse.in>"
+  "Lucas Pluvinage <lucas@tarides.com>"
+  "Navin Keswani <navin@novemberkilo.com>"
+  "Thomas Gazagnaire <thomas@gazagnaire.org>"
+  "Patrick Ferris <patrick@sirref.org>"
+  "Arthur Wendling <art.wendling@gmail.com>"
+  "Anurag Soni <anurag@sonianurag.com>"
+  "Ambre Austen Suhamy <ambre@tarides.com>"
+  "Hannes Mehnert <hannes@mehnert.org>"
+  "Ben Andrew <benmandrew@gmail.com>"
+  "Gargi Sharma <gs051095@gmail.com>"
+  "Jonathan Coates <git@squiddev.cc>"
+  "Jules Aguillon <juloo.dsi@gmail.com>"
+  "Magnus Skjegstad <magnus@skjegstad.com>"
+  "Shon Feder <shon.feder@gmail.com>"
+  "smolck <46855713+smolck@users.noreply.github.com>"
+  "tatchi <corentin.leruth@gmail.com>"
+]
 license: "Apache-2.0"
 homepage: "https://github.com/ocurrent/ocurrent"
 doc: "https://ocurrent.github.io/ocurrent/"

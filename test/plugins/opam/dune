@@ -1,6 +1,3 @@
 (library
  (name current_opam_test)
- (libraries
-   current
-   current_git_test
-   fpath))
+ (libraries current current_git_test fpath))

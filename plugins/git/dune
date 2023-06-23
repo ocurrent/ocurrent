@@ -1,19 +1,20 @@
 (library
  (public_name current_git)
  (libraries
-   astring
-   bos
-   cstruct
-   current
-   current.cache
-   current.term
-   fmt
-   fpath
-   irmin-watcher
-   logs
-   lwt
-   lwt.unix
-   mirage-crypto
-   ppx_deriving_yojson
-   result)
- (preprocess (pps ppx_deriving_yojson)))
+  astring
+  bos
+  cstruct
+  current
+  current.cache
+  current.term
+  fmt
+  fpath
+  irmin-watcher
+  logs
+  lwt
+  lwt.unix
+  mirage-crypto
+  ppx_deriving_yojson
+  result)
+ (preprocess
+  (pps ppx_deriving_yojson)))
