@@ -1,11 +1,11 @@
 (library
  (name current_docker_test)
  (libraries
-   current
-   current.cache
-   current.term
-   current_incr
-   fmt
-   fpath
-   logs
-   lwt))
+  current
+  current.cache
+  current.term
+  current_incr
+  fmt
+  fpath
+  logs
+  lwt))

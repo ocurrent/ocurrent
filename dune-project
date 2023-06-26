@@ -2,12 +2,39 @@
 (name current)
 
 (generate_opam_files true)
-(formatting disabled)
+(formatting(enabled_for dune))
 (using mdx 0.3)
 
 (source (github ocurrent/ocurrent))
-(maintainers "Thomas Leonard <talex5@gmail.com>")
-(authors "Thomas Leonard <talex5@gmail.com>")
+(maintainers "Tim McGilchrist <timmcgil@gmail.com>")
+(authors
+  "Thomas Leonard <talex5@gmail.com>"
+  "Antonin Décimo <antonin@tarides.com>"
+  "Tim McGilchrist <timmcgil@gmail.com>"
+  "Craig Ferguson <me@craigfe.io>"
+  "Etienne MARAIS <etienne@maiste.fr>"
+  "Anil Madhavapeddy <anil@recoil.org>"
+  "David Allsopp <david.allsopp@metastack.com>"
+  "Ewan Mellor <ewan@tarides.com>"
+  "Kate <kit.ty.kate@disroot.org>"
+  "Mark Elvers <mark.elvers@tunbury.org>"
+  "Puneeth Chaganti <punchagan@muse-amuse.in>"
+  "Lucas Pluvinage <lucas@tarides.com>"
+  "Navin Keswani <navin@novemberkilo.com>"
+  "Thomas Gazagnaire <thomas@gazagnaire.org>"
+  "Patrick Ferris <patrick@sirref.org>"
+  "Arthur Wendling <art.wendling@gmail.com>"
+  "Anurag Soni <anurag@sonianurag.com>"
+  "Ambre Austen Suhamy <ambre@tarides.com>"
+  "Hannes Mehnert <hannes@mehnert.org>"
+  "Ben Andrew <benmandrew@gmail.com>"
+  "Gargi Sharma <gs051095@gmail.com>"
+  "Jonathan Coates <git@squiddev.cc>"
+  "Jules Aguillon <juloo.dsi@gmail.com>"
+  "Magnus Skjegstad <magnus@skjegstad.com>"
+  "Shon Feder <shon.feder@gmail.com>"
+  "smolck <46855713+smolck@users.noreply.github.com>"
+  "tatchi <corentin.leruth@gmail.com>")
 (documentation "https://ocurrent.github.io/ocurrent/")
 (license "Apache-2.0")
 

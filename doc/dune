@@ -1,5 +1,5 @@
-(mdx 
- (deps (package current_examples))
+(mdx
+ (deps
+  (package current_examples))
  (package current_examples)
  (files example_pipelines.md writing_plugins.md internals.md))
-

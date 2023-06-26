@@ -1,6 +1,4 @@
 (library
  (public_name current_ssh)
  (name current_ssh)
- (libraries
-   current.cache
-   yojson))
+ (libraries current.cache yojson))

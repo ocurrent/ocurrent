@@ -1,9 +1,3 @@
 (library
  (name current_git_test)
- (libraries
-   current
-   current.cache
-   fmt
-   fpath
-   logs
-   lwt))
+ (libraries current current.cache fmt fpath logs lwt))
