@@ -10,6 +10,8 @@ API:
 Plugins:
 
 - GitHub: Fetch most relevant PRs and branches by update dates (@punchagan, #421)
+- Docker: Add Prometheus metric for `docker pull` (@benmandrew, #430)
+- Git: Add Prometheus metrics for `git clone`, `git fetch`, and `git submodule update` (@benmandrew, #430)
 
 Other:
 
