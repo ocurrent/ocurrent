@@ -32,6 +32,7 @@ module Commit : sig
   val equal : t -> t -> bool
   val pp : t Fmt.t
 
+  val repo : t -> Fpath.t
   val pp_short : t Fmt.t
   (** [pp_short] shows just the start of the hash. *)
 
