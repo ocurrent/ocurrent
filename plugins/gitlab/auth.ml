@@ -40,7 +40,7 @@ let get_user token =
   let open Monad in
   let cmd =
     User.current_user ~token () >|~ fun user ->
-    Ok ("gitlab:" ^ user.Gitlab_t.user_username)
+    Ok ("gitlab:" ^ user.Gitlab_t.current_user_username)
   in
   run cmd
 
