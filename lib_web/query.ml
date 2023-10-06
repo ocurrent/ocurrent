@@ -32,7 +32,7 @@ let render_row ~jobs ~need_toggles { Db.job_id; build; value = _; rebuild; ready
   if need_toggles then (
     let toggle =
       if Current.Job.Map.mem job_id jobs then
-        [input ~a:[a_input_type `Checkbox; a_name "id"; a_value job_id; a_autocomplete false] ()]
+        [input ~a:[a_input_type `Checkbox; a_name "id"; a_value job_id; a_autocomplete `Off] ()]
       else
         []
     in
@@ -119,7 +119,7 @@ let r ~engine = object
     let headings =
       if need_toggles then
         let js = {|var e=document.getElementById('select-all'),c=document.getElementsByName('id');for(var i=0,n=c.length;i<n;i++)c[i].checked=e.checked|} in
-        th [input ~a:[a_input_type `Checkbox; a_id "select-all"; a_autocomplete false; a_onclick js] ()] :: headings
+        th [input ~a:[a_input_type `Checkbox; a_id "select-all"; a_autocomplete `Off; a_onclick js] ()] :: headings
       else headings in
     Context.respond_ok ctx [
       form ~a:[a_action "/query"; a_method `Get] [
