@@ -68,6 +68,7 @@ let publish auth job tag value =
     in
     let repo_id = Printf.sprintf "%s@%s" tag hash in
     Current.Job.log job "--> %S" repo_id;
+    Prometheus.Counter.inc_one Metrics.docker_push_manifest_events;
     Lwt_result.return repo_id
 
 let pp f (tag, value) =

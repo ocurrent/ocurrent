@@ -51,6 +51,7 @@ let publish auth job key value =
     Current.Process.check_output ~cancellable:false ~job cmd >|= Stdlib.Result.map @@ fun id ->
     let repo_id = String.trim id in
     Current.Job.log job "Pushed %S -> %S" tag repo_id;
+    Prometheus.Counter.inc_one Metrics.docker_push_events;
     repo_id
 
 let pp f (key, value) =

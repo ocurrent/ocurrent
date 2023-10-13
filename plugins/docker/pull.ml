@@ -1,16 +1,5 @@
 open Lwt.Infix
 
-module Metrics = struct
-  open Prometheus
-
-  let namespace = "ocurrent"
-  let subsystem = "docker"
-
-  let docker_pull_events =
-    let help = "Incoming docker pull events" in
-    Counter.v ~help ~namespace ~subsystem "docker_pull_events"
-end
-
 type auth = Push.auth
 
 type t = auth option
