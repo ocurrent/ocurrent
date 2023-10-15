@@ -110,6 +110,7 @@ let build { pull; pool; timeout; level } job key =
   | Ok () ->
     Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->
     Log.info (fun f -> f "Built docker image %s" hash);
+    Prometheus.Counter.inc_one Metrics.docker_build_events;
     Image.of_hash hash
 
 let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key

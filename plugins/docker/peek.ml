@@ -28,6 +28,7 @@ let build No_context job key =
   | Error _ as e -> Lwt.return e
   | Ok hash ->
     Current.Job.log job "Got %S" hash;
+    Prometheus.Counter.inc_one Metrics.docker_peek_events;
     Lwt_result.return (tag ^ "@" ^ hash)
 
 let pp f key = Cmd.pp f (Key.cmd key)
