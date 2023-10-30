@@ -59,7 +59,7 @@ let routes engine =
 let handle_request ~site _conn request body =
   let meth = Cohttp.Request.meth request in
   let uri = Cohttp.Request.uri request in
-  let path = Uri.path uri in
+  let path = Uri.path uri |> Uri.pct_decode in
   Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
   match Routes.match' site.Site.router ~target:path with
   | Routes.NoMatch -> Utils.Server.respond_not_found ()
