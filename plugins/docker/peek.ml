@@ -23,13 +23,14 @@ let id = "docker-peek"
 let build No_context job key =
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
   let { Key.docker_context = _; tag; arch } = key in
-  Current.Process.check_output ~cancellable:true ~job (Key.cmd key) >>!= fun manifest ->
-  match Pull.get_digest_from_manifest manifest arch with
-  | Error _ as e -> Lwt.return e
-  | Ok hash ->
-    Current.Job.log job "Got %S" hash;
-    Prometheus.Counter.inc_one Metrics.docker_peek_events;
-    Lwt_result.return (tag ^ "@" ^ hash)
+  Prometheus.Gauge.inc_one Metrics.docker_peek_events;
+  Current.Process.check_output ~cancellable:true ~job (Key.cmd key) >>!= (fun manifest ->
+    match Pull.get_digest_from_manifest manifest arch with
+    | Error _ as e -> Lwt.return e
+    | Ok hash ->
+      Current.Job.log job "Got %S" hash;
+      Lwt_result.return (tag ^ "@" ^ hash))
+  >|= (fun res -> Prometheus.Gauge.dec_one Metrics.docker_peek_events; res)
 
 let pp f key = Cmd.pp f (Key.cmd key)
 

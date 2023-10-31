@@ -105,13 +105,15 @@ let build { pull; pool; timeout; level } job key =
      Fpath.to_string dir])
   in
   let pp_error_command f = Fmt.string f "Docker build" in
-  Current.Process.exec ~cancellable:true ~pp_error_command ~job cmd >|= function
+  Prometheus.Gauge.inc_one Metrics.docker_build_events;
+  Current.Process.exec ~cancellable:true ~pp_error_command ~job cmd
+  >|= (function
   | Error _ as e -> e
   | Ok () ->
     Bos.OS.File.read iidfile |> Stdlib.Result.map @@ fun hash ->
     Log.info (fun f -> f "Built docker image %s" hash);
-    Prometheus.Counter.inc_one Metrics.docker_build_events;
-    Image.of_hash hash
+    Image.of_hash hash)
+  >|= (fun res -> Prometheus.Gauge.dec_one Metrics.docker_build_events; res)
 
 let pp f key = Fmt.pf f "@[<v2>docker build %a@]" Key.pp key
 

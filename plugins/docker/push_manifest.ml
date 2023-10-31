@@ -53,7 +53,8 @@ let publish auth job tag value =
       let cmd = Cmd.login ~config ~docker_context:None user in
       Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
   end >>!= fun () ->
-  Current.Process.exec ~cancellable:true ~job (create_cmd ~config ~tag value) >>= function
+  Prometheus.Gauge.inc_one Metrics.docker_push_manifest_events;
+  Current.Process.exec ~cancellable:true ~job (create_cmd ~config ~tag value) >>= (function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     Lwt_mutex.with_lock push_mutex @@ fun () ->
@@ -68,8 +69,8 @@ let publish auth job tag value =
     in
     let repo_id = Printf.sprintf "%s@%s" tag hash in
     Current.Job.log job "--> %S" repo_id;
-    Prometheus.Counter.inc_one Metrics.docker_push_manifest_events;
-    Lwt_result.return repo_id
+    Lwt_result.return repo_id)
+  >|= (fun res -> Prometheus.Gauge.dec_one Metrics.docker_push_manifest_events; res)
 
 let pp f (tag, value) =
   Fmt.pf f "push %s = %s" tag (Value.digest value)
