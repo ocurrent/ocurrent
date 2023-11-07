@@ -18,7 +18,7 @@ module Make (Meta : sig type t end) = struct
         match t.ty with
         | Constant None ->
           begin match t.bind with
-            | Some ctx -> (aux [@tailcall]) f ctx
+            | Some ctx -> aux f ctx
             | None ->
               match Current_incr.observe t.v with
               | Error (_, `Active _) -> Fmt.string f "(input)"
@@ -30,7 +30,7 @@ module Make (Meta : sig type t end) = struct
         | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
         | Opt_input { source } -> Fmt.pf f "[%a]" aux source
         | Bind_in (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
-        | Bind_out x -> (aux [@tailcall]) f (Current_incr.observe x)
+        | Bind_out x -> aux f (Current_incr.observe x)
         | Primitive {x; info; meta = _ } -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
@@ -42,46 +42,7 @@ module Make (Meta : sig type t end) = struct
         | Collapse x -> aux f x.output
       )
     in
-    (aux [@tailcall]) f (Term x)
-
-  (* let pp_ f x =
-    let seen = ref Id.Set.empty in
-    let rec aux f t k =
-      let Term t = t in
-      if Id.Set.mem t.id !seen then
-        Fmt.string f "..."
-      else (
-        seen := Id.Set.add t.id !seen;
-        match t.ty with
-        | Constant None ->
-          begin match t.bind with
-            | Some ctx -> (aux [@tailcall]) f ctx k
-            | None ->
-              match Current_incr.observe t.v with
-              | Error (_, `Active _) -> Fmt.string f "(input)"
-              | _ -> Fmt.string f "(const)"
-          end
-        | Constant (Some l) -> Fmt.string f l
-        | Map_input { source = _; info = Ok label } -> Fmt.string f label
-        | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
-        | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
-        | Opt_input { source } -> (aux [@tailcall]) f source (fun x -> Fmt.pf f "[%a]" x)
-        | Bind_in (x, name) -> (aux [@tailcall]) f x (fun x -> Fmt.pf f "%a@;>>=@;%s" x name)
-        | Bind_out x -> (aux [@tailcall]) f (Current_incr.observe x) k
-        | Primitive {x; info; meta = _ } -> (aux [@tailcall]) f x (fun x -> Fmt.pf f "%a@;>>=@;%s" x info)
-        | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
-        | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
-        | List_map { items; output; label = _ } ->
-          Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux (Current_incr.observe output)
-        | Option_map { item; output; label = _ } ->
-          Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux (Current_incr.observe output)
-        | State x -> aux f x.source (fun x -> Fmt.pf f "state(@[%a@])" x)
-        | Catch x -> aux f x.source (fun x -> Fmt.pf f "catch(@[%a@])" x)
-        | Map x -> (aux [@tailcall]) f x k
-        | Collapse x -> (aux [@tailcall]) f x.output k
-      )
-    in
-    (aux [@tailcall]) f (Term x) Fun.id *)
+    aux f (Term x)
 
   module Node_set = Set.Make(struct type t = int let compare = compare end)
 
