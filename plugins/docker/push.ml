@@ -35,7 +35,8 @@ let tag_cmd { Key.tag; docker_context } { Value.image } =
 
 let publish auth job key value =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
-  Current.Process.exec ~cancellable:true ~job (tag_cmd key value) >>= function
+  Prometheus.Gauge.inc_one Metrics.docker_push_events;
+  Current.Process.exec ~cancellable:true ~job (tag_cmd key value) >>= (function
   | Error _ as e -> Lwt.return e
   | Ok () ->
     let { Key.tag; docker_context } = key in
@@ -51,8 +52,8 @@ let publish auth job key value =
     Current.Process.check_output ~cancellable:false ~job cmd >|= Stdlib.Result.map @@ fun id ->
     let repo_id = String.trim id in
     Current.Job.log job "Pushed %S -> %S" tag repo_id;
-    Prometheus.Counter.inc_one Metrics.docker_push_events;
-    repo_id
+    repo_id)
+  >|= (fun res -> Prometheus.Gauge.inc_one Metrics.docker_push_events; res)
 
 let pp f (key, value) =
   Fmt.pf f "%a; docker push %S"
