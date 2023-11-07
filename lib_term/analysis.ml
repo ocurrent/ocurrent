@@ -18,7 +18,7 @@ module Make (Meta : sig type t end) = struct
         match t.ty with
         | Constant None ->
           begin match t.bind with
-            | Some ctx -> aux f ctx
+            | Some ctx -> (aux [@tailcall]) f ctx
             | None ->
               match Current_incr.observe t.v with
               | Error (_, `Active _) -> Fmt.string f "(input)"
@@ -30,7 +30,7 @@ module Make (Meta : sig type t end) = struct
         | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
         | Opt_input { source } -> Fmt.pf f "[%a]" aux source
         | Bind_in (x, name) -> Fmt.pf f "%a@;>>=@;%s" aux x name
-        | Bind_out x -> aux f (Current_incr.observe x)
+        | Bind_out x -> (aux [@tailcall]) f (Current_incr.observe x)
         | Primitive {x; info; meta = _ } -> Fmt.pf f "%a@;>>=@;%s" aux x info
         | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
         | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
@@ -42,7 +42,46 @@ module Make (Meta : sig type t end) = struct
         | Collapse x -> aux f x.output
       )
     in
-    aux f (Term x)
+    (aux [@tailcall]) f (Term x)
+
+  (* let pp_ f x =
+    let seen = ref Id.Set.empty in
+    let rec aux f t k =
+      let Term t = t in
+      if Id.Set.mem t.id !seen then
+        Fmt.string f "..."
+      else (
+        seen := Id.Set.add t.id !seen;
+        match t.ty with
+        | Constant None ->
+          begin match t.bind with
+            | Some ctx -> (aux [@tailcall]) f ctx k
+            | None ->
+              match Current_incr.observe t.v with
+              | Error (_, `Active _) -> Fmt.string f "(input)"
+              | _ -> Fmt.string f "(const)"
+          end
+        | Constant (Some l) -> Fmt.string f l
+        | Map_input { source = _; info = Ok label } -> Fmt.string f label
+        | Map_input { source = _; info = Error `Blocked } -> Fmt.string f "(blocked)"
+        | Map_input { source = _; info = Error `Empty_list } -> Fmt.string f "(empty list)"
+        | Opt_input { source } -> (aux [@tailcall]) f source (fun x -> Fmt.pf f "[%a]" x)
+        | Bind_in (x, name) -> (aux [@tailcall]) f x (fun x -> Fmt.pf f "%a@;>>=@;%s" x name)
+        | Bind_out x -> (aux [@tailcall]) f (Current_incr.observe x) k
+        | Primitive {x; info; meta = _ } -> (aux [@tailcall]) f x (fun x -> Fmt.pf f "%a@;>>=@;%s" x info)
+        | Pair (x, y) -> Fmt.pf f "@[<v>@[%a@]@,||@,@[%a@]@]" aux x aux y
+        | Gate_on { ctrl; value } -> Fmt.pf f "%a@;>>@;gate (@[%a@])" aux value aux ctrl
+        | List_map { items; output; label = _ } ->
+          Fmt.pf f "%a@;>>@;list_map (@[%a@])" aux items aux (Current_incr.observe output)
+        | Option_map { item; output; label = _ } ->
+          Fmt.pf f "%a@;>>@;option_map (@[%a@])" aux item aux (Current_incr.observe output)
+        | State x -> aux f x.source (fun x -> Fmt.pf f "state(@[%a@])" x)
+        | Catch x -> aux f x.source (fun x -> Fmt.pf f "catch(@[%a@])" x)
+        | Map x -> (aux [@tailcall]) f x k
+        | Collapse x -> (aux [@tailcall]) f x.output k
+      )
+    in
+    (aux [@tailcall]) f (Term x) Fun.id *)
 
   module Node_set = Set.Make(struct type t = int let compare = compare end)
 
@@ -128,7 +167,7 @@ module Make (Meta : sig type t end) = struct
       !pending_edges |> List.iter (fun (style, color, a, b) -> Dot.edge f ?style ?color a b);
       pending_edges := []
     in
-    let rec aux (Term t) =
+    let rec aux (Term t) k =
       match Id.Map.find_opt t.id !seen with
       | Some x -> x
       | None ->
@@ -136,9 +175,10 @@ module Make (Meta : sig type t end) = struct
         incr next;
         let ctx =
           match t.bind with
-          | None -> Out_node.empty
+          | None -> fun k -> k Out_node.empty
           | Some c -> aux c
         in
+        (ctx [@tailcall]) (fun ctx ->
         let v = Current_incr.observe t.v in
         let error_from_self =
           match v with
@@ -185,15 +225,15 @@ module Make (Meta : sig type t end) = struct
           in
           Dot.node ~style:"filled" ?shape ~bg ?tooltip ?url f idx (label ^ suffix) in
         let outputs =
+          (fun k ->
           match t.ty with
-          | Constant (Some l) -> node i l; Out_node.singleton ~deps:ctx i
+          | Constant (Some l) -> node i l; (k [@tailcall]) @@ Out_node.singleton ~deps:ctx i
           | Constant None when Out_node.is_empty ctx ->
-            if Result.is_ok v then ctx
+            if Result.is_ok v then (k [@tailcall]) ctx
             else (
               node i (if error_from_self then "(const)" else "(input)");
-              Out_node.singleton ~deps:ctx i
-            )
-          | Constant None -> ctx
+              (k [@tailcall]) @@ Out_node.singleton ~deps:ctx i)
+          | Constant None -> k ctx
           | Map_input { source; info } ->
             let label =
               match info with
@@ -202,116 +242,121 @@ module Make (Meta : sig type t end) = struct
               | Error `Empty_list -> "(empty list)"
             in
             node i label;
-            let source = aux source in
-            Out_node.connect (edge_to i) source;
-            let deps = Out_node.union source ctx in
-            Out_node.singleton ~deps i
+            (aux [@tailcall]) source (fun source ->
+              Out_node.connect (edge_to i) source;
+              let deps = Out_node.union source ctx in
+              (k [@tailcall]) @@ Out_node.singleton ~deps i)
           | Opt_input { source } ->
-            aux source
+            (aux [@tailcall]) source k
           | Bind_in (x, name) ->
             let inputs =
               match t.ty with
-              | Constant None -> Out_node.empty
+              | Constant None -> fun k -> k Out_node.empty
               | _ -> aux x
             in
-            node i name;
-            let all_inputs = Out_node.union inputs ctx in
-            Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs i
-          | Bind_out x -> aux (Current_incr.observe x)
+            (inputs [@tailcall]) (fun inputs ->
+              node i name;
+              let all_inputs = Out_node.union inputs ctx in
+              Out_node.connect (edge_to i) all_inputs;
+              k @@ Out_node.singleton ~deps:all_inputs i)
+          | Bind_out x -> (aux [@tailcall]) (Current_incr.observe x) k
           | Primitive {x; info; meta} ->
             let inputs =
               match x with
-              | Term { ty = Constant None; _ } -> Out_node.empty
+              | Term { ty = Constant None; _ } -> fun k -> k Out_node.empty
               | _ -> aux x
             in
-            let update_status, url =
-              match Current_incr.observe meta with
-              | None -> None, None
-              | Some id -> job_info id
-            in
-            let bg = update_status |> Option.map (fun s ->
-                let up_bg = colour_of_activity s in
-                Printf.sprintf "%s:%s" up_bg bg
-              )
-            in
-            node ?bg ?url i info;
-            let all_inputs = Out_node.union inputs ctx in
-            Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs i
+            (inputs [@tailcall]) (fun inputs ->
+              let update_status, url =
+                match Current_incr.observe meta with
+                | None -> None, None
+                | Some id -> job_info id
+              in
+              let bg = update_status |> Option.map (fun s ->
+                  let up_bg = colour_of_activity s in
+                  Printf.sprintf "%s:%s" up_bg bg
+                )
+              in
+              node ?bg ?url i info;
+              let all_inputs = Out_node.union inputs ctx in
+              Out_node.connect (edge_to i) all_inputs;
+              (k [@tailcall]) @@ Out_node.singleton ~deps:all_inputs i)
           | Pair (x, y) ->
-            Out_node.union (aux x) (aux y) |> Out_node.union ctx
+            (aux [@tailcall]) x (fun x ->
+              (aux [@tailcall]) y (fun y -> 
+                (k [@tailcall]) (Out_node.union x y |> Out_node.union ctx)))
           | Gate_on { ctrl; value } ->
-            let ctrls = aux ctrl in
-            let values = aux value in
-            node i "" ~shape:"circle";
-            ctrls |> Out_node.connect (edge_to i ~style:"dashed");
-            let data_inputs = Out_node.union values ctx in
-            Out_node.connect (edge_to i) data_inputs;
-            let deps = Out_node.(union ctrls data_inputs) in
-            Out_node.singleton ~deps i
+            (aux [@tailcall]) ctrl (fun ctrls ->
+              (aux [@tailcall]) value (fun values ->
+                node i "" ~shape:"circle";
+                ctrls |> Out_node.connect (edge_to i ~style:"dashed");
+                let data_inputs = Out_node.union values ctx in
+                Out_node.connect (edge_to i) data_inputs;
+                let deps = Out_node.(union ctrls data_inputs) in
+                (k [@tailcall]) @@ Out_node.singleton ~deps i))
           | Catch { source; hidden = true }
           | State { source; hidden = true } ->
-            aux source
+            (aux [@tailcall]) source k
           | State { source; hidden = false } ->
-            let inputs = aux source in
-            node i "state";
-            Out_node.connect (edge_to i) inputs;
-            (* Because a state node will be ready even when its inputs aren't, we shouldn't
-               remove dependencies just because they're also dependencies of a state node.
-               e.g. setting a GitHub status depends on knowing which commit is to be tested
-               and the state of the build. We can know the state of the build (pending) without
-               yet knowing the commit. So the set_state node can't run even though its
-               state input is ready and transitively depends on knowing the commit. *)
-            Out_node.singleton ~deps:Out_node.empty i
+            (aux [@tailcall]) source (fun inputs ->
+              node i "state";
+              Out_node.connect (edge_to i) inputs;
+              (* Because a state node will be ready even when its inputs aren't, we shouldn't
+                remove dependencies just because they're also dependencies of a state node.
+                e.g. setting a GitHub status depends on knowing which commit is to be tested
+                and the state of the build. We can know the state of the build (pending) without
+                yet knowing the commit. So the set_state node can't run even though its
+                state input is ready and transitively depends on knowing the commit. *)
+              (k [@tailcall]) @@ Out_node.singleton ~deps:Out_node.empty i)
           | Catch { source; hidden = false } ->
-            let inputs = aux source in
-            node i "catch";
-            let all_inputs = Out_node.union inputs ctx in
-            Out_node.connect (edge_to i) all_inputs;
-            Out_node.singleton ~deps:all_inputs i
-          | Map x ->
-            let inputs = aux x in
-            begin match v with
-              | Error (_, `Msg _) when error_from_self ->
-                (* Normally, we don't show separate boxes for map functions.
-                   But we do if one fails. *)
-                node i "map";
-                let all_inputs = Out_node.union inputs ctx in
-                Out_node.connect (edge_to i) all_inputs;
-                Out_node.singleton ~deps:all_inputs i
-              | _ ->
-                aux x
-            end
-          | List_map { items; output; label } ->
-            ignore (aux items);
-            Dot.begin_cluster f ?label i;
-            let outputs = aux (Current_incr.observe output) in
-            Dot.end_cluster f;
-            outputs
-          | Option_map { item; output; label } ->
-            ignore (aux item);
-            Dot.begin_cluster f ?label i;
-            Dot.pp_option f ("style", "dotted");
-            let outputs = aux (Current_incr.observe output) in
-            Dot.end_cluster f;
-            outputs
-          | Collapse { key; value; input; output } ->
-            if Env.find_opt key env = Some value then aux output
-            else (
-              let inputs = aux input in
+            (aux [@tailcall]) source (fun inputs ->
+              node i "catch";
               let all_inputs = Out_node.union inputs ctx in
-              let url = collapse_link ~k:key ~v:value in
-              node ?url i "+";
               Out_node.connect (edge_to i) all_inputs;
-              Out_node.singleton ~deps:all_inputs i
-            )
+              (k [@tailcall]) @@ Out_node.singleton ~deps:all_inputs i)
+          | Map x ->
+            (aux [@tailcall]) x (fun inputs ->
+              begin match v with
+                | Error (_, `Msg _) when error_from_self ->
+                  (* Normally, we don't show separate boxes for map functions.
+                    But we do if one fails. *)
+                  node i "map";
+                  let all_inputs = Out_node.union inputs ctx in
+                  Out_node.connect (edge_to i) all_inputs;
+                  (k [@tailcall]) @@ Out_node.singleton ~deps:all_inputs i
+                | _ ->
+                  (aux [@tailcall]) x k
+              end)
+          | List_map { items; output; label } ->
+            (aux [@tailcall]) items (fun _ ->
+              Dot.begin_cluster f ?label i;
+              (aux [@tailcall]) (Current_incr.observe output) (fun outputs ->
+                Dot.end_cluster f;
+                (k [@tailcall]) @@ outputs))
+          | Option_map { item; output; label } ->
+            (aux [@tailcall]) item (fun _ ->
+              Dot.begin_cluster f ?label i;
+              Dot.pp_option f ("style", "dotted");
+              (aux [@tailcall]) (Current_incr.observe output) (fun outputs ->
+                Dot.end_cluster f;
+                (k [@tailcall]) @@ outputs))
+          | Collapse { key; value; input; output } ->
+            if Env.find_opt key env = Some value then (aux [@tailcall]) output k
+            else (
+              (aux [@tailcall]) input (fun inputs ->
+                let all_inputs = Out_node.union inputs ctx in
+                let url = collapse_link ~k:key ~v:value in
+                node ?url i "+";
+                Out_node.connect (edge_to i) all_inputs;
+                (k [@tailcall]) @@ Out_node.singleton ~deps:all_inputs i
+            )))
         in
+        (outputs [@tailcall]) (fun outputs ->
         seen := Id.Map.add t.id outputs !seen;
-        outputs
+        (k [@tailcall]) outputs))
     in
     Dot.digraph f ~fontname:"ui-system,sans-serif" "pipeline";
-    let _ = aux (Term x) in
+    let _ = aux (Term x) Fun.id in
     flush_pending ();
     Fmt.pf f "}@]@."
 
