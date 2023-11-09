@@ -12,23 +12,23 @@ digraph pipeline {
   n10 [label="get-revdeps",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
   n5 [label="",color="#90ee90",fillcolor="#90ee90",style="filled",shape="circle",tooltip=" "]
   subgraph cluster_4 {label=""
-  n19 [label="example.org/bar#222",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
-  n18 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
-  n17 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
-  n16 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
-  n23 [label="example.org/foo#111",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
-  n22 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
-  n21 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
-  n20 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n16 [label="example.org/foo#111",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n15 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
+  n14 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n13 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n22 [label="example.org/bar#222",color="#90ee90",fillcolor="#90ee90",style="filled",tooltip=" "]
+  n21 [label="fetch",color="#ffa500",fillcolor="#ffa500",style="filled",tooltip=" "]
+  n20 [label="build",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
+  n19 [label="docker run make test",color="#d3d3d3",fillcolor="#d3d3d3",style="filled",tooltip=" "]
   }
+  n20 -> n19
   n21 -> n20
   n22 -> n21
-  n23 -> n22
-  n5 -> n23
-  n17 -> n16
-  n18 -> n17
-  n19 -> n18
-  n5 -> n19
+  n5 -> n22
+  n14 -> n13
+  n15 -> n14
+  n16 -> n15
+  n5 -> n16
   n10 -> n5
   n6 -> n5 [style="dashed"]
   n8 -> n10
