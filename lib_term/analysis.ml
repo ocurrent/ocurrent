@@ -130,7 +130,7 @@ module Make (Meta : sig type t end) = struct
     in
     let rec aux (Term t) k =
       match Id.Map.find_opt t.id !seen with
-      | Some x -> x
+      | Some x -> (k [@tailcall]) x
       | None ->
         let i = !next in
         incr next;
@@ -194,7 +194,7 @@ module Make (Meta : sig type t end) = struct
             else (
               node i (if error_from_self then "(const)" else "(input)");
               (k [@tailcall]) @@ Out_node.singleton ~deps:ctx i)
-          | Constant None -> k ctx
+          | Constant None -> (k [@tailcall]) ctx
           | Map_input { source; info } ->
             let label =
               match info with
@@ -219,7 +219,7 @@ module Make (Meta : sig type t end) = struct
               node i name;
               let all_inputs = Out_node.union inputs ctx in
               Out_node.connect (edge_to i) all_inputs;
-              k @@ Out_node.singleton ~deps:all_inputs i)
+              (k [@tailcall]) @@ Out_node.singleton ~deps:all_inputs i)
           | Bind_out x -> (aux [@tailcall]) (Current_incr.observe x) k
           | Primitive {x; info; meta} ->
             let inputs =
@@ -253,7 +253,7 @@ module Make (Meta : sig type t end) = struct
                 ctrls |> Out_node.connect (edge_to i ~style:"dashed");
                 let data_inputs = Out_node.union values ctx in
                 Out_node.connect (edge_to i) data_inputs;
-                let deps = Out_node.(union ctrls data_inputs) in
+                let deps = Out_node.union ctrls data_inputs in
                 (k [@tailcall]) @@ Out_node.singleton ~deps i))
           | Catch { source; hidden = true }
           | State { source; hidden = true } ->
@@ -293,14 +293,14 @@ module Make (Meta : sig type t end) = struct
               Dot.begin_cluster f ?label i;
               (aux [@tailcall]) (Current_incr.observe output) (fun outputs ->
                 Dot.end_cluster f;
-                (k [@tailcall]) @@ outputs))
+                (k [@tailcall]) outputs))
           | Option_map { item; output; label } ->
             (aux [@tailcall]) item (fun _ ->
               Dot.begin_cluster f ?label i;
               Dot.pp_option f ("style", "dotted");
               (aux [@tailcall]) (Current_incr.observe output) (fun outputs ->
                 Dot.end_cluster f;
-                (k [@tailcall]) @@ outputs))
+                (k [@tailcall]) outputs))
           | Collapse { key; value; input; output } ->
             if Env.find_opt key env = Some value then (aux [@tailcall]) output k
             else (
