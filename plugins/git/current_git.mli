@@ -27,6 +27,7 @@ end
 module Commit : sig
   include Set.OrderedType
 
+  val v : repo:Fpath.t -> id:Commit_id.t -> t
   val id : t -> Commit_id.t
   val hash : t -> string
   val equal : t -> t -> bool
