@@ -3,6 +3,7 @@ open Lwt.Infix
 type t = {
   mutable confirm : Level.t option;
   level_cond : unit Lwt_condition.t;
+  state_dir : Fpath.t option;
 }
 
 let set_confirm t level =
@@ -24,9 +25,9 @@ let slow_start_thread t duration =
        )
     )
 
-let v ?auto_release ?confirm () =
+let v ?auto_release ?confirm ?state_dir () =
   let level_cond = Lwt_condition.create () in
-  let t = { confirm; level_cond } in
+  let t = { confirm; level_cond; state_dir } in
   Option.iter (slow_start_thread t) auto_release;
   t
 
@@ -35,6 +36,18 @@ let default = v ()
 let active_config : t option Current_incr.var = Current_incr.var None
 
 let now = Current_incr.of_var active_config
+
+let state_dir name =
+  let name = Fpath.v name in
+  assert (Fpath.is_rel name);
+  match Current_incr.observe now with
+  | None -> failwith "state_dir called before the state directory has been configured"
+  | Some { state_dir = None; _ } -> failwith "state_dir hasn't been configured"
+  | Some { state_dir = Some state_dir; _ } ->
+    let path = Fpath.append state_dir name in
+    match Bos.OS.Dir.create path with
+    | Ok (_ : bool) -> path
+    | Error (`Msg m) -> failwith m
 
 let rec confirmed l t =
   match t.confirm with
@@ -65,8 +78,17 @@ let auto_release =
     ~docv:"SEC"
     ["confirm-auto-release"]
 
+let state_dir_root =
+  Arg.value @@
+  Arg.(opt string) (Filename.concat (Sys.getcwd ()) "var") @@
+  Arg.info
+    ~doc:"Set the state directory for the pipeline."
+    ~docv:"DIR"
+    ["state-dir"]
+
 let cmdliner =
-  let make auto_release confirm =
+  let make auto_release confirm state_dir =
     let auto_release = Option.map Duration.of_sec auto_release in
-    v ?auto_release ?confirm () in
-  Term.(const make $ auto_release $ Arg.value cmdliner_confirm)
+    let state_dir = Fpath.v state_dir in
+    v ?auto_release ?confirm ~state_dir () in
+  Term.(const make $ auto_release $ Arg.value cmdliner_confirm $ state_dir_root)
