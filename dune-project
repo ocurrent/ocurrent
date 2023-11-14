@@ -300,6 +300,30 @@ This package provides a plugin for running ssh commands.")
   yojson))
 
 (package
+ (name current_health_check)
+ (synopsis "OCurrent plugin to test services")
+ (description "\
+OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
+
+This package provides a plugin to test external services.  Currently,
+it can query a name server using dig, ping an address and download the
+page using curl.")
+ (authors "Mark Elvers <mark.elvers@tunbury.org>")
+ (maintainers "Mark Elvers <mark.elvers@tunbury.org>")
+ (depends
+  (current (= :version))
+  (current_git (= :version))
+  (ocaml (>= 4.12.0))
+  (duration (>= 0.1.3))
+  (fmt (>= 0.8.9))
+  (logs (>= 0.7.0))
+  (lwt (>= 5.6.1))
+  ppx_deriving
+  (ppx_deriving_yojson (>= 3.5.1))
+  (result (>= 1.5))
+  yojson))
+
+(package
  (name current_examples)
  (synopsis "Example pipelines for OCurrent")
  (description "\
