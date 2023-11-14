@@ -16,6 +16,8 @@ type t = {
 
 [@@@ocaml.warning "+3"]
 
+let v ~repo ~id = {repo; id}
+
 let id t = t.id
 let hash t = t.id.Commit_id.hash
 let compare a b = String.compare (hash a) (hash b)
