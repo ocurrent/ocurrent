@@ -77,4 +77,7 @@ module Db : sig
   val history : limit:int -> job_id:string -> string option * entry list
   (** [history ~limit ~job_id] returns the in-progress build (if any),
       and the [limit] most recent builds with the same key as [job_id]. *)
+
+  val key : job_id:string -> string option
+  (** [key ~job_id] returns the serialised key associated with the job [job_id] if any. *)
 end

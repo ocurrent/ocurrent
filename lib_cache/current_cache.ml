@@ -583,6 +583,9 @@ module S = S
 module Db = struct
   include Db
 
+  let key ~job_id = 
+    lookup_job_id job_id |> Option.map snd
+
   let history ~limit ~job_id =
     let key =
       match Hashtbl.find_opt key_of_job_id job_id with
