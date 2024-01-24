@@ -13,7 +13,7 @@ let compose ~docker_context args =
   "", Array.of_list ("docker-compose" :: context_args docker_context @ args)
 
 let login ?config ~docker_context user =
-  docker ?config ~docker_context ["login"; "--password-stdin"; "--username"; user]
+  docker ?config ~docker_context (["login"; "--password-stdin"; "--username"] @ String.split_on_char '@' user)
 
 let pp f (prog, args) =
   if prog <> "" then Fmt.pf f "[%S] " prog;
