@@ -1,4 +1,4 @@
-### dev
+### v0.6.5 (2024-01-31)
 
 API:
 
@@ -6,11 +6,12 @@ API:
 - Add `up_args` to `Current_docker.compose_cli` (@maiste, #418)
 - Add support for `buildx` in `Current_docker.build` (@maiste, #418)
 - Add `auth` to `Current_docker.pull` (@maiste, #423)
+- Add ability to directly construct `Current_git.Commit.t` values (@ElectreAAS, #442)
 
 Plugins:
 
 - GitHub: Fetch most relevant PRs and branches by update dates (@punchagan, #421)
-- Docker: Add Prometheus metric for `docker pull` (@benmandrew, #430)
+- Docker: Add Prometheus metrics for Docker operations (@benmandrew, #430 #437 #440)
 - Git: Add Prometheus metrics for `git clone`, `git fetch`, and `git submodule update` (@benmandrew, #430)
 
 Other:
