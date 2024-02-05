@@ -1,5 +1,15 @@
 Welcome to the OCurrent documentation!
 
+### Prerequisites
+
+Once you have checked out the ocurrent code, please ensure you have up to date submodules, and
+the required opam dependancies installed:
+
+```
+$ git submodule update --init --recursive
+$ opam install . --deps-only
+```
+
 ### Introduction
 
 * [Example pipelines](example_pipelines.md)
