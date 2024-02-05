@@ -1,3 +1,0 @@
-[submodule "vendor/ocaml-gitlab"]
-	path = vendor/ocaml-gitlab
-	url = https://github.com/tmcgilchrist/ocaml-gitlab.git

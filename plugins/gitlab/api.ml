@@ -421,7 +421,7 @@ let parse_ref ~repo ~prefix (branch : Gitlab_t.branch_full) : Commit_id.t =
 
 let parse_merge_request ~repo ?(branches : Gitlab_t.branch_full list = [])
                         (mr : Gitlab_t.merge_request) : Commit_id.t =
-  let hash = mr.merge_request_sha in
+  let hash = Option.get mr.merge_request_sha in
   let mr' = Ref.{ id = mr.merge_request_iid; title = mr.merge_request_title;
              base = mr.merge_request_source_branch ; body = mr.merge_request_description  }
   in
@@ -437,6 +437,7 @@ let parse_merge_request ~repo ?(branches : Gitlab_t.branch_full list = [])
   (* TODO merge_request_updated_at as a proxy for most recent git activity.
      This isn't totally accurate but we would need extra calls to retrieve that.
   *)
+  (* TODO: Recover if the merge request does not have a SHA *)
   { Commit_id.repo; id = `MR mr'; hash;
     committed_date = Gitlab_json.DateTime.unwrap committed_date ; message }
 
@@ -584,7 +585,8 @@ module Anonymous = struct
         >|= fun x -> Option.map (fun (x,_) -> x.Gitlab_t.commit_id) x |> Option.get
       | `MR mr_no ->
         Project.merge_request ~project_id ~merge_request_iid:(string_of_int mr_no.id) () >>~ fun x ->
-        return x.Gitlab_t.merge_request_sha
+        (* TODO: Recover if the merge request does not have a SHA *)
+        return @@ Option.get x.Gitlab_t.merge_request_sha
     in
     Gitlab.Monad.run cmd
 
