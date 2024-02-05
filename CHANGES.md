@@ -1,3 +1,9 @@
+### v0.6.6 (2024-02-05)
+
+Other:
+
+- Remove out-of-date `gitlab` vendored submodule (@benmandrew, #444)
+
 ### v0.6.5 (2024-01-31)
 
 API:
