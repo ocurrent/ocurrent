@@ -206,7 +206,7 @@ module CheckRunStatus = struct
       state_json ()
         ~title:"InProgress"
         ~summary:(Option.value summary ~default:"InProgress")
-        ~status:"inprogress"
+        ~status:"in_progress"
         ~text
         ?identifier
         ?url
