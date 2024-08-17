@@ -333,6 +333,7 @@ module Process = Process
 module Switch = Switch
 module Pool = Pool
 module Log_matcher = Log_matcher
+module Retry = Retry
 
 module Job = struct
   include Job

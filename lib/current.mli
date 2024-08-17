@@ -460,3 +460,5 @@ module Log_matcher : sig
   val drop_all : unit -> unit
   val analyse_string : ?job:Job.t -> string -> string option
 end
+
+module Retry = Retry

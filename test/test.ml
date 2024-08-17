@@ -388,5 +388,6 @@ let () =
       "monitor", Test_monitor.tests;
       "job", Test_job.tests;
       "log_matcher", Test_log_matcher.tests;
+      "retry", Test_retry.tests;
     ]
   end

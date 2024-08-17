@@ -1,6 +1,6 @@
 (executables
  (names test test_monitor test_cache)
- (modules test test_monitor test_cache test_job test_log_matcher driver)
+ (modules test test_monitor test_cache test_job test_log_matcher test_retry driver)
  (libraries
   alcotest
   alcotest-lwt
