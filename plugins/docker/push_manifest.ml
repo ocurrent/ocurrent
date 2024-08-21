@@ -36,8 +36,14 @@ end
 let create_cmd ~config ~tag {Value.manifests} =
   Cmd.docker ~config ~docker_context:None (["manifest"; "create"; tag] @ manifests)
 
-let push_cmd ~config tag =
-  Cmd.docker ~config ~docker_context:None ["manifest"; "push"; tag]
+let docker_manifest ~job ~config tag =
+  let retry_attempts = 5 in
+  let cmd = Cmd.docker ~config ~docker_context:None ["manifest"; "push"; tag] in
+  let operation () =
+    Current.Process.check_output ~cancellable:true ~job cmd
+    >|= Result.map_error (fun (`Msg err) -> `Retry err)
+  in
+  Current.Retry.(operation |> on_error |> with_sleep |> n_times retry_attempts)
 
 let or_fail = function
   | Ok x -> x
@@ -58,7 +64,7 @@ let publish auth job tag value =
   | Error _ as e -> Lwt.return e
   | Ok () ->
     Lwt_mutex.with_lock push_mutex @@ fun () ->
-    Current.Process.check_output ~cancellable:true ~job (push_cmd ~config tag) >>!= fun output ->
+    docker_manifest ~job ~config tag >>!= fun output ->
     (* docker-manifest is still experimental and doesn't have a sensible output format yet. *)
     Current.Job.write job output;
     let output = String.trim output in
