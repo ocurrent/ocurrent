@@ -123,6 +123,12 @@ module Api : sig
 
     val branch_name : t -> string option
     (** [branch_name t] is the name of the ref that the commit belongs to if it is a branch, and None if it is a PR *)
+
+    val pr_fork_branch_name : t -> string option
+    (** [pr_fork_branch_name t] is the name of the branch of the fork from which the PR originated from, and None if it is a branch *)
+
+    val pr_fork_with_owner : t -> string option
+    (** [pr_fork_with_owner t] is the name as "owner/name" of the fork from which the PR originated from, and None if it is a branch *)
   end
 
   module CheckRun : sig
@@ -155,6 +161,8 @@ module Api : sig
       title: string;
       labels: string list;
       bodyHTML: string;
+      branch_name: string;
+      fork: string;
     }
 
     type t = [ `Ref of string | `PR of pr_info ]

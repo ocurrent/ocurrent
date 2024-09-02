@@ -33,6 +33,8 @@ module Commit : sig
   val uri : t -> Uri.t
   val pr_name : t -> string option
   val branch_name : t -> string option
+  val pr_fork_branch_name : t -> string option
+  val pr_fork_with_owner : t -> string option
 end
 
 
@@ -49,6 +51,8 @@ module Ref : sig
     title: string;
     labels: string list;
     bodyHTML: string;
+    branch_name: string;
+    fork: string;
   }
   type t = [ `Ref of string | `PR of pr_info ]
   type id = [ `Ref of string | `PR of int ]

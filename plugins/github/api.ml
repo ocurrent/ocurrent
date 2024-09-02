@@ -266,6 +266,8 @@ module Ref = struct
     title: string;
     labels: string list;
     bodyHTML: string;
+    branch_name: string;
+    fork: string;
   } [@@deriving to_yojson]
 
   type t = [ `Ref of string | `PR of pr_info ] [@@deriving to_yojson]
@@ -341,6 +343,16 @@ module Commit_id = struct
         Some (Astring.String.concat ~sep:"/" branch)
       | _ -> None)
     | `PR _ -> None
+    
+  let pr_fork_branch_name t =
+    match t.id with
+    | `Ref _ -> None
+    | `PR pr -> Some pr.branch_name
+
+  let pr_fork_with_owner t =
+    match t.id with
+    | `Ref _ -> None
+    | `PR pr -> Some pr.fork
 end
 
 module Repo_key = struct
@@ -610,6 +622,10 @@ module Refs = Monitor(struct
             headRefOid
             baseRefName
             title
+            headRefName
+            headRepository {
+              nameWithOwner
+            }
             labels(first: 100) {
               nodes {
                 name
@@ -646,13 +662,30 @@ module Refs = Monitor(struct
     let hash = node / "headRefOid" |> to_string in
     let pr = node / "number" |> to_int in
     let title = node / "title" |> to_string in
+    let branch_name = node / "headRefName" |> to_string in
+    let fork = node / "headRepository" / "nameWithOwner" |> to_string in
     let labels = node / "labels" / "nodes" |> to_list |> List.map (fun label -> label / "name" |> to_string) in
     let bodyHTML = node / "bodyHTML" |> to_string in
     let nodes = node / "commits" / "nodes" |> to_list in
     if nodes = [] then Fmt.failwith "Failed to get latest commit for %s/%s" owner repo else
     let committed_date = List.hd nodes / "commit" / "committedDate" |> to_string in
     let message = List.hd nodes / "commit" / "message" |> to_string in
-    { Commit_id.owner; Commit_id.repo; id = `PR {id=pr; base; title; labels; bodyHTML}; hash; committed_date; message }
+    {
+      Commit_id.owner;
+      Commit_id.repo;
+      id = `PR { 
+        id = pr;
+        base;
+        title;
+        labels;
+        bodyHTML;
+        branch_name;
+        fork
+      }; 
+      hash;
+      committed_date;
+      message
+    }
 
   let of_yojson t { Repo_id.owner; name } data =
     let open Yojson.Safe.Util in
@@ -937,6 +970,9 @@ module Commit = struct
   let pr_name (_, id) = Commit_id.pr_name id
 
   let branch_name (_, id) = Commit_id.branch_name id
+
+  let pr_fork_branch_name (_, id) = Commit_id.pr_fork_branch_name id
+  let pr_fork_with_owner (_, id) = Commit_id.pr_fork_with_owner id
 end
 
 module Repo = struct
