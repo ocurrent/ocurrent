@@ -84,7 +84,7 @@ let list_repositories ~api ~token ~account =
 let v ~iid ~account ~api =
   let read () =
     Api.get_token api >>= function
-    | Error (`Msg m) -> Lwt.fail_with m
+    | Error (`Msg m) -> failwith m
     | Ok token ->
       Lwt.try_bind
         (fun () -> list_repositories ~api ~token ~account)
