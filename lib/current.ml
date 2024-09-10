@@ -155,7 +155,7 @@ module Engine = struct
                   Current_incr.propagate ();
                   flush_release_queue ();
                 );
-                Lwt.fail ex
+                Lwt.reraise ex
              )
         )
         (fun () -> Current_incr.change Config.active_config None; Lwt.return_unit)
