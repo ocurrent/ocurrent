@@ -24,8 +24,8 @@ let publish t job _key message =
   match resp.Cohttp_lwt.Response.status with
   | `OK -> Lwt.return @@ Ok ()
   | err ->
-    let msg = Fmt.str "Slack post failed: %s" (Cohttp.Code.string_of_status err) in
-    Lwt.return @@ Error (`Msg msg)
+     Lwt.return @@ Fmt.error_msg "Slack post failed: %s" (Cohttp.Code.string_of_status err)
+
 
 let pp f (key, value) = Fmt.pf f "Post %s: %s" key value
 

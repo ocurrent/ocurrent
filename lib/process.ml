@@ -3,8 +3,6 @@ open Lwt.Infix
 let () =
   Random.self_init ()
 
-let failf fmt = fmt |> Fmt.kstr @@ fun msg -> Error (`Msg msg)
-
 let pp_args =
   let sep = Fmt.(const string) " " in
   Fmt.(array ~sep (quote string))
@@ -23,12 +21,12 @@ let check_status pp_cmd cmd = function
         | p, _ -> Some p
       in
       if Option.is_some cmd_name then
-        failf "%t exited with status %d. Is %s installed?" pp_cmd 127
+        Fmt.error_msg "%t exited with status %d. Is %s installed?" pp_cmd 127
           (Option.get cmd_name)
-      else failf "%t exited with status %d" pp_cmd 127
-  | Unix.WEXITED x -> failf "%t exited with status %d" pp_cmd x
-  | Unix.WSIGNALED x -> failf "%t failed with signal %a" pp_cmd Fmt.Dump.signal x
-  | Unix.WSTOPPED x -> failf "%t stopped with signal %a" pp_cmd Fmt.Dump.signal x
+      else Fmt.error_msg "%t exited with status %d" pp_cmd 127
+  | Unix.WEXITED x -> Fmt.error_msg "%t exited with status %d" pp_cmd x
+  | Unix.WSIGNALED x -> Fmt.error_msg "%t failed with signal %a" pp_cmd Fmt.Dump.signal x
+  | Unix.WSTOPPED x -> Fmt.error_msg "%t stopped with signal %a" pp_cmd Fmt.Dump.signal x
 
 let make_tmp_dir ?(prefix = "tmp-") ?(mode = 0o700) parent =
   let rec mktmp = function

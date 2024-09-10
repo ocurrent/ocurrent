@@ -15,7 +15,7 @@ let cmdliner =
   let parse s =
     match Astring.String.cuts ~sep:"/" s with
     | [ owner; name; project_id ] -> Ok { owner; name; project_id=int_of_string project_id }
-    | _ -> Error (`Msg (Fmt.str "%S not in the form 'owner/name/project_id'" s))
+    | _ -> Fmt.error_msg "%S not in the form 'owner/name/project_id'" s
   in
   Arg.(
     required &

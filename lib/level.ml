@@ -31,5 +31,5 @@ let of_string x =
   match List.find_opt (fun l -> to_string l = x) values with
   | Some x -> Ok x
   | None ->
-    Error (`Msg (Fmt.str "Unknown level %S; expected one of %a" x
-                   Fmt.(list ~sep:(any ", ") pp) values))
+     Fmt.error_msg "Unknown level %S; expected one of %a" x
+       Fmt.(list ~sep:(any ", ") pp) values
