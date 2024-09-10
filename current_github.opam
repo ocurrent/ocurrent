@@ -58,7 +58,7 @@ depends: [
   "github-unix" {>= "4.4.0"}
   "hex" {>= "1.4.0"}
   "logs" {>= "0.7.0"}
-  "lwt" {>= "5.6.1"}
+  "lwt" {>= "5.7"}
   "mirage-crypto"
   "mirage-crypto-pk"
   "ppx_deriving_yojson" {>= "3.6.1"}

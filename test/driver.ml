@@ -121,7 +121,7 @@ let test ?config ?final_stats ~name v actions =
     (fun () -> Current.Engine.thread engine)
     (function
       | Exit -> Docker.assert_finished (); Lwt.return_unit
-      | ex -> Lwt.fail ex
+      | ex -> Lwt.reraise ex
     )
 
 let test_case_gc name fn =

@@ -86,7 +86,7 @@ let run ?(mode=default_mode) site =
       | Unix.Unix_error(Unix.EADDRINUSE, "bind", _) ->
         let msg = Fmt.str "Web-server failed.@ Another program is already using this port %a." pp_mode mode in
         Lwt.return @@ Error (`Msg msg)
-      | ex -> Lwt.fail ex
+      | ex -> Lwt.reraise ex
     )
 
 open Cmdliner

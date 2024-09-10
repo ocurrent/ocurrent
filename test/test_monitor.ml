@@ -158,7 +158,7 @@ let basic _switch () =
     (fun () ->Current.Engine.thread engine)
     (function
       | Exit -> Lwt.return_unit
-      | ex -> Lwt.fail ex
+      | ex -> Lwt.reraise ex
     )
 
 let tests =
