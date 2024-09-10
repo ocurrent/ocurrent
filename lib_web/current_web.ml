@@ -84,8 +84,7 @@ let run ?(mode=default_mode) site =
     (fun () -> Lwt.return @@ Error (`Msg "Web-server stopped!"))
     (function
       | Unix.Unix_error(Unix.EADDRINUSE, "bind", _) ->
-        let msg = Fmt.str "Web-server failed.@ Another program is already using this port %a." pp_mode mode in
-        Lwt.return @@ Error (`Msg msg)
+         Lwt.return @@ Fmt.error_msg "Web-server failed.@ Another program is already using this port %a." pp_mode mode
       | ex -> Lwt.reraise ex
     )
 

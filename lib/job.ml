@@ -71,10 +71,10 @@ let log_path job_id =
     let path = Fpath.(jobs_dir / date / (file ^ ".log")) in
     begin match Bos.OS.File.exists path with
       | Ok true -> Ok path
-      | Ok false -> Error (`Msg (Fmt.str "Job log %a does not exist" Fpath.pp path))
+      | Ok false -> Fmt.error_msg "Job log %a does not exist" Fpath.pp path
       | Error _ as e -> e
     end
-  | _ -> Error (`Msg (Fmt.str "Invalid job ID %S" job_id))
+  | _ -> Fmt.error_msg "Invalid job ID %S" job_id
 
 let id_of_path path =
   match Fpath.split_base path with

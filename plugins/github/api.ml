@@ -730,7 +730,7 @@ let head_of t repo (id: Ref.id) =
       | _ -> acc) refs.all_refs None
     |> function
     | Some x -> Ok x
-    | None -> Error (`Msg (Fmt.str "No such ref %a/%a" Repo_id.pp repo Ref.pp_id id))
+    | None -> Fmt.error_msg "No such ref %a/%a" Repo_id.pp repo Ref.pp_id id
 
 module CheckRun = struct
   module Set_status = struct

@@ -23,6 +23,6 @@ let validate event =
     | Some "create" -> Ok `Create
     | Some "check_run" -> Ok `CheckRun
     | Some "check_suite" -> Ok `CheckSuite
-    | Some x -> Error (Fmt.str "Unknown GitHub event type %S" x)
+    | Some x -> Fmt.error "Unknown GitHub event type %S" x
     | None -> Error "Missing GitHub event type in webhook!"
   end
