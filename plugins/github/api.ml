@@ -422,7 +422,7 @@ let exec_graphql ?variables t query =
     |> Cohttp_lwt.Body.of_string
   in
   get_token t >>= function
-  | Error (`Msg m) -> Lwt.fail_with m
+  | Error (`Msg m) -> failwith m
   | Ok token ->
     let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
     Cohttp_lwt_unix.Client.post ~headers ~body graphql_endpoint >>=
@@ -768,7 +768,7 @@ module CheckRun = struct
     let publish t job key status =
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       get_token t >>= function
-      | Error (`Msg m) -> Lwt.fail_with m
+      | Error (`Msg m) -> failwith m
       | Ok token ->
          let token = Github.Token.of_string token in
          let owner = key.Key.commit.owner in
@@ -867,7 +867,7 @@ module Commit = struct
       let {Key.commit; context} = key in
       let body = `Assoc (("context", `String context) :: Value.json_items status) in
       get_token t >>= function
-      | Error (`Msg m) -> Lwt.fail_with m
+      | Error (`Msg m) -> failwith m
       | Ok token ->
         let headers = Cohttp.Header.init_with "Authorization" ("bearer " ^ token) in
         let uri = status_endpoint

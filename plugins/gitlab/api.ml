@@ -335,7 +335,7 @@ module Commit = struct
       Current.Job.start job ~pool ~level:Current.Level.Above_average >>= fun () ->
       let { Key.commit; context } = key in
       get_token t >>= function
-      | Error (`Msg m) -> Lwt.fail_with m
+      | Error (`Msg m) -> failwith m
       | Ok token ->
         Lwt.try_bind
           (fun () ->
@@ -443,7 +443,7 @@ let parse_merge_request ~repo ?(branches : Gitlab_t.branch_full list = [])
 
 let get_refs t (repo : Repo_id.t) =
   get_token t >>= function
-  | Error (`Msg m) -> Lwt.fail_with m
+  | Error (`Msg m) -> failwith m
   | Ok token -> exec_query token repo.project_id >|= fun (default_branch, branches, prs) ->
     let prefix = "refs/heads/" in
     let refs = List.map (parse_ref ~repo ~prefix) branches in
