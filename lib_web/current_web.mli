@@ -14,10 +14,10 @@ end
 
 module Role : sig
   type t = [
-    | `Viewer   (* Read-only access, suitable for the general public. *)
-    | `Builder  (* Can cancel and rebuild jobs. *)
-    | `Monitor  (* Can read the metrics. *)
-    | `Admin    (* Can manage log matcher rules. *)
+    | `Viewer   (** Read-only access, suitable for the general public. *)
+    | `Builder  (** Can cancel and rebuild jobs. *)
+    | `Monitor  (** Can read the metrics. *)
+    | `Admin    (** Can manage log matcher rules. *)
   ]
 
   val pp : t Fmt.t
