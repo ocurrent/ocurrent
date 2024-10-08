@@ -301,8 +301,9 @@ module Commit_id = struct
     message : string;
   } [@@deriving to_yojson]
 
-  let to_git { owner; repo; id; hash; committed_date = _; message = _ } =
-    let repo = Fmt.str "https://github.com/%s/%s.git" owner repo in
+  let to_git ~ssh { owner; repo; id; hash; committed_date = _; message = _ } =
+    let repo = if ssh then Fmt.str "git@github.com:%s/%s.git" owner repo
+               else Fmt.str "https://github.com/%s/%s.git" owner repo in
     let gref = Ref.to_git id in
     Current_git.Commit_id.v ~repo ~gref ~hash
 
@@ -940,7 +941,7 @@ module Commit = struct
 
   let uri (_, commit) = Commit_id.uri commit
 
-  let id (_, commit_id) = Commit_id.to_git commit_id
+  let id ?(ssh = false) (_, commit_id) = Commit_id.to_git ~ssh commit_id
 
   let compare (_, a) (_, b) = Commit_id.compare a b
 
@@ -1026,7 +1027,7 @@ module Anonymous = struct
         (fun () -> query_head repo gref)
         (fun hash ->
           let id = { Commit_id.owner = repo.owner; repo = repo.name; hash; id = gref; committed_date = ""; message = "" } in
-          Lwt_result.return (Commit_id.to_git id)
+          Lwt_result.return (Commit_id.to_git ~ssh:false id)
         )
         (fun ex ->
            Log.warn (fun f -> f "GitHub query_head failed: %a" Fmt.exn ex);

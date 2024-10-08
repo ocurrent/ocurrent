@@ -86,7 +86,7 @@ module Api : sig
   module Commit : sig
     type t
 
-    val id : t -> Current_git.Commit_id.t
+    val id : ?ssh:bool -> t -> Current_git.Commit_id.t
     (** The commit ID, which can be used to fetch it. *)
 
     val set_status : t Current.t -> string -> Status.t Current.t -> unit Current.t
