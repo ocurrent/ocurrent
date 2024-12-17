@@ -51,7 +51,7 @@ depends: [
   "base64"
   "bos"
   "cmdliner" {>= "1.1.0"}
-  "cohttp-lwt-unix" {>= "4.0.0"}
+  "cohttp-lwt-unix" {>= "6.0.0"}
   "conduit-lwt-unix" {>= "2.2.2"}
   "conf-graphviz"
   "cstruct" {>= "5.2.0"}

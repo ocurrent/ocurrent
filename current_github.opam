@@ -51,7 +51,7 @@ depends: [
   "astring" {>= "0.8.5"}
   "base64" {>= "3.4.0"}
   "cmdliner" {>= "1.1.0"}
-  "cohttp-lwt-unix" {>= "4.0.0"}
+  "cohttp-lwt-unix" {>= "6.0.0"}
   "cstruct" {>= "5.2.0"}
   "duration"
   "fmt" {>= "0.8.9"}

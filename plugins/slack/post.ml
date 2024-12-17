@@ -21,7 +21,7 @@ let publish t job _key message =
     |> Cohttp_lwt.Body.of_string
   in
   Cohttp_lwt_unix.Client.post ~headers ~body t >>= fun (resp, _body) ->
-  match resp.Cohttp_lwt.Response.status with
+  match resp.Cohttp.Response.status with
   | `OK -> Lwt.return @@ Ok ()
   | err ->
      Lwt.return @@ Fmt.error_msg "Slack post failed: %s" (Cohttp.Code.string_of_status err)

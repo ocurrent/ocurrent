@@ -33,7 +33,7 @@ let webhook ~webhook_secret = object
     inherit Current_web.Resource.t
 
     method! post_raw _site req body =
-      Log.info (fun f -> f "input_webhook: %a" Cohttp_lwt.Request.pp_hum req);
+      Log.info (fun f -> f "input_webhook: %a" Cohttp.Request.pp_hum req);
       let headers = Cohttp.Request.headers req in
       let event = Cohttp.Header.get headers "X-Gitlab-Event" in
       let event_str = Option.value ~default:"NONE" event in

@@ -1,3 +1,9 @@
+### Unreleased
+
+Other:
+
+- Update for cohttp >= 6.0.0 (@mtelvers, #nnn)
+
 ### v0.6.6 (2024-02-05)
 
 Other:
