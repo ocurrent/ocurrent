@@ -28,7 +28,8 @@ module type DOCKER = sig
       @param arch Select a specific architecture from a multi-arch manifest.
       @param schedule Controls how often we check for updates. If the schedule
                       has no [valid_for] limit then we will only ever pull once.
-      @param auth If given do a "docker login" using this username/password pair before pulling. *)
+      @param auth If given, do a "docker login" using this username/password pair before pulling.
+                  If username is in the form "user@host", the registry at "host" will be used *)
 
   val peek :
     ?label:string ->
@@ -88,7 +89,8 @@ module type DOCKER = sig
 
   val push : ?auth:(string * string) -> tag:string -> Image.t Current.t -> repo_id Current.t
   (** [push image ~tag] does "docker tag image tag && docker push tag".
-      @param auth If give, do a "docker login" using this username/password pair before pushing. *)
+      @param auth If given, do a "docker login" using this username/password pair before pushing.
+                  If username is in the form "user@host", the registry at "host" will be used *)
 
   val service : name:string -> image:Image.t Current.t -> unit -> unit Current.t
   (** [service ~name ~image ()] keeps a Docker SwarmKit service up-to-date. *)
