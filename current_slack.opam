@@ -43,7 +43,7 @@ depends: [
   "dune" {>= "3.3"}
   "current" {= version}
   "ocaml" {>= "4.12.0"}
-  "cohttp-lwt-unix" {>= "4.0.0"}
+  "cohttp-lwt-unix" {>= "6.0.0"}
   "fmt" {>= "0.8.9"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.7"}
