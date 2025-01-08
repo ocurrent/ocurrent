@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-type auth = string * string
+open Auth
 
 type t = auth option
 
@@ -40,12 +40,7 @@ let publish auth job key value =
   | Error _ as e -> Lwt.return e
   | Ok () ->
     let { Key.tag; docker_context } = key in
-    begin match auth with
-      | None -> Lwt.return (Ok ())
-      | Some (user, password) ->
-        let cmd = Cmd.login ~docker_context user in
-        Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
-    end >>!= fun () ->
+    Auth.login ~docker_context ~job auth >>!= fun () ->
     let cmd = Cmd.docker ~docker_context ["push"; tag] in
     Current.Process.exec ~cancellable:true ~job cmd >>!= fun () ->
     let cmd = Cmd.docker ~docker_context ["image"; "inspect"; tag; "-f"; "{{index .RepoDigests 0}}"] in

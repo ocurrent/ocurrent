@@ -9,8 +9,8 @@ module Raw = struct
 
   module PullC = Current_cache.Make(Pull)
 
-  let pull ~docker_context ~schedule ?auth ?arch tag =
-    PullC.get ~schedule auth { Pull.Key.docker_context; tag; arch }
+  let pull ~docker_context ~schedule ?auth ?server ?arch tag =
+    PullC.get ~schedule (Auth.v ~auth ~server) { Pull.Key.docker_context; tag; arch }
 
   module PeekC = Current_cache.Make(Peek)
 
@@ -46,8 +46,8 @@ module Raw = struct
 
   module Push_cache = Current_cache.Output(Push)
 
-  let push ~docker_context ?auth ~tag image =
-    Push_cache.set auth { Push.Key.tag; docker_context } { Push.Value.image }
+  let push ~docker_context ?auth ?server ~tag image =
+    Push_cache.set (Auth.v ~auth ~server) { Push.Key.tag; docker_context } { Push.Value.image }
 
   module SC = Current_cache.Output(Service)
 
@@ -126,11 +126,11 @@ module Make (Host : S.HOST) = struct
     | None -> ()
     | Some arch -> Fmt.pf f "@,%s" arch
 
-  let pull ?auth ?label ?arch ~schedule tag =
+  let pull ?auth ?server ?label ?arch ~schedule tag =
     let label = Option.value label ~default:tag in
     Current.component "pull %s%a" label pp_opt_arch arch |>
     let> () = Current.return () in
-    Raw.pull ~docker_context ~schedule ?arch ?auth tag
+    Raw.pull ~docker_context ~schedule ?arch ?auth ?server tag
 
   let peek ?label ~arch ~schedule tag =
     let label = Option.value label ~default:tag in
@@ -166,10 +166,10 @@ module Make (Host : S.HOST) = struct
     let> image = image in
     Raw.tag ~docker_context ~tag image
 
-  let push ?auth ~tag image =
+  let push ?auth ?server ~tag image =
     Current.component "docker-push@,%a" pp_tag tag |>
     let> image = image in
-    Raw.push ~docker_context ?auth ~tag image
+    Raw.push ~docker_context ?auth ?server ~tag image
 
   let service ~name ~image () =
     Current.component "docker-service@,%s" name |>
@@ -193,7 +193,7 @@ module Default = Make(struct
 
 module MC = Current_cache.Output(Push_manifest)
 
-let push_manifest ?auth ~tag manifests =
+let push_manifest ?auth ?server ~tag manifests =
   Current.component "docker-push-manifest@,%a" pp_tag tag |>
   let> manifests = Current.list_seq manifests in
-  MC.set auth tag { Push_manifest.Value.manifests }
+  MC.set (Auth.v ~auth ~server) tag { Push_manifest.Value.manifests }

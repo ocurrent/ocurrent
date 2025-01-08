@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-type auth = Push.auth
+open Auth
 
 type t = auth option
 
@@ -42,12 +42,7 @@ let get_digest_from_manifest manifest arch =
 let build auth job key =
   Current.Job.start job ~level:Current.Level.Mostly_harmless >>= fun () ->
   let { Key.docker_context; tag; arch } = key in
-  begin match auth with
-    | None -> Lwt.return (Ok ())
-    | Some (user, password) ->
-        let cmd = Cmd.login ~docker_context user in
-        Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
-  end >>!= (fun () ->
+  Auth.login ~docker_context ~job auth >>!= (fun () ->
   Prometheus.Gauge.inc_one Metrics.docker_pull_events;
   match arch with
   | None -> begin

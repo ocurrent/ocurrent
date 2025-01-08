@@ -8,7 +8,7 @@ module Default : S.DOCKER
 module Make (_ : S.HOST) : S.DOCKER
 (** The docker engine running on [Host]. *)
 
-val push_manifest : ?auth:(string * string) -> tag:string -> S.repo_id Current.t list -> S.repo_id Current.t
+val push_manifest : ?auth:(string * string) -> ?server:string -> tag:string -> S.repo_id Current.t list -> S.repo_id Current.t
 (** [push_manifest images ~tag] pushes a manifest containing [images] as [tag].
     @param auth If give, do a "docker login" using this username/password pair before pushing. *)
 
@@ -25,6 +25,7 @@ module Raw : sig
     docker_context:string option ->
     schedule:Current_cache.Schedule.t ->
     ?auth:(string * string) ->
+    ?server:string ->
     ?arch:string -> string -> Image.t Current.Primitive.t
 
   val peek :
@@ -67,7 +68,7 @@ module Raw : sig
 
   val push :
     docker_context:string option ->
-    ?auth:(string * string) -> tag:string -> Image.t -> S.repo_id Current.Primitive.t
+    ?auth:(string * string) -> ?server:string -> tag:string -> Image.t -> S.repo_id Current.Primitive.t
 
   val service :
     docker_context:string option ->
