@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-type auth = Push.auth
+open Auth
 
 type t = auth option
 
@@ -47,12 +47,7 @@ let publish auth job tag value =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   Current.Process.with_tmpdir ~prefix:"push-manifest" @@ fun config ->
   Bos.OS.File.write Fpath.(config / "config.json") {|{"experimental": "enabled"}|} |> or_fail;
-  begin match auth with
-    | None -> Lwt.return (Ok ())
-    | Some (user, password) ->
-      let cmd = Cmd.login ~config ~docker_context:None user in
-      Current.Process.exec ~cancellable:true ~job ~stdin:password cmd
-  end >>!= fun () ->
+  Auth.login ~docker_context:None ~job auth >>!= fun () ->
   Prometheus.Gauge.inc_one Metrics.docker_push_manifest_events;
   Current.Process.exec ~cancellable:true ~job (create_cmd ~config ~tag value) >>= (function
   | Error _ as e -> Lwt.return e
