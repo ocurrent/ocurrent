@@ -1,8 +1,19 @@
-### Unreleased
+### v0.6.7 (2025-01-24)
 
 Other:
 
-- Update for cohttp >= 6.0.0 (@mtelvers, #nnn)
+- Support cookies http only flag (@mattam82, #461)
+- Support passing a specific interface to listen to for the website (@mattam82, #460)
+- Update for cohttp >= 6.0.0 (@mtelvers, #459)
+- Remove myself from the list of authors (@hannesm, #458)
+- Current\_github: Allow `Current_git.Commit_id` to be created with an SSH URL (@zazedd, #457)
+- doc\(Current\_web.Role.t\): make comments visible in docs (@edwintorok, #456)
+- Raise and reraise exceptions with Stdlib rather than Lwt (@MisterDA, #455)
+- Add query entries for Github PR's: fork repository name and fork branch name (@zazedd, #453)
+- "docker login" now accepts server parameter (@mtelvers, #452)
+- Fix GitHub CheckRun InProgress status identifier (@zazedd, #447)
+- Update Dockerfile for newer depenancies (@mdales, #445)
+- Allow users to get serialised key of job (@patricoferris, #433)
 
 ### v0.6.6 (2024-02-05)
 
