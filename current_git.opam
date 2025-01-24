@@ -77,3 +77,4 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/ocurrent/ocurrent.git"
+x-maintenance-intent: ["(latest)"]
