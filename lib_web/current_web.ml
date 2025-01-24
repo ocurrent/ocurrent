@@ -70,17 +70,30 @@ let handle_request ~site _conn request body =
     | (`HEAD | `PUT | `OPTIONS | `CONNECT | `TRACE | `DELETE | `PATCH | `Other _) ->
       Utils.Server.respond_error ~status:`Bad_request ~body:"Bad method" ()
 
-let pp_mode f mode =
-  Sexplib.Sexp.pp_hum f (Conduit_lwt_unix.sexp_of_server mode)
 
-let default_mode = `TCP (`Port 8080)
+type t = 
+  { host : string option;
+    port : Conduit_lwt_unix.server }
+
+let pp_mode f { host; port } =
+  let modes = Conduit_lwt_unix.sexp_of_server port in
+  Sexplib.Sexp.pp_hum f (Sexplib0.Sexp.List [(match host with None -> Atom "*:" | Some host -> Atom (host ^ ":")); modes])
+
+let default_mode = { host = None; port = `TCP (`Port 8080) }
+
+let ctx_of_host host = 
+  match host with
+  | None -> Lwt.return None
+  | Some host ->
+   Lwt.bind (Conduit_lwt_unix.init ~src:host ()) 
+      (fun ctx -> Lwt.return (Some (Cohttp_lwt_unix.Net.init ~ctx ())))    
 
 let run ?(mode=default_mode) site =
   let callback = handle_request ~site in
   let config = Utils.Server.make ~callback () in
   Log.info (fun f -> f "Starting web server: %a" pp_mode mode);
   Lwt.try_bind
-    (fun () -> Utils.Server.create ~mode config)
+    (fun () -> Lwt.bind (ctx_of_host mode.host) (fun ctx -> Utils.Server.create ?ctx ~mode:mode.port config))
     (fun () -> Lwt.return @@ Error (`Msg "Web-server stopped!"))
     (function
       | Unix.Unix_error(Unix.EADDRINUSE, "bind", _) ->
@@ -90,6 +103,14 @@ let run ?(mode=default_mode) site =
 
 open Cmdliner
 
+let host =
+  Arg.value @@
+  Arg.(opt (some Arg.string) None) @@
+  Arg.info
+    ~doc:"The hostname on which to listen for incoming HTTP connections."
+    ~docv:"HOST"
+    ["host"]
+
 let port =
   Arg.value @@
   Arg.opt Arg.int 8080 @@
@@ -98,9 +119,9 @@ let port =
     ~docv:"PORT"
     ["port"]
 
-let make port = `TCP (`Port port)
+let make host port = { host; port = `TCP (`Port port) }
 
 let cmdliner =
-  Term.(const make $ port)
+  Term.(const make $ host $ port)
 
 module Resource = Resource
