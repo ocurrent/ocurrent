@@ -28,6 +28,7 @@ let headers t =
   Site.Sess.to_cookie_hdrs cookie_key t.session
     ~path:"/"
     ~secure:t.site.secure_cookies
+    ~http_only:t.site.http_only
   |> Cohttp.Header.of_list
 
 (* Just use the hash of the session key as the CSRF token.

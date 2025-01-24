@@ -46,6 +46,7 @@ module Site : sig
     ?name:string ->
     ?authn:(csrf:string -> Uri.t) ->
     ?secure_cookies:bool ->
+    ?http_only:bool ->
     ?refresh_pipeline:int ->
     has_role:(User.t option -> Role.t -> bool) ->
     raw_resource Routes.route list -> t
@@ -53,6 +54,7 @@ module Site : sig
       that uses [authn] to authenticate users and [has_role] to control what they can do.
       @param authn A link to a login page.
       @param secure_cookies Set secure cookie attribute (turn on if public site uses https).
+      @param http_only Set HttpOnly cookie attribute.
       @param refresh_pipeline Refresh the pipeline graphs and jobs page each
         [refresh_pipeline] seconds. Defaults to never.
    *)
