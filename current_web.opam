@@ -7,7 +7,7 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 This package provides a basic web UI for service administrators.
 It shows the current pipeline visually and allows viewing job
 logs and configuring the log analyser."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"
@@ -59,9 +59,9 @@ depends: [
   "fpath" {>= "0.7.3"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.7"}
-  "mirage-crypto" {>= "0.8.7"}
-  "mirage-crypto-rng" {>= "0.11.0"}
-  "mirage-crypto-rng-lwt" {>= "0.11.0"}
+  "mirage-crypto" {>= "0.8.7" & < "1.0.0"}
+  "mirage-crypto-rng" {>= "0.11.0" & < "1.0.0"}
+  "mirage-crypto-rng-lwt" {>= "0.11.0" & < "1.0.0"}
   "multipart_form-lwt" {>= "0.4.0"}
   "ppx_deriving" {>= "5.1"}
   "ppx_deriving_yojson" {>= "3.5.1"}

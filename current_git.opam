@@ -6,7 +6,7 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
 This package provides primitives for interacting with Git.
 It can pull from remote repositories, or monitor local ones for changes."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"
@@ -52,7 +52,7 @@ depends: [
   "irmin-watcher"
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.7"}
-  "mirage-crypto" {>= "0.8.0"}
+  "mirage-crypto" {>= "0.8.0" & < "1.0.0"}
   "ppx_deriving"
   "ppx_deriving_yojson" {>= "3.5.1"}
   "result" {>= "1.5"}

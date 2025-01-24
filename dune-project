@@ -6,7 +6,7 @@
 (using mdx 0.3)
 
 (source (github ocurrent/ocurrent))
-(maintainers "Tim McGilchrist <timmcgil@gmail.com>")
+(maintainers "Mark Elvers <mark.elvers@tunbury.org>")
 (authors
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"
@@ -93,7 +93,7 @@ It can pull from remote repositories, or monitor local ones for changes.")
   irmin-watcher
   (logs (>= 0.7.0))
   (lwt (>= 5.7))
-  (mirage-crypto (>= 0.8.0))
+  (mirage-crypto (and (>= 0.8.0) (< 1.0.0)))
   ppx_deriving
   (ppx_deriving_yojson (>= 3.5.1))
   (result (>= 1.5))
@@ -129,9 +129,9 @@ logs and configuring the log analyser.")
   (fpath (>= 0.7.3))
   (logs (>= 0.7.0))
   (lwt (>= 5.7))
-  (mirage-crypto (>= 0.8.7))
-  (mirage-crypto-rng (>= 0.11.0))
-  (mirage-crypto-rng-lwt (>= 0.11.0))
+  (mirage-crypto (and (>= 0.8.7) (< 1.0.0)))
+  (mirage-crypto-rng (and (>= 0.11.0) (< 1.0.0)))
+  (mirage-crypto-rng-lwt (and (>= 0.11.0) (< 1.0.0)))
   (multipart_form-lwt (>= 0.4.0))
   (ppx_deriving (>= 5.1))
   (ppx_deriving_yojson (>= 3.5.1))
@@ -200,8 +200,8 @@ PRs and branches.")
   (hex (>= 1.4.0))
   (logs (>= 0.7.0))
   (lwt (>= 5.7))
-  mirage-crypto
-  mirage-crypto-pk
+  (mirage-crypto (< 1.0.0))
+  (mirage-crypto-pk (< 1.0.0))
   (ppx_deriving_yojson (>= 3.6.1))
   (prometheus (>= 0.7))
   ptime

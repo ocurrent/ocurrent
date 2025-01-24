@@ -7,7 +7,7 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 This package provides some example pipelines.
 It exists mainly to test the integration of various OCurrent
 plugins."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"

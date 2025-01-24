@@ -8,7 +8,7 @@ This package provides primitives for interacting with GitHub.
 It can monitor and clone remote GitHub repositories, and can
 push GitHub status messages to show the results of testing
 PRs and branches."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"
@@ -58,8 +58,8 @@ depends: [
   "hex" {>= "1.4.0"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.7"}
-  "mirage-crypto"
-  "mirage-crypto-pk"
+  "mirage-crypto" {< "1.0.0"}
+  "mirage-crypto-pk" {< "1.0.0"}
   "ppx_deriving_yojson" {>= "3.6.1"}
   "prometheus" {>= "0.7"}
   "ptime"

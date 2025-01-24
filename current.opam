@@ -12,7 +12,7 @@ to Docker Hub).
 A pipeline is written much like you would write a one-shot sequential script,
 but OCurrent will automatically re-run steps when the inputs change, and will
 run steps in parallel where possible."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"

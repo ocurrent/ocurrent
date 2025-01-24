@@ -6,7 +6,7 @@ OCurrent provides an OCaml eDSL for writing CI/CD pipelines.
 
 This package provides primitives for interacting with Slack.
 It can post messages to slack channels."""
-maintainer: ["Tim McGilchrist <timmcgil@gmail.com>"]
+maintainer: ["Mark Elvers <mark.elvers@tunbury.org>"]
 authors: [
   "Thomas Leonard <talex5@gmail.com>"
   "Antonin Décimo <antonin@tarides.com>"
