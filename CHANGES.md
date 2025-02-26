@@ -1,4 +1,10 @@
-### v0.6.7 (2025-01-24)
+### v0.7.1 (2025-02-26)
+
+Other:
+
+- Fix regression in "docker login" when used by "docker push manifest" (@mtelvers, #462)
+
+### v0.7.0 (2025-01-24)
 
 Other:
 
