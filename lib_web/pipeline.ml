@@ -35,7 +35,10 @@ let r ~engine = object
   method! private get ctx =
     render_svg ctx (Current.Engine.pipeline engine) >>= function
     | Ok body ->
-      let headers = Cohttp.Header.init_with "Content-Type" "image/svg+xml" in
+      let headers =
+        Cohttp.Header.init_with "Content-Type" "image/svg+xml"
+        |> Utils.add_security_headers
+      in
       Utils.Server.respond_string ~status:`OK ~headers ~body ()
     | Error (`Msg msg) ->
       Context.respond_error ctx `Internal_server_error msg

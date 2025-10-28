@@ -252,7 +252,10 @@ let rules_csv = object
   val! can_get = `Admin
 
   method! private get _ctx =
-    let headers = Cohttp.Header.init_with "Content-Type" "text/csv; encoding=utf-8" in
+    let headers =
+      Cohttp.Header.init_with "Content-Type" "text/csv; encoding=utf-8"
+      |> Utils.add_security_headers
+    in
     let rules = LM.list_rules () in
     let csv =
       ["pattern"; "report"; "score"]

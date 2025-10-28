@@ -30,6 +30,7 @@ let headers t =
     ~secure:t.site.secure_cookies
     ~http_only:t.site.http_only
   |> Cohttp.Header.of_list
+  |> Utils.add_security_headers
 
 (* Just use the hash of the session key as the CSRF token.
    Perhaps we could use the key itself, but this seems slightly safer. *)

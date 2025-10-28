@@ -138,6 +138,7 @@ let job ~engine ~job_id = object
       let headers =
         (* Otherwise, an nginx reverse proxy will wait for the whole log before sending anything. *)
         Cohttp.Header.init_with "X-Accel-Buffering" "no"
+        |> Utils.add_security_headers
       in
       Utils.Server.respond ~status:`OK ~headers ~body ()
 end

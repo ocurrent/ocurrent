@@ -108,6 +108,7 @@ let static ~content_type ?(max_age=86400) body = object
           ("Content-Type", content_type);
           ("Cache-Control", Printf.sprintf "public, max-age=%d;" max_age);
         ]
+      |> Utils.add_security_headers
     in
     Utils.Server.respond_string ~status:`OK ~headers ~body ()
   end
@@ -130,6 +131,7 @@ let crunch ?content_type ?(max_age=86400) _ = object
             ("Content-Type", content_type);
             ("Cache-Control", Printf.sprintf "public, max-age=%d;" max_age);
           ]
+        |> Utils.add_security_headers
       in
       Utils.Server.respond_string ~status:`OK ~headers ~body ()
 end
