@@ -1,3 +1,9 @@
+### v0.7.2 (2025-10-29)
+
+Other:
+
+- Add Content-Security-Policy and X-Frame-Options (@mtelvers, #465)
+
 ### v0.7.1 (2025-02-26)
 
 Other:
