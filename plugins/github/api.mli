@@ -121,6 +121,9 @@ type token = {
 val get_token : t -> (string, [`Msg of string]) result Lwt.t
 (** [get_token t] returns the cached token for [t], or fetches a new one if it has expired. *)
 
+val get_cached_token : t -> string option
+(** [get_cached_token t] returns the cached token synchronously if available and not expired, or None. *)
+
 val rebuild_webhook : engine:Current.Engine.t
                       -> event:(Webhook_event.checks_api_event)
                       -> get_job_ids:(owner:string -> name:string -> hash:string -> string list)

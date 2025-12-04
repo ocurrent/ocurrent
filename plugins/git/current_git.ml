@@ -12,15 +12,21 @@ let ( >>!= ) x f =
   | Ok y -> f y
   | Error _ as e -> Lwt.return e
 
+let make_auth_env token =
+  let b64 = Base64.encode_string ("x-access-token:" ^ token) in
+  let header = Printf.sprintf "'http.extraHeader=Authorization: Basic %s'" b64 in
+  [| "GIT_CONFIG_PARAMETERS=" ^ header |]
+
 module Fetch = struct
-  type t = No_context
+  type t = { token : string option }
   module Key = Commit_id
   module Value = Commit
 
   let id = "git-fetch"
 
-  let build No_context job key =
+  let build { token } job key =
     let { Commit_id.repo = remote_repo; gref; hash = _ } = key in
+    let env = Option.map make_auth_env token in
     let level =
       if Commit_id.is_local key then Current.Level.Harmless
       else Current.Level.Mostly_harmless
@@ -31,14 +37,14 @@ module Fetch = struct
     (* Ensure we have a local clone of the repository. *)
     begin
       if Cmd.dir_exists local_repo then Lwt.return (Ok ())
-      else Cmd.git_clone ~cancellable:true ~job ~src:remote_repo local_repo
+      else Cmd.git_clone ~cancellable:true ~job ?env ~src:remote_repo local_repo
     end >>!= fun () ->
     let commit = { Commit.repo = local_repo; id = key } in
     (* Fetch the commit (if missing). *)
     begin
       Commit.check_cached ~cancellable:false ~job commit >>= function
       | Ok () -> Lwt.return (Ok ())
-      | Error _ -> Cmd.git_fetch ~cancellable:true ~job ~recurse_submodules:false ~src:remote_repo ~dst:local_repo gref
+      | Error _ -> Cmd.git_fetch ~cancellable:true ~job ?env ~recurse_submodules:false ~src:remote_repo ~dst:local_repo gref
     end >>!= fun () ->
     (* Check we got the commit we wanted. *)
     Commit.check_cached ~cancellable:false ~job commit >>!= fun () ->
@@ -66,10 +72,10 @@ end
 
 module Fetch_cache = Current_cache.Make(Fetch)
 
-let fetch cid =
+let fetch ?token cid =
   Current.component "fetch" |>
   let> cid = cid in
-  Fetch_cache.get Fetch.No_context cid
+  Fetch_cache.get { Fetch.token } cid
 
 module Clone_cache = Current_cache.Make(Clone)
 
