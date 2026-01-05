@@ -44,7 +44,9 @@ end
 val clone : schedule:Current_cache.Schedule.t -> ?gref:string -> string -> Commit.t Current.t
 (** [clone ~schedule ~gref uri] evaluates to the head commit of [uri]'s [gref] branch (default: "master"). *)
 
-val fetch : Commit_id.t Current.t -> Commit.t Current.t
+val fetch : ?token:string -> Commit_id.t Current.t -> Commit.t Current.t
+(** [fetch ?token cid] fetches the commit [cid].
+    @param token Optional authentication token for private repositories. *)
 
 val with_checkout :
   ?pool:unit Current.Pool.t ->

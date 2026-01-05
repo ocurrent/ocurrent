@@ -402,6 +402,13 @@ let of_oauth ~token ~webhook_secret =
   let get_token () = Lwt.return { token = Ok token; expiry = None} in
   v ~get_token ~account:"oauth" ~webhook_secret ()
 
+let get_cached_token t =
+  let now = Unix.gettimeofday () in
+  match t.token with
+  | { token = Ok token; expiry = None } -> Some token
+  | { token = Ok token; expiry = Some expiry } when now < expiry -> Some token
+  | _ -> None
+
 let get_token t =
   Lwt_mutex.with_lock t.token_lock @@ fun () ->
   let now = Unix.gettimeofday () in
@@ -664,7 +671,10 @@ module Refs = Monitor(struct
     let pr = node / "number" |> to_int in
     let title = node / "title" |> to_string in
     let branch_name = node / "headRefName" |> to_string in
-    let fork = node / "headRepository" / "nameWithOwner" |> to_string in
+    let fork = match node / "headRepository" with
+      | `Null -> ""
+      | hr -> hr / "nameWithOwner" |> to_string
+    in
     let labels = node / "labels" / "nodes" |> to_list |> List.map (fun label -> label / "name" |> to_string) in
     let bodyHTML = node / "bodyHTML" |> to_string in
     let nodes = node / "commits" / "nodes" |> to_list in

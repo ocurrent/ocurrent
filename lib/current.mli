@@ -369,6 +369,7 @@ module Process : sig
     ?cwd:Fpath.t -> ?stdin:string ->
     ?pp_cmd:(Format.formatter -> Lwt_process.command -> unit) ->
     ?pp_error_command:(Format.formatter -> unit) ->
+    ?env:string array ->
     cancellable:bool ->
     job:Job.t -> Lwt_process.command ->
     unit or_error Lwt.t
@@ -378,7 +379,8 @@ module Process : sig
       @param stdin Data to write to stdin before closing it.
       @param pp_cmd Format the command for the job's log and error message.
       @param pp_error_command Format the command for an error message.
-        The default is to print "Command $cmd". *)
+        The default is to print "Command $cmd".
+      @param env Environment variables for the process. *)
 
   val check_output :
     ?cwd:Fpath.t -> ?stdin:string ->

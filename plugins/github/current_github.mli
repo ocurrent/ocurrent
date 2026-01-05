@@ -47,6 +47,9 @@ module Api : sig
   val webhook_secret : t -> string
   (** Webhook secret to validate payloads from GitHub *)
 
+  val get_cached_token : t -> string option
+  (** Get the cached access token synchronously, if available and not expired. Returns None if no valid token is cached. *)
+
   type refs
   (** Reference information for the repository *)
 

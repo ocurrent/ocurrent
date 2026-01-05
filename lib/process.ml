@@ -133,12 +133,12 @@ let add_shutdown_hooks ~cancellable ~job ~cmd proc =
       )
   )
 
-let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ~cancellable ~job cmd =
+let exec ?cwd ?(stdin="") ?(pp_cmd = pp_cmd) ?pp_error_command ?env ~cancellable ~job cmd =
   let cwd = Option.map Fpath.to_string cwd in
   let pp_error_command = Option.value pp_error_command ~default:(pp_command pp_cmd cmd) in
   Log.info (fun f -> f "Exec: @[%a@]" pp_cmd cmd);
   Job.log job "Exec: @[%a@]" pp_cmd cmd;
-  let proc = Lwt_process.open_process ?cwd ~stderr:(`FD_copy Unix.stdout) cmd in
+  let proc = Lwt_process.open_process ?cwd ?env ~stderr:(`FD_copy Unix.stdout) cmd in
   let copy_thread = copy_to_log ~job proc#stdout in
   add_shutdown_hooks ~cancellable ~job ~cmd proc >>= fun () ->
   send_to proc#stdin stdin >>= fun stdin_result ->

@@ -35,7 +35,7 @@ let local_copy repo =
   let repos_dir = Current.state_dir "git" in
   Fpath.append repos_dir (Fpath.v (id_of_repo repo))
 
-let git ~cancellable ~job ?cwd ?config args =
+let git ~cancellable ~job ?cwd ?env ?config args =
   let args =
     match cwd with
     | None -> args
@@ -48,25 +48,25 @@ let git ~cancellable ~job ?cwd ?config args =
           |> List.flatten
   in
   let cmd = Array.of_list ("git" :: config @ args) in
-  Current.Process.exec ~cancellable ~job ("", cmd)
+  Current.Process.exec ~cancellable ?env ~job ("", cmd)
 
 (*  This command manipulates paths. It requires [protocol.file.allow=always] to
     be set to make sure we can update the submodules.
 
     Cf: https://git-scm.com/docs/git-config#Documentation/git-config.txt-protocolallow *)
-let git_clone ~cancellable ~job ~src dst =
+let git_clone ~cancellable ~job ?env ~src dst =
     Prometheus.Counter.inc_one (Metrics.download_events "clone");
     let config = [ "protocol.file.allow=always" ] in
-    git ~config ~cancellable ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
+    git ~config ~cancellable ?env ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
 
-let git_fetch ?recurse_submodules ~cancellable ~job ~src ~dst gref =
+let git_fetch ?recurse_submodules ~cancellable ~job ?env ~src ~dst gref =
   Prometheus.Counter.inc_one (Metrics.download_events "fetch");
   let flags =
     match recurse_submodules with
     | None -> []
     | Some x -> ["--recurse-submodules=" ^ string_of_bool x]
   in
-  git ~cancellable ~job ~cwd:dst ("fetch" :: flags @ ["-q"; "-f"; src; gref])
+  git ~cancellable ?env ~job ~cwd:dst ("fetch" :: flags @ ["-q"; "-f"; src; gref])
 
 let git_reset_hard ~job ~repo hash =
   git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
