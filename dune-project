@@ -85,6 +85,7 @@ It can pull from remote repositories, or monitor local ones for changes.")
   (current (= :version))
   (ocaml (>= 4.12.0))
   (astring (>= 0.8.5))
+  base64
   (bos (>= 0.2.0))
   conf-git
   (cstruct (>= 6.0.0))
