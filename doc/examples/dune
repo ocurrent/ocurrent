@@ -11,6 +11,7 @@
   github_app
   rpc_server
   rpc_client
+  rpc_demo
   confirmation
   ssh_command)
  (package current_examples)
