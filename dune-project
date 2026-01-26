@@ -254,13 +254,16 @@ This package provides a Cap'n Proto RPC interface, allowing
 an OCurrent engine to be controlled remotely.")
  (depends
   (ocaml (>= 4.12.0))
+  (current (= :version))
   (capnp (>= 3.4.0))
   (capnp-rpc (>= 1.2.3))
   (capnp-rpc-lwt (>= 1.2.3))
+  (capnp-rpc-unix (>= 1.2.3))
   (fmt (>= 0.8.9))
   fpath
   (logs (>= 0.7.0))
   (lwt (>= 5.7))
+  (prometheus-app (>= 1.2))
   (result (>= 1.5))
   (stdint (>= 0.7.0)))
  (conflicts
