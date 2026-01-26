@@ -1,0 +1,13 @@
+(executable
+ (name ocurrent_ctl)
+ (public_name ocurrent-ctl)
+ (package current_rpc)
+ (libraries
+  capnp-rpc-lwt
+  capnp-rpc-unix
+  cmdliner
+  current_rpc
+  fmt
+  lwt
+  lwt.unix
+  prometheus-app.unix))

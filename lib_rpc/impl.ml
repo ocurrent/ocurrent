@@ -14,8 +14,29 @@ let read ~start path =
   let len = min max_log_chunk_size (len - start) in
   really_input_string ch (Int64.to_int len), start + len
 
-module Make (Current : S.CURRENT) = struct
+(** Functor that takes both Current and Db modules.
+    Used internally and for testing with mock databases. *)
+module Make_with_db (Current : S.CURRENT) (Db : S.DB) = struct
   open Capnp_rpc_lwt
+
+  (* Helper functions for level conversion *)
+  let level_to_capnp level =
+    let s = Current.Level.to_string level in
+    match s with
+    | "harmless" -> Api.Builder.ConfirmLevel.Harmless
+    | "mostly-harmless" -> Api.Builder.ConfirmLevel.MostlyHarmless
+    | "average" -> Api.Builder.ConfirmLevel.Average
+    | "above-average" -> Api.Builder.ConfirmLevel.AboveAverage
+    | "dangerous" -> Api.Builder.ConfirmLevel.Dangerous
+    | _ -> Api.Builder.ConfirmLevel.Harmless  (* fallback *)
+
+  let capnp_to_level = function
+    | Api.Reader.ConfirmLevel.Harmless -> Current.Level.of_string "harmless"
+    | Api.Reader.ConfirmLevel.MostlyHarmless -> Current.Level.of_string "mostly-harmless"
+    | Api.Reader.ConfirmLevel.Average -> Current.Level.of_string "average"
+    | Api.Reader.ConfirmLevel.AboveAverage -> Current.Level.of_string "above-average"
+    | Api.Reader.ConfirmLevel.Dangerous -> Current.Level.of_string "dangerous"
+    | Api.Reader.ConfirmLevel.Undefined _ -> Error (`Msg "undefined level")
 
   module Job = struct
     let job_cache = ref Current.Job.Map.empty
@@ -46,7 +67,7 @@ module Make (Current : S.CURRENT) = struct
         let cap =
           let lookup () =
             let state = Current.Engine.state engine in
-            Current.Job.Map.find_opt job_id (Current.Engine.jobs state)
+            Current.Job.Map.find_opt job_id (state.jobs)
           in
           Job.local @@ object
             inherit Job.service
@@ -144,13 +165,15 @@ module Make (Current : S.CURRENT) = struct
     Engine.local @@ object
       inherit Engine.service
 
+      (* Existing methods *)
+
       method active_jobs_impl _params release_param_caps =
         let open Engine.ActiveJobs in
         release_param_caps ();
         Log.info (fun f -> f "activeJobs");
         let response, results = Service.Response.create Results.init_pointer in
         let state = Current.Engine.state engine in
-        Current.Job.Map.bindings (Current.Engine.jobs state)
+        Current.Job.Map.bindings (state.jobs)
         |> List.map fst |> Results.ids_set_list results |> ignore;
         Service.return response
 
@@ -166,5 +189,163 @@ module Make (Current : S.CURRENT) = struct
           Results.job_set results (Some job);
           Capability.dec_ref job;
           Service.return response
+
+      (* Database query methods - fully implemented with Db module *)
+
+      method query_impl params release_param_caps =
+        let open Engine.Query in
+        release_param_caps ();
+        Log.info (fun f -> f "query");
+        let p = Params.params_get params in
+        let op = match Api.Reader.QueryParams.op_get p with "" -> None | s -> Some s in
+        let ok = match Api.Reader.OptBool.get (Api.Reader.QueryParams.ok_get p) with
+          | Api.Reader.OptBool.Unset -> None
+          | Api.Reader.OptBool.Value v -> Some v
+          | Api.Reader.OptBool.Undefined _ -> None
+        in
+        let rebuild = match Api.Reader.OptBool.get (Api.Reader.QueryParams.rebuild_get p) with
+          | Api.Reader.OptBool.Unset -> None
+          | Api.Reader.OptBool.Value v -> Some v
+          | Api.Reader.OptBool.Undefined _ -> None
+        in
+        let job_prefix = match Api.Reader.QueryParams.job_prefix_get p with "" -> None | s -> Some s in
+        let entries = Db.query ?op ?ok ?rebuild ?job_prefix () in
+        let response, results = Service.Response.create Results.init_pointer in
+        let arr = Results.entries_init results (List.length entries) in
+        entries |> List.iteri (fun i (entry : Db.entry) ->
+          let e = Capnp.Array.get arr i in
+          Api.Builder.JobHistoryEntry.job_id_set e entry.job_id;
+          Api.Builder.JobHistoryEntry.build_set e entry.build;
+          Api.Builder.JobHistoryEntry.ready_set e entry.ready;
+          Api.Builder.JobHistoryEntry.running_set e (Option.value entry.running ~default:0.0);
+          Api.Builder.JobHistoryEntry.finished_set e entry.finished;
+          Api.Builder.JobHistoryEntry.rebuild_set e entry.rebuild;
+          let outcome = Api.Builder.JobHistoryEntry.outcome_init e in
+          match entry.outcome with
+          | Ok value -> Api.Builder.Outcome.success_set outcome value
+          | Error (`Msg msg) -> Api.Builder.Outcome.failure_set outcome msg
+        );
+        Service.return response
+
+      method ops_impl _params release_param_caps =
+        let open Engine.Ops in
+        release_param_caps ();
+        Log.info (fun f -> f "ops");
+        let response, results = Service.Response.create Results.init_pointer in
+        Db.ops () |> Results.ops_set_list results |> ignore;
+        Service.return response
+
+      (* Pipeline overview methods *)
+
+      method pipeline_stats_impl _params release_param_caps =
+        let open Engine.PipelineStats in
+        release_param_caps ();
+        Log.info (fun f -> f "pipelineStats");
+        let pipeline = Current.Engine.pipeline engine in
+        (* Analysis.stat returns a stats record which we convert to capnp *)
+        let stats = Current.Analysis.stat pipeline in
+        let response, results = Service.Response.create Results.init_pointer in
+        let s = Results.stats_init results in
+        Api.Builder.PipelineStats.ok_set_int_exn s stats.ok;
+        Api.Builder.PipelineStats.waiting_for_confirmation_set_int_exn s stats.waiting_for_confirmation;
+        Api.Builder.PipelineStats.ready_set_int_exn s stats.ready;
+        Api.Builder.PipelineStats.running_set_int_exn s stats.running;
+        Api.Builder.PipelineStats.failed_set_int_exn s stats.failed;
+        Api.Builder.PipelineStats.blocked_set_int_exn s stats.blocked;
+        Service.return response
+
+      method pipeline_state_impl _params release_param_caps =
+        let open Engine.PipelineState in
+        release_param_caps ();
+        Log.info (fun f -> f "pipelineState");
+        let state = Current.Engine.state engine in
+        let response, results = Service.Response.create Results.init_pointer in
+        let s = Results.state_init results in
+        (match state.value with
+         | Ok () -> Api.Builder.PipelineState.success_set s
+         | Error (`Msg msg) -> Api.Builder.PipelineState.failed_set s msg
+         | Error (`Active `Ready) ->
+           Api.Builder.PipelineState.active_set s Api.Builder.ActiveState.Ready
+         | Error (`Active `Running) ->
+           Api.Builder.PipelineState.active_set s Api.Builder.ActiveState.Running
+         | Error (`Active `Waiting_for_confirmation) ->
+           Api.Builder.PipelineState.active_set s Api.Builder.ActiveState.WaitingForConfirmation
+        );
+        Service.return response
+
+      method pipeline_dot_impl _params release_param_caps =
+        let open Engine.PipelineDot in
+        release_param_caps ();
+        Log.info (fun f -> f "pipelineDot");
+        let pipeline = Current.Engine.pipeline engine in
+        let collapse_link ~k:_ ~v:_ = None in
+        let job_info (meta : Current.Metadata.t) =
+          let url = meta.job_id |> Option.map (fun id -> Printf.sprintf "/job/%s" id) in
+          meta.update, url
+        in
+        let dot = Fmt.to_to_string
+          (Current.Analysis.pp_dot ~env:[] ~collapse_link ~job_info) pipeline in
+        let response, results = Service.Response.create Results.init_pointer in
+        Results.dot_set results dot;
+        Service.return response
+
+      method get_confirm_level_impl _params release_param_caps =
+        let open Engine.GetConfirmLevel in
+        release_param_caps ();
+        Log.info (fun f -> f "getConfirmLevel");
+        let config = Current.Engine.config engine in
+        let response, results = Service.Response.create Results.init_pointer in
+        (match Current.Config.get_confirm config with
+         | None -> Results.is_set_set results false
+         | Some level ->
+           Results.is_set_set results true;
+           Results.level_set results (level_to_capnp level)
+        );
+        Service.return response
+
+      method set_confirm_level_impl params release_param_caps =
+        let open Engine.SetConfirmLevel in
+        release_param_caps ();
+        let unset = Params.unset_get params in
+        Log.info (fun f -> f "setConfirmLevel(unset=%b)" unset);
+        let config = Current.Engine.config engine in
+        if unset then begin
+          Current.Config.set_confirm config None;
+          Service.return_empty ()
+        end else begin
+          let level_capnp = Params.level_get params in
+          match capnp_to_level level_capnp with
+          | Error (`Msg msg) -> Service.fail "Invalid confirmation level: %s" msg
+          | Ok level ->
+            Current.Config.set_confirm config (Some level);
+            Service.return_empty ()
+        end
+
+      method rebuild_all_impl params release_param_caps =
+        let open Engine.RebuildAll in
+        release_param_caps ();
+        let job_ids = Params.job_ids_get_list params in
+        Log.info (fun f -> f "rebuildAll(%d jobs)" (List.length job_ids));
+        let state = Current.Engine.state engine in
+        let jobs = state.jobs in
+        let succeeded, failed =
+          job_ids |> List.partition_map (fun job_id ->
+            match Current.Job.Map.find_opt job_id jobs with
+            | None -> Right job_id
+            | Some actions ->
+              match actions#rebuild with
+              | None -> Right job_id
+              | Some rebuild ->
+                let _new_id : string = rebuild () in
+                Left job_id
+          )
+        in
+        let response, results = Service.Response.create Results.init_pointer in
+        succeeded |> Results.succeeded_set_list results |> ignore;
+        failed |> Results.failed_set_list results |> ignore;
+        Service.return response
     end
 end
+
+(** Main functor that uses Current_cache.Db for job history queries. *)
+module Make (Current : S.CURRENT) = Make_with_db(Current)(Current_cache.Db)
