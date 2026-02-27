@@ -30,8 +30,8 @@ let get_digest_from_manifest manifest arch =
     try
       json |> member "manifests" |> to_list |>
       List.find (fun j -> member "platform" j |> fun j ->
-                          (member "architecture" j |> to_string = arch) &&
-                          (member "os" j |> to_string = "linux")) |>
+                          (member "architecture" j |> to_string = arch)
+                          ) |>
       member "digest" |> fun digest -> Ok (to_string digest)
     with ex ->
       Fmt.error_msg "Failed to find arch %S in manifest (%a):@,%a"
