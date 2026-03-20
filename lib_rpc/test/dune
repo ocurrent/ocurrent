@@ -1,0 +1,22 @@
+(executable
+ (name test_rpc)
+ (libraries
+  alcotest
+  alcotest-lwt
+  astring
+  bos
+  capnp-rpc-lwt
+  current_rpc
+  current_term
+  fmt
+  fpath
+  logs
+  logs.fmt
+  lwt
+  lwt.unix))
+
+(rule
+ (alias runtest)
+ (package current_rpc)
+ (action
+  (run ./test_rpc.exe)))
