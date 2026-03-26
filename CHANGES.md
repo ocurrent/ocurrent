@@ -1,3 +1,19 @@
+### v0.7.4 (2026-03-26)
+
+Other:
+
+- Add base64 dependency to current\_git (@mtelvers, #467)
+- Add lower bound for base64 >= 3.1.0 (@mtelvers, #468)
+- Add unified RPC client module with cmdliner integration (@mtelvers, #469)
+
+### v0.7.3 (2026-01-05)
+
+Other:
+
+- Add support for private repos (@mtelvers, #466)
+- Handle PRs from deleted forks by defaulting to an empty string (@mtelvers, #466)
+- Remove security headers from SVG responses (@mtelvers, #466)
+
 ### v0.7.2 (2025-10-29)
 
 Other:
