@@ -265,7 +265,9 @@ an OCurrent engine to be controlled remotely.")
   (lwt (>= 5.7))
   (prometheus-app (>= 1.2))
   (result (>= 1.5))
-  (stdint (>= 0.7.0)))
+  (stdint (>= 0.7.0))
+  (alcotest :with-test)
+  (alcotest-lwt :with-test))
  (conflicts
   (x509 (= 0.11.0))))
 

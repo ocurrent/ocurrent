@@ -54,6 +54,8 @@ depends: [
   "prometheus-app" {>= "1.2"}
   "result" {>= "1.5"}
   "stdint" {>= "0.7.0"}
+  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
   "odoc" {with-doc}
 ]
 conflicts: [
