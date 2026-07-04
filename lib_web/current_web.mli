@@ -23,6 +23,10 @@ module Role : sig
   val pp : t Fmt.t
 end
 
+module Challenge : module type of Challenge
+(** A proof-of-work browser challenge that can be attached to a {!Site} to keep
+    JavaScript-less crawlers off the HTML pages. See {!Challenge}. *)
+
 module Site : sig
   type t
   (** Site configuration settings. *)
@@ -48,6 +52,7 @@ module Site : sig
     ?secure_cookies:bool ->
     ?http_only:bool ->
     ?refresh_pipeline:int ->
+    ?challenge:Challenge.t ->
     has_role:(User.t option -> Role.t -> bool) ->
     raw_resource Routes.route list -> t
   (** [v ~name ~authn ~has_role routes] is a site named [name] (used for the HTML title, etc)
@@ -57,6 +62,8 @@ module Site : sig
       @param http_only Set HttpOnly cookie attribute.
       @param refresh_pipeline Refresh the pipeline graphs and jobs page each
         [refresh_pipeline] seconds. Defaults to never.
+      @param challenge Require browsers to solve a proof-of-work challenge before
+        serving HTML pages (keeps non-JavaScript crawlers out). Defaults to off.
    *)
 end
 

@@ -17,6 +17,7 @@
   cohttp-lwt-unix
   conduit-lwt-unix
   cstruct
+  digestif
   current
   current.cache
   current.term
@@ -27,7 +28,6 @@
   logs
   lwt
   lwt.unix
-  mirage-crypto
   mirage-crypto-rng
   mirage-crypto-rng.unix
   multipart_form-lwt

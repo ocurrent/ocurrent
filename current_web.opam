@@ -55,11 +55,11 @@ depends: [
   "conf-graphviz"
   "cstruct" {>= "5.2.0"}
   "csv" {>= "2.4"}
+  "digestif" {>= "1.0.0"}
   "fmt" {>= "0.8.9"}
   "fpath" {>= "0.7.3"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.7"}
-  "mirage-crypto" {>= "0.8.7" & < "1.0.0"}
   "mirage-crypto-rng" {>= "0.11.0" & < "1.0.0"}
   "mirage-crypto-rng-lwt" {>= "0.11.0" & < "1.0.0"}
   "multipart_form-lwt" {>= "0.4.0"}

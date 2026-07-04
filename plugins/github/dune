@@ -11,6 +11,7 @@
   current.term
   current_git
   current_web
+  digestif
   github-unix
   duration
   ptime
@@ -18,9 +19,7 @@
   logs
   lwt
   lwt.unix
-  mirage-crypto
   mirage-crypto-pk
-  hex
   prometheus
   result
   rresult

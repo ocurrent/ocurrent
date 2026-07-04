@@ -20,8 +20,8 @@ end
 
 let validate_webhook_payload webhook_secret body headers event =
   let request_signature = Option.value ~default:"<empty>" (Cohttp.Header.get headers "X-Hub-Signature-256") in
-  let signature = "sha256=" ^ Hex.show @@ Hex.of_cstruct @@
-    Mirage_crypto.Hash.SHA256.(hmac ~key:(Cstruct.of_string webhook_secret) (Cstruct.of_string body)) in
+  let signature = "sha256=" ^
+    Digestif.SHA256.(hmac_string ~key:webhook_secret body |> to_hex) in
   if Eqaf.equal signature request_signature then
     Ok ()
   else

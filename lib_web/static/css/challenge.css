@@ -1,0 +1,18 @@
+body, html {
+  height: 100%;
+  margin: 0;
+}
+
+.challenge {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: system-ui, sans-serif;
+}
+
+.challenge #status {
+  font-variant-numeric: tabular-nums;
+  color: #555;
+}

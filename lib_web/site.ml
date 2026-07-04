@@ -19,13 +19,14 @@ type t = {
   router : t raw Routes.router;
   nav_links : (string * string) list;   (* Label, path *)
   refresh_pipeline : int option;
+  challenge : Challenge.t option;
 }
 
 class type raw_resource = [t] raw
 
 let allow_all _ _ = true
 
-let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ?(http_only=false) ?refresh_pipeline ~has_role routes =
+let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ?(http_only=false) ?refresh_pipeline ?challenge ~has_role routes =
   let db = Lazy.force Current.Db.v in
   let router = Routes.one_of routes in
   let nav_links = routes |> List.filter_map (fun route ->
@@ -41,4 +42,4 @@ let v ?(name="OCurrent") ?authn ?(secure_cookies=false) ?(http_only=false) ?refr
       )
     ) in
   { name; authn; has_role; secure_cookies; http_only; session_backend = Sqlite_session.create db;
-    router; nav_links; refresh_pipeline }
+    router; nav_links; refresh_pipeline; challenge }

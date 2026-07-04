@@ -4,17 +4,16 @@
   astring
   base64
   bos
-  cstruct
   current
   current.cache
   current.term
+  digestif
   fmt
   fpath
   irmin-watcher
   logs
   lwt
   lwt.unix
-  mirage-crypto
   ppx_deriving_yojson
   result)
  (preprocess

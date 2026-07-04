@@ -4,6 +4,7 @@ module User = User
 module Role = Role
 module Site = Site
 module Context = Context
+module Challenge = Challenge
 
 let metrics ~engine = object
   inherit Resource.t
@@ -59,11 +60,7 @@ let routes engine =
     s "img" / str /? nil @--> Resource.crunch;
   ] @ Job.routes ~engine
 
-let handle_request ~site _conn request body =
-  let meth = Cohttp.Request.meth request in
-  let uri = Cohttp.Request.uri request in
-  let path = Uri.path uri |> Uri.pct_decode in
-  Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
+let dispatch ~site request body ~meth ~path =
   match Routes.match' site.Site.router ~target:path with
   | Routes.NoMatch -> Utils.Server.respond_not_found ()
   | (FullMatch resource) | (MatchWithTrailingSlash resource) ->
@@ -72,6 +69,18 @@ let handle_request ~site _conn request body =
     | `POST -> resource#post_raw site request body
     | (`HEAD | `PUT | `OPTIONS | `CONNECT | `TRACE | `DELETE | `PATCH | `Other _) ->
       Utils.Server.respond_error ~status:`Bad_request ~body:"Bad method" ()
+
+let handle_request ~site _conn request body =
+  let meth = Cohttp.Request.meth request in
+  let uri = Cohttp.Request.uri request in
+  let path = Uri.path uri |> Uri.pct_decode in
+  Log.info (fun f -> f "HTTP %s %S" (Cohttp.Code.string_of_method meth) path);
+  match site.Site.challenge with
+  | Some challenge -> (
+      match Challenge.handle challenge ~secure:site.Site.secure_cookies request ~path ~meth with
+      | `Response r -> r
+      | `Pass -> dispatch ~site request body ~meth ~path)
+  | None -> dispatch ~site request body ~meth ~path
 
 
 type t = 

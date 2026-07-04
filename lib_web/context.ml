@@ -35,10 +35,8 @@ let headers t =
 (* Just use the hash of the session key as the CSRF token.
    Perhaps we could use the key itself, but this seems slightly safer. *)
 let csrf t =
-  t.session.key
-  |> Cstruct.of_string
-  |> Mirage_crypto.Hash.SHA256.digest
-  |> Cstruct.to_string
+  Digestif.SHA256.digest_string t.session.key
+  |> Digestif.SHA256.to_raw_string
   |> Base64.(encode_exn ~alphabet:uri_safe_alphabet)
 
 let has_role t role =

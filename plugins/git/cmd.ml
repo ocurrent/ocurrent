@@ -19,15 +19,11 @@ let dir_exists d =
 let hexchars = "0123456789abcdef"
 
 let pp_hex f d =
-  for x = 0 to Cstruct.length d - 1 do
-    let byte = Cstruct.get_uint8 d x in
-    Fmt.pf f "%02x" byte
-  done
+  String.iter (fun c -> Fmt.pf f "%02x" (Char.code c)) d
 
 let id_of_repo repo =
-  let module Hash = Mirage_crypto.Hash.SHA256 in
   let base = Filename.basename repo in
-  let digest = Hash.digest (Cstruct.of_string repo) in
+  let digest = Digestif.SHA256.(digest_string repo |> to_raw_string) in
   Fmt.str "%s-%a" base pp_hex digest
 
 (* .../var/git/myrepo-hhh *)
