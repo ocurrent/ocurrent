@@ -61,7 +61,7 @@ depends: [
   "mirage-crypto" {< "1.0.0"}
   "mirage-crypto-pk" {< "1.0.0"}
   "ppx_deriving_yojson" {>= "3.6.1"}
-  "prometheus" {>= "0.7"}
+  "prometheus" {>= "1.4" & < "2.0"}
   "ptime"
   "result" {>= "1.5"}
   "rresult" {>= "0.6.0"}

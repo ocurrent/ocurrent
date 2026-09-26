@@ -12,7 +12,7 @@ let metrics ~engine = object
 
   method! private get _ctx =
     Current.Engine.(update_metrics engine);
-    Prometheus.CollectorRegistry.(collect default) >>= fun data ->
+    Prometheus.CollectorRegistry.(collect_lwt default) >>= fun data ->
     let body = Fmt.to_to_string Prometheus_app.TextFormat_0_0_4.output data in
     let headers =
       Cohttp.Header.init_with "Content-Type" "text/plain; version=0.0.4"
