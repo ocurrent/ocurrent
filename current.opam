@@ -60,13 +60,13 @@ depends: [
   "lwt" {>= "5.7"}
   "lwt-dllist"
   "ppx_deriving"
-  "prometheus" {>= "1.4" & < "2.0"}
+  "prometheus" {>= "2.0"}
   "re" {>= "1.9.0"}
   "result" {>= "1.5"}
   "sqlite3"
   "alcotest" {with-test & >= "1.2.0"}
   "alcotest-lwt" {with-test & >= "1.2.0"}
-  "prometheus-app" {with-test & >= "1.4" & < "2.0"}
+  "prometheus-app" {with-test & >= "2.0"}
   "odoc" {with-doc}
 ]
 build: [

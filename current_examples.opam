@@ -64,8 +64,8 @@ depends: [
   "lwt" {>= "5.7"}
   "ppx_deriving" {>= "5.1"}
   "ppx_deriving_yojson" {>= "3.6.1"}
-  "prometheus" {>= "1.4" & < "2.0"}
-  "prometheus-app" {>= "1.4" & < "2.0"}
+  "prometheus" {>= "2.0"}
+  "prometheus-app" {>= "2.0"}
   "result" {>= "1.5"}
   "routes" {>= "2.0.0"}
   "uri" {>= "4.0.0"}
