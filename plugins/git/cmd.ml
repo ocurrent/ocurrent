@@ -57,7 +57,7 @@ let git ~cancellable ~job ?cwd ?env ?config args =
 let git_clone ~cancellable ~job ?env ~src dst =
     Prometheus.Counter.inc_one (Metrics.download_events "clone");
     let config = [ "protocol.file.allow=always" ] in
-    git ~config ~cancellable ?env ~job ["clone"; "--recursive"; "-q"; src; Fpath.to_string dst]
+    git ~config ~cancellable ?env ~job ["clone"; "--recursive"; "-q"; "--"; src; Fpath.to_string dst]
 
 let git_fetch ?recurse_submodules ~cancellable ~job ?env ~src ~dst gref =
   Prometheus.Counter.inc_one (Metrics.download_events "fetch");
@@ -66,7 +66,7 @@ let git_fetch ?recurse_submodules ~cancellable ~job ?env ~src ~dst gref =
     | None -> []
     | Some x -> ["--recurse-submodules=" ^ string_of_bool x]
   in
-  git ~cancellable ?env ~job ~cwd:dst ("fetch" :: flags @ ["-q"; "-f"; src; gref])
+  git ~cancellable ?env ~job ~cwd:dst ("fetch" :: flags @ ["-q"; "-f"; "--"; src; gref])
 
 let git_reset_hard ~job ~repo hash =
   git ~cancellable:false ~job ~cwd:repo ["reset"; "--hard"; "-q"; hash]
