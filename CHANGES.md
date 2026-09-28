@@ -1,3 +1,10 @@
+### v0.7.6 (2026-09-28)
+
+Other:
+
+- Require prometheus >= 2.0 and use its synchronous `CollectorRegistry.collect` (@mtelvers, #478, #479)
+- Pass `--` to `git clone` and `git fetch` so the repository or ref is never treated as an option (@mtelvers, #477)
+
 ### v0.7.5 (2026-06-17)
 
 Other:
